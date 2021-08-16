@@ -1,0 +1,29 @@
+{
+  "name": "fastcp",
+  "version": "1.0.0",
+  "description": "",
+  "main": "webpack.mix.js",
+  "scripts": {
+    "development": "mix",
+    "watch": "mix watch",
+    "watch-poll": "mix watch -- --watch-options-poll=1000",
+    "hot": "mix watch --hot",
+    "production": "mix --production"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "laravel-mix": "^6.0.27",
+    "vue-loader": "^15.9.8",
+    "vue-template-compiler": "^2.6.14"
+  },
+  "dependencies": {
+    "axios": "^0.21.1",
+    "vue": "^2.6.14",
+    "vue-loading-overlay": "^3.0.3",
+    "vue-router": "^3.5.2",
+    "vue-simple-context-menu": "^3.4.1",
+    "vuex": "^3.6.2"
+  }
+}
