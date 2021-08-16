@@ -1,5 +1,6 @@
 asgiref==3.4.1
 Django==3.2.6
+django-mysql-geventpool==0.2.5
 django-rest-framework==0.1.0
 djangorestframework==3.12.4
 gevent==21.8.0

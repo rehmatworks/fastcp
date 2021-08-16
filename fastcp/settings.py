@@ -75,6 +75,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_mysql_geventpool',
     'django.contrib.humanize',
     'rest_framework',
     'api',
@@ -132,10 +133,16 @@ if DEBUG:
 else:
     DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.mysql',
+            'ENGINE': 'django_mysql_geventpool.backends.mysql',
+            'NAME': os.environ.get('DB_NAME'),
+            'USER': os.environ.get('DB_USER'),
+            'PASSWORD': os.environ.get('DB_PASSWORD'),
+            'HOST': 'localhost',
+            'PORT': '3306',
             'OPTIONS': {
-                'read_default_file': BASE_DIR / 'fastcp.cnf',
-            },
+                'MAX_CONNS': 20,
+                'MAX_LIFETIME': 5 * 60
+            }
         }
     }
 
