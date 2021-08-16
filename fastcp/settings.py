@@ -75,7 +75,6 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django_mysql_geventpool',
     'django.contrib.humanize',
     'rest_framework',
     'api',
@@ -133,12 +132,10 @@ if DEBUG:
 else:
     DATABASES = {
         'default': {
-            'ENGINE': 'firebird',
-            'NAME': '/var/lib/firebird/4.0/data/django_firebird.fdb',
-            'USER': 'SYSDBA',
-            'PASSWORD': os.environ.get('DB_PASSWORD'),
-            'HOST': '127.0.0.1',
-            'PORT': '3050'
+            'ENGINE': 'django.db.backends.mysql',
+            'OPTIONS': {
+                'read_default_file': BASE_DIR / 'fastcp.cnf',
+            },
         }
     }
 
