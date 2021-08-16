@@ -55,13 +55,17 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'whitenoise.runserver_nostatic',
     'django.contrib.staticfiles',
     'django.contrib.humanize',
     'rest_framework',
     'api',
     'core'
 ]
+
+if DEBUG:
+    INSTALLED_APPS += [
+        'whitenoise.runserver_nostatic',
+    ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
