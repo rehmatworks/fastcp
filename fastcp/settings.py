@@ -133,7 +133,7 @@ if DEBUG:
 else:
     DATABASES = {
         'default': {
-            'ENGINE': 'firedb',
+            'ENGINE': 'firebird',
             'NAME': '/var/lib/firebird/4.0/data/django_firebird.fdb',
             'USER': 'SYSDBA',
             'PASSWORD': os.environ.get('DB_PASSWORD'),
