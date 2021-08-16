@@ -138,11 +138,7 @@ else:
             'USER': os.environ.get('DB_USER'),
             'PASSWORD': os.environ.get('DB_PASSWORD'),
             'HOST': 'localhost',
-            'PORT': '3306',
-            'OPTIONS': {
-                'MAX_CONNS': 20,
-                'MAX_LIFETIME': 5 * 60
-            }
+            'PORT': '3306'
         }
     }
 
