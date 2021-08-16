@@ -25,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-swm^3n$0#i^x3uuh3hy&_h(%ud$a6qfo6#tnukvxmyem7j3x8='
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('IS_DEBUG') is not None
 
 # As the IP of the server may change, we cannot reliably whitelist any hosts. So
 # allowing all hosts is fine and secure as we are not going to rely on the host
