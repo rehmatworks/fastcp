@@ -183,3 +183,4 @@ LOGIN_URL = 'core:login'
 LOGIN_REDIRECT_URL = 'spa'
 FILE_MANAGER_ROOT = os.environ.get('FILE_MANAGER_ROOT')
 PHP_INSTALL_PATH = os.environ.get('PHP_INSTALL_PATH', '/etc/php')
+FASTCP_VERSION = os.environ.get('FASTCP_VERSION', '1.0.0')

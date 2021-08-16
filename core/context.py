@@ -16,5 +16,6 @@ def general_settings(request):
     return {
         'FASTCP_SITE_NAME': settings.FASTCP_SITE_NAME,
         'FASTCP_SITE_URL': settings.FASTCP_SITE_URL,
-        'FASTCP_FM_ROOT': settings.FILE_MANAGER_ROOT
+        'FASTCP_FM_ROOT': settings.FILE_MANAGER_ROOT,
+        'FASTCP_VERSION': settings.FASTCP_VERSION
     }
