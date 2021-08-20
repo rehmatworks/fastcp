@@ -20,15 +20,18 @@
                                     id="label"
                                     type="text"
                                     class="form-control"
+                                    :class="{'is-invalid': errors.label}"
                                     v-model="label"
                                     placeholder="A unique label to identify your website..."
                                 />
+                                <p class="invalid-feedback" v-if="errors.label">{{ errors.label[0] }}</p>
                             </div>
                             <div class="form-group">
                                 <label for="php">PHP Version</label>
-                                <select id="php" v-model="php" class="form-control">
+                                <select :class="{'is-invalid': errors.php}" id="php" v-model="php" class="form-control">
                                     <option v-for="php in php_versions" :key="php" :value="php">PHP {{ php }}</option>
                                 </select>
+                                <p class="invalid-feedback" v-if="errors.php">{{ errors.php[0] }}</p>
                             </div>
                             <div class="form-group">
                                 <label for="domains">Domains</label>
@@ -36,15 +39,17 @@
                                     id="domains"
                                     type="text"
                                     class="form-control"
+                                    :class="{'is-invalid': errors.domains}"
                                     v-model="domains"
                                     placeholder="Comma-separated domains list, i.e. example.com, www.example.com"
                                 />
+                                <p class="invalid-feedback" v-if="errors.domains">{{ errors.domains[0] }}</p>
                             </div>
                         </div>
                     </div>
                 </div>
                 <div class="card-footer">
-                    <button class="btn btn-primary">Deploy Now</button>
+                    <button @click="createWebsite()" class="btn btn-primary">Deploy Now</button>
                 </div>
             </div>
         </div>
@@ -57,7 +62,8 @@ export default {
             label: '',
             php: '',
             php_versions: [],
-            domains: ''
+            domains: '',
+            errors: {}
         }
     },
     created() {
@@ -74,6 +80,23 @@ export default {
             }).catch((err) => {
                 toastr.error('Supported PHP versions list cannot be retrieved.');
                 _this.$store.commit('setBusy', false);
+            });
+        },
+        createWebsite() {
+            let _this = this;
+            _this.errors = {};
+            _this.$store.commit('setBusy', true);
+            let fd = new FormData();
+            fd.append('label', _this.label);
+            fd.append('php', _this.php);
+            fd.append('domains', _this.domains);
+            axios.post('/websites/', fd).then((res) => {
+                _this.$store.commit('setBusy', false);
+                toastr.success('Website has been added successfully.');
+                _this.$router.push({name: 'websites'});
+            }).catch((err) => {
+                _this.$store.commit('setBusy', false);
+                _this.errors = err.response.data;
             });
         }
     }

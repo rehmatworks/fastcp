@@ -6,7 +6,7 @@
                 <button v-if="pagination" class="btn mb-1 btn-sm float-right btn-secondary">
                     <i class="fas fa-plus"></i> Add New
                 </button>
-                <router-link v-else :to="{name: 'databases'}" class="btn mb-1 btn-sm float-right btn-outline-secondary">
+                <router-link v-else :to="{name: 'databases'}" class="btn mb-1 btn-sm float-right btn-outline-primary">
                     <i class="fas fa-list"></i> All Databases
                 </router-link>
             </div>

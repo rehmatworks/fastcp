@@ -1,5 +1,4 @@
 require('./bootstrap');
-
 import Vue from 'vue';
 
 window.axios.defaults.baseURL = '/api/';

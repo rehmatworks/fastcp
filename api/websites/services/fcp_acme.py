@@ -184,9 +184,3 @@ class FastcpAcme(object):
             'full_chain': order_result.fullchain_pem,
             'priv_key': self.priv_key
         }
-
-
-fcp_acme = FastcpAcme(staging=True)
-result = fcp_acme.request_ssl(['apkbucket.net'])
-
-print(result)
