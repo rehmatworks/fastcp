@@ -6,8 +6,8 @@ import validators
 class WebsiteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Website
-        fields = ['label', 'user', 'domains', 'has_ssl', 'php']
-        read_only_fields = ['has_ssl', 'domains', 'user']
+        fields = ['id', 'label', 'user', 'metadata', 'domains', 'has_ssl', 'php']
+        read_only_fields = ['id', 'has_ssl', 'metadata', 'domains', 'user']
         
     
     def validate_domains(self, value):

@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.template.defaultfilters import slugify
+from django.conf import settings
 
 
 class Notification(models.Model):
@@ -40,6 +41,15 @@ class Website(models.Model):
     
     def __str__(self):
         return self.label
+    
+    @property
+    def metadata(self) -> dict:
+        """Returns the meta data for the website"""
+        return {
+            'path': f'{settings.FILE_MANAGER_ROOT}/{self.user.username}/apps/{self.slug}/public/',
+            'user': self.user.username,
+            'ip_addr': settings.SERVER_IP_ADDR
+        }
 
 class Domain(models.Model):
     """Domain model holds the domains associated to a website."""

@@ -16,6 +16,14 @@ export const routes = [
         }
     },
     {
+        path: '/websites/:id',
+        name: 'website',
+        component: require('./components/websites/WebsiteComponent').default,
+        meta: {
+            title: 'Manage Website'
+        }
+    },
+    {
         path: '/websites/deploy',
         name: 'deploysite',
         component: require('./components/websites/CreateComponent').default,
