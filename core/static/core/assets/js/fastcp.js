@@ -3449,6 +3449,12 @@ __webpack_require__.r(__webpack_exports__);
 //
 //
 //
+//
+//
+//
+//
+//
+//
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({
   data: function data() {
     return {
@@ -3456,7 +3462,8 @@ __webpack_require__.r(__webpack_exports__);
       del: false,
       reset: false,
       change_php: false,
-      php_versions: []
+      php_versions: [],
+      del_dom: false
     };
   },
   created: function created() {
@@ -3543,6 +3550,27 @@ __webpack_require__.r(__webpack_exports__);
         _this.$store.commit('setBusy', false);
 
         toastr.error('An error occured while trying to delete this website.');
+      });
+    },
+    deleteDomain: function deleteDomain(dom_id) {
+      var _this = this;
+
+      _this.$store.commit('setBusy', true);
+
+      axios["delete"]("/websites/".concat(_this.$route.params.id, "/delete-domain/").concat(dom_id, "/")).then(function (res) {
+        _this.$store.commit('setBusy', false);
+
+        _this.getWebsite();
+
+        toastr.success('Domain has been deleted.');
+      })["catch"](function (err) {
+        _this.$store.commit('setBusy', false);
+
+        if (err.response && err.response.data.message) {
+          toastr.error(err.response.data.message);
+        } else {
+          toastr.error('Domain cannot be deleted.');
+        }
       });
     }
   }
@@ -7641,11 +7669,12 @@ var render = function() {
                               _c(
                                 "td",
                                 {
+                                  staticClass: "font-weight-bold",
                                   class: {
                                     "text-success": domain.ssl,
                                     "text-muted": !domain.ssl
                                   },
-                                  staticStyle: { width: "30%" }
+                                  staticStyle: { width: "20%" }
                                 },
                                 [
                                   domain.ssl
@@ -7666,7 +7695,64 @@ var render = function() {
                                 ]
                               ),
                               _vm._v(" "),
-                              _vm._m(0, true)
+                              _c("td", { staticClass: "text-right" }, [
+                                _vm.del_dom != domain.id
+                                  ? _c(
+                                      "button",
+                                      {
+                                        staticClass: "btn btn-sm btn-warning",
+                                        on: {
+                                          click: function($event) {
+                                            _vm.del_dom = domain.id
+                                          }
+                                        }
+                                      },
+                                      [
+                                        _vm._v(
+                                          "\n                                                Delete\n                                            "
+                                        )
+                                      ]
+                                    )
+                                  : _vm._e(),
+                                _vm._v(" "),
+                                _vm.del_dom == domain.id
+                                  ? _c(
+                                      "button",
+                                      {
+                                        staticClass: "btn btn-sm btn-danger",
+                                        on: {
+                                          click: function($event) {
+                                            return _vm.deleteDomain(domain.id)
+                                          }
+                                        }
+                                      },
+                                      [
+                                        _vm._v(
+                                          "\n                                                Confirm\n                                            "
+                                        )
+                                      ]
+                                    )
+                                  : _vm._e(),
+                                _vm._v(" "),
+                                _vm.del_dom == domain.id
+                                  ? _c(
+                                      "button",
+                                      {
+                                        staticClass: "btn btn-sm btn-success",
+                                        on: {
+                                          click: function($event) {
+                                            _vm.del_dom = false
+                                          }
+                                        }
+                                      },
+                                      [
+                                        _vm._v(
+                                          "\n                                                Cancel\n                                            "
+                                        )
+                                      ]
+                                    )
+                                  : _vm._e()
+                              ])
                             ])
                           }),
                           0
@@ -7762,20 +7848,7 @@ var render = function() {
     ])
   ])
 }
-var staticRenderFns = [
-  function() {
-    var _vm = this
-    var _h = _vm.$createElement
-    var _c = _vm._self._c || _h
-    return _c("td", { staticClass: "text-right" }, [
-      _c("button", { staticClass: "btn btn-sm btn-danger" }, [
-        _vm._v(
-          "\n                                                Delete\n                                            "
-        )
-      ])
-    ])
-  }
-]
+var staticRenderFns = []
 render._withStripped = true
 
 

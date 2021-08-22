@@ -10,6 +10,7 @@ app_name='websites'
 urlpatterns=[
     path('<int:id>/reset-password/', views.PasswordUpdateView().as_view(), name='update_password'),
     path('<int:id>/change-php/', views.ChangePHPVersion().as_view(), name='change_php'),
+    path('<int:id>/delete-domain/<int:dom_id>/', views.DeleteDomainView().as_view(), name='del_domain'),
     path('php-versions/', views.PhpVersionsView().as_view(), name='php_versions'),
     path('', include(router.urls))
 ]

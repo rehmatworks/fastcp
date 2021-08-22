@@ -96,7 +96,7 @@
                                             :key="domain.domain"
                                         >
                                             <td style="width: 40%">{{ domain.domain }}</td>
-                                            <td :class="{'text-success': domain.ssl, 'text-muted': !domain.ssl}" style="width: 30%">
+                                            <td class="font-weight-bold" :class="{'text-success': domain.ssl, 'text-muted': !domain.ssl}" style="width: 20%">
                                                 <span v-if="domain.ssl">
                                                     <i class="fas fa-lock"></i> HTTPS
                                                 </span>
@@ -105,8 +105,14 @@
                                                 </span>
                                             </td>
                                             <td class="text-right">
-                                                <button class="btn btn-sm btn-danger">
+                                                <button v-if="del_dom!=domain.id" @click="del_dom=domain.id" class="btn btn-sm btn-warning">
                                                     Delete
+                                                </button>
+                                                <button v-if="del_dom==domain.id" @click="deleteDomain(domain.id)" class="btn btn-sm btn-danger">
+                                                    Confirm
+                                                </button>
+                                                <button v-if="del_dom==domain.id" @click="del_dom=false" class="btn btn-sm btn-success">
+                                                    Cancel
                                                 </button>
                                             </td>
                                         </tr>
@@ -165,7 +171,8 @@ export default {
             del: false,
             reset: false,
             change_php: false,
-            php_versions: []
+            php_versions: [],
+            del_dom: false
         };
     },
     created() {
@@ -244,6 +251,22 @@ export default {
                     toastr.error('An error occured while trying to delete this website.');
                 });
         },
+        deleteDomain(dom_id) {
+            let _this = this;
+            _this.$store.commit('setBusy', true);
+            axios.delete(`/websites/${_this.$route.params.id}/delete-domain/${dom_id}/`).then((res) => {
+                _this.$store.commit('setBusy', false);
+                _this.getWebsite();
+                toastr.success('Domain has been deleted.');
+            }).catch((err) => {
+                _this.$store.commit('setBusy', false);
+                if(err.response && err.response.data.message) {
+                    toastr.error(err.response.data.message);
+                } else {
+                    toastr.error('Domain cannot be deleted.');
+                }
+            });
+        }
     },
 };
 </script>

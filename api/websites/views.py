@@ -8,8 +8,41 @@ from core.permissions import IsAdminOrOwner
 from rest_framework import permissions
 from django.db.models import Q
 from .services.get_php_versions import PhpVersionListService
-from core.signals import php_updated
+from core import signals
 
+
+class DeleteDomainView(APIView):
+    """Delete a domain from a website."""
+    http_method_names = ['delete']
+    
+    def delete(self, request, *args, **kwargs):
+        user = request.user
+        website_id = kwargs.get('id')
+        dom_id = kwargs.get('dom_id')
+        if user.is_superuser:
+            website = Website.objects.filter(id=website_id).first()
+        else:
+            website = Website.objects.filter(user=user, id=website_id).first()
+        
+        if not website:
+            return Response({
+                'message': f'Target website with ID {website_id} was not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        if website.domains.count() == 1:
+            return Response({
+                'message': 'There should be at least one domain attached to a website.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Delete domains
+        website.domains.filter(id=dom_id).delete()
+        
+        # Send signal
+        signals.domains_updated(sender=website)
+        
+        return Response({
+            'message': 'The domain has been deleted successfully.'
+        })
 
 class PasswordUpdateView(APIView):
     """Update SSH/SFTP password of a user."""
@@ -17,6 +50,7 @@ class PasswordUpdateView(APIView):
     http_method_names = ['post']
     
     def post(self, request, *args, **kwargs):
+        
         return Response({
             'message': 'Password has been updated'
         })
@@ -48,7 +82,7 @@ class ChangePHPVersion(APIView):
         website.save()
         # Send a signal once PHP version is updated so the FPM conf files will be
         # updated promptly.
-        php_updated.send(sender=website)
+        signals.php_updated.send(sender=website)
         return Response({
             'message': kwargs
         })
