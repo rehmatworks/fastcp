@@ -38,7 +38,7 @@ class DeleteDomainView(APIView):
         website.domains.filter(id=dom_id).delete()
         
         # Send signal
-        signals.domains_updated(sender=website)
+        signals.domains_updated.send(sender=website)
         
         return Response({
             'message': 'The domain has been deleted successfully.'
