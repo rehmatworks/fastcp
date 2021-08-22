@@ -1,0 +1,21 @@
+
+# Added by FastCP. Don't edit this file. FastCP dynamically generates this file
+# and the changes you will make here will not persist.
+
+server {
+    listen 80;
+    server_name {{ domains }};
+    root {{ webroot }};
+    index index.php index.html;
+
+    location / {
+        try_files $uri $uri/ /index.php?$is_args$args;
+    }
+
+    location ~ \.php$ {
+        include fastcgi_params;
+        fastcgi_pass unix:{{ socket_path }};
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root/$fastcgi_script_name;
+    }
+}

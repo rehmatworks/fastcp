@@ -32,8 +32,9 @@ def update_domains(sender, **kwargs):
     
     Update the vhost conf files once a website's domains are updated.
     """
-    # To-do: Updae vhost files physically
-    pass
+    # Create NGINX vhost
+    filesystem.create_nginx_vhost(sender)
+    
 domains_updated.connect(update_domains, dispatch_uid='domains-updated')
 
 @receiver(post_save, sender=Website)

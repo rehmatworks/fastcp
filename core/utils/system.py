@@ -29,3 +29,6 @@ def delete_website(website: object):
     
     # Delete PHP FPM pool conf
     filesystem.delete_fpm_conf(website)
+    
+    # Delete NGINX vhost files
+    filesystem.delete_nginx_vhost(website)

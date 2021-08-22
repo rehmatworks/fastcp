@@ -143,6 +143,84 @@ def create_if_missing(path: str) -> bool:
             pass
     return False
 
+def delete_nginx_vhost(website: object) -> bool:
+    """Delete NGINX vhosts file.
+    
+    This function deletes the NGINX vhost files for the provided website.
+    
+    Args:
+        website (object): Website model object.
+    
+    Returns:
+        bool: True on success False otherwise.
+    """
+    website_conf_dir = os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}.d')
+    try:
+        shutil.rmtree(website_conf_dir)
+        ssl_vhost = os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}-ssl.conf')
+        non_ssl_vhost = os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}.conf')
+        
+        if os.path.exists(ssl_vhost):
+            os.remove(ssl_vhost)
+        
+        if os.path.exists(non_ssl_vhost):
+            os.remove(non_ssl_vhost)
+        return True
+    except:
+        return False
+
+def create_nginx_vhost(website: object, protocol: str='http', **kwargs) -> bool:
+    """Create NGINX vhost file.
+    
+    This function generates NGINX vhost file. The default protocol is HTTP. If the vhost needs to be created for
+    the HTTPs protocol, ssl_cert and ssl_key should be passed in args.
+    
+    Args:
+        website (object): Website model object.
+        protocol (str): It should be either http or https.
+    
+    Returns:
+        bool: True on success and False otherwise.
+    """
+    website_conf_dir = os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}.d')
+    create_if_missing(website_conf_dir)
+    
+    # Vhost conf path
+    is_ssl = protocol == 'https' and kwargs.get('ssl_cert') and kwargs.get('ssl_key')
+    if is_ssl:
+        website_vhost_path = os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}-ssl.conf')
+    else:
+        website_vhost_path = os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}.conf')
+    
+    domains = ''
+    i = 0
+    for domain in website.domains.all():
+        if i > 0:
+            domains += ' '
+        domains += domain.domain
+        i += 1
+    
+    user_path = get_user_path(website.user, exact=True)
+    web_root = os.path.join(user_path, 'apps', website.slug, 'public')
+    socket_path = os.path.join(user_path, 'run', f'{website.slug}.sock')
+    
+    context = {
+        'domains': domains,
+        'webroot': web_root,
+        'socket_path': socket_path
+    }
+    
+    if is_ssl:
+        context['ssl_cert'] = kwargs.get('ssl_cert')
+        context['ssl_key'] = kwargs.get('ssl_key')
+        tpl_data = render_to_string('system/nginx-vhost-https.txt', context=context)
+    else:
+        tpl_data = render_to_string('system/nginx-vhost-http.txt', context=context)
+    
+    with open(website_vhost_path, 'w') as f:
+        f.write(tpl_data)
+        
+
 def create_website_dirs(website: object) -> bool:
     """Create website directories.
     

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from core.models import Website, Domain
 import validators
+from core import signals
 
 
 class ChangePhpVersionSerializer(serializers.ModelSerializer):
@@ -61,4 +62,6 @@ class WebsiteSerializer(serializers.ModelSerializer):
             website.domains.create(
                 domain=domain
             )
+        
+        signals.domains_updated.send(sender=website)
         return website
