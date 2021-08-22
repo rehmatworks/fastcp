@@ -3393,24 +3393,128 @@ __webpack_require__.r(__webpack_exports__);
 //
 //
 //
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({
   data: function data() {
     return {
       website: false,
-      del: false
+      del: false,
+      reset: false,
+      change_php: false,
+      php_versions: []
     };
   },
   created: function created() {
     this.getWebsite();
+    this.getPhpVersions();
   },
   methods: {
+    getPhpVersions: function getPhpVersions() {
+      var _this = this;
+
+      _this.$store.commit('setBusy', true);
+
+      axios.get('/websites/php-versions/').then(function (res) {
+        _this.php_versions = res.data.php_versions;
+
+        _this.$store.commit('setBusy', false);
+      })["catch"](function (err) {
+        toastr.error('Supported PHP versions list cannot be retrieved.');
+
+        _this.$store.commit('setBusy', false);
+      });
+    },
+    changePhp: function changePhp() {
+      var _this = this;
+
+      _this.$store.commit('setBusy', true);
+
+      var fd = new FormData();
+      fd.append("php", _this.website.php);
+      axios.post("/websites/".concat(_this.$route.params.id, "/change-php/"), fd).then(function (res) {
+        _this.$store.commit('setBusy', false);
+
+        toastr.success('PHP version has been updated.');
+        _this.change_php = false;
+      })["catch"](function (err) {
+        _this.$store.commit('setBusy', false);
+
+        toastr.error('PHP version cannot be updated.');
+      });
+    },
+    resetPassword: function resetPassword() {
+      var _this = this;
+
+      _this.$store.commit('setBusy', true);
+
+      axios.post("/websites/".concat(_this.$route.params.id, "/reset-password/")).then(function (res) {
+        _this.$store.commit('setBusy', false);
+
+        toastr.success('SSH/SFTP password has been updated.');
+        _this.reset = false;
+      })["catch"](function (err) {
+        _this.$store.commit('setBusy', false);
+
+        toastr.error('SSH/SFTP password cannot be updated.');
+      });
+    },
     getWebsite: function getWebsite() {
       var _this = this;
 
       _this.$store.commit('setBusy', true);
 
       axios.get("/websites/".concat(_this.$route.params.id, "/")).then(function (res) {
-        _this.$store.commit("setBusy", false);
+        _this.$store.commit('setBusy', false);
 
         _this.website = res.data;
       })["catch"](function (err) {
@@ -7300,7 +7404,68 @@ var render = function() {
                                 _vm._v(_vm._s(_vm.website.metadata.user))
                               ]),
                               _vm._v(" "),
-                              _vm._m(0)
+                              _c("small", [
+                                !_vm.reset
+                                  ? _c(
+                                      "a",
+                                      {
+                                        staticClass: "text-danger",
+                                        attrs: { href: "javascript:void(0)" },
+                                        on: {
+                                          click: function($event) {
+                                            _vm.reset = true
+                                          }
+                                        }
+                                      },
+                                      [
+                                        _c("i", { staticClass: "fas fa-redo" }),
+                                        _vm._v(
+                                          " Reset\n                                                    Password\n                                                "
+                                        )
+                                      ]
+                                    )
+                                  : _vm._e(),
+                                _vm._v(" "),
+                                _vm.reset
+                                  ? _c(
+                                      "a",
+                                      {
+                                        staticClass: "text-success",
+                                        attrs: { href: "javascript:void(0)" },
+                                        on: {
+                                          click: function($event) {
+                                            _vm.reset = false
+                                          }
+                                        }
+                                      },
+                                      [
+                                        _vm._v(
+                                          "\n                                                    Cancel\n                                                "
+                                        )
+                                      ]
+                                    )
+                                  : _vm._e(),
+                                _vm._v(" "),
+                                _vm.reset
+                                  ? _c(
+                                      "a",
+                                      {
+                                        staticClass: "text-danger",
+                                        attrs: { href: "javascript:void(0)" },
+                                        on: {
+                                          click: function($event) {
+                                            return _vm.resetPassword()
+                                          }
+                                        }
+                                      },
+                                      [
+                                        _vm._v(
+                                          "\n                                                    Reset\n                                                "
+                                        )
+                                      ]
+                                    )
+                                  : _vm._e()
+                              ])
                             ])
                           ]),
                           _vm._v(" "),
@@ -7332,20 +7497,106 @@ var render = function() {
                             _c("td", [_vm._v("PHP Version")]),
                             _vm._v(" "),
                             _c("td", [
-                              _c("i", { staticClass: "fab fa-php" }),
-                              _vm._v(
-                                " PHP\n                                            " +
-                                  _vm._s(_vm.website.php) +
-                                  "\n                                            "
-                              ),
-                              _c(
-                                "a",
-                                {
-                                  staticClass: "text-danger",
-                                  attrs: { href: "" }
-                                },
-                                [_vm._v("Change")]
-                              )
+                              !_vm.change_php
+                                ? _c("a", [
+                                    _c("i", { staticClass: "fab fa-php" }),
+                                    _vm._v(
+                                      " PHP\n                                                " +
+                                        _vm._s(_vm.website.php) +
+                                        "\n                                                "
+                                    ),
+                                    _c(
+                                      "a",
+                                      {
+                                        staticClass: "text-danger",
+                                        attrs: { href: "javascript:void(0)" },
+                                        on: {
+                                          click: function($event) {
+                                            _vm.change_php = true
+                                          }
+                                        }
+                                      },
+                                      [_vm._v("Change")]
+                                    )
+                                  ])
+                                : _c(
+                                    "select",
+                                    {
+                                      directives: [
+                                        {
+                                          name: "model",
+                                          rawName: "v-model",
+                                          value: _vm.website.php,
+                                          expression: "website.php"
+                                        }
+                                      ],
+                                      on: {
+                                        change: function($event) {
+                                          var $$selectedVal = Array.prototype.filter
+                                            .call(
+                                              $event.target.options,
+                                              function(o) {
+                                                return o.selected
+                                              }
+                                            )
+                                            .map(function(o) {
+                                              var val =
+                                                "_value" in o
+                                                  ? o._value
+                                                  : o.value
+                                              return val
+                                            })
+                                          _vm.$set(
+                                            _vm.website,
+                                            "php",
+                                            $event.target.multiple
+                                              ? $$selectedVal
+                                              : $$selectedVal[0]
+                                          )
+                                        }
+                                      }
+                                    },
+                                    _vm._l(_vm.php_versions, function(php) {
+                                      return _c(
+                                        "option",
+                                        { key: php, domProps: { value: php } },
+                                        [_vm._v("PHP " + _vm._s(php))]
+                                      )
+                                    }),
+                                    0
+                                  ),
+                              _vm._v(" "),
+                              _vm.change_php
+                                ? _c(
+                                    "button",
+                                    {
+                                      staticClass: "btn btn-primary btn-sm",
+                                      staticStyle: { "font-size": "12px" },
+                                      on: {
+                                        click: function($event) {
+                                          _vm.change_php = false
+                                        }
+                                      }
+                                    },
+                                    [_vm._v("Cancel")]
+                                  )
+                                : _vm._e(),
+                              _vm._v(" "),
+                              _vm.change_php
+                                ? _c(
+                                    "button",
+                                    {
+                                      staticClass: "btn btn-danger btn-sm",
+                                      staticStyle: { "font-size": "12px" },
+                                      on: {
+                                        click: function($event) {
+                                          return _vm.changePhp()
+                                        }
+                                      }
+                                    },
+                                    [_vm._v("Update")]
+                                  )
+                                : _vm._e()
                             ])
                           ])
                         ])
@@ -7382,9 +7633,9 @@ var render = function() {
                                 _vm._v(_vm._s(domain))
                               ]),
                               _vm._v(" "),
-                              _vm._m(1, true),
+                              _vm._m(0, true),
                               _vm._v(" "),
-                              _vm._m(2, true)
+                              _vm._m(1, true)
                             ])
                           }),
                           0
@@ -7411,7 +7662,7 @@ var render = function() {
                 _vm._v(" "),
                 _c("div", { staticClass: "card-body" }, [
                   _vm._v(
-                    "\n                        Do you want to delete this website? You can do so here. Beware that this action is irreversible and you cannot undo once the website is deleted. Entire data associated to this website will be permanently deleted.\n                    "
+                    "\n                        Do you want to delete this website? You can do so here. Beware\n                        that this action is irreversible and you cannot undo once the\n                        website is deleted. Entire data associated to this website\n                        will be permanently lost.\n                    "
                   )
                 ]),
                 _vm._v(" "),
@@ -7481,19 +7732,6 @@ var render = function() {
   ])
 }
 var staticRenderFns = [
-  function() {
-    var _vm = this
-    var _h = _vm.$createElement
-    var _c = _vm._self._c || _h
-    return _c("small", [
-      _c("a", { staticClass: "text-danger", attrs: { href: "" } }, [
-        _c("i", { staticClass: "fas fa-redo" }),
-        _vm._v(
-          " Reset\n                                                    Password\n                                                "
-        )
-      ])
-    ])
-  },
   function() {
     var _vm = this
     var _h = _vm.$createElement

@@ -3,6 +3,12 @@ from core.models import Website, Domain
 import validators
 
 
+class ChangePhpVersionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Website
+        fields = ['php']
+
+
 class WebsiteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Website
