@@ -43,9 +43,9 @@ class User(AbstractUser):
     username = models.CharField(max_length=30, unique=True)
     
     # FastCP resource limits
-    max_dbs = models.IntegerField(default=0) # Max number of databases a user can create
-    max_sites = models.IntegerField(default=0) # Max number of websites a user can create
-    max_storage = models.FloatField(default=0) # Max storage (in MBs) a user can create 1024 == 1GB
+    max_dbs = models.IntegerField(default=10) # Max number of databases a user can create
+    max_sites = models.IntegerField(default=10) # Max number of websites a user can create
+    max_storage = models.FloatField(default=1024) # Max storage (in MBs) a user can create 1024 == 1GB
     
     # More customizations
     REQUIRED_FIELDS = []
