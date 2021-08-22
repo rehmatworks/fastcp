@@ -3,9 +3,9 @@
         <div class="row mb-2">
             <div class="col-12">
                 <h4 class="float-left">Databases <span v-if="data">({{ data.count }})</span></h4>
-                <button v-if="pagination" class="btn mb-1 btn-sm float-right btn-secondary">
+                <router-link :to="{name: 'createdb'}" v-if="pagination" class="btn mb-1 btn-sm float-right btn-secondary">
                     <i class="fas fa-plus"></i> Add New
-                </button>
+                </router-link>
                 <router-link v-else :to="{name: 'databases'}" class="btn mb-1 btn-sm float-right btn-outline-primary">
                     <i class="fas fa-list"></i> All Databases
                 </router-link>
