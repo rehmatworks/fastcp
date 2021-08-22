@@ -2282,14 +2282,6 @@ __webpack_require__.r(__webpack_exports__);
 //
 //
 //
-//
-//
-//
-//
-//
-//
-//
-//
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({
   data: function data() {
     return {
@@ -6532,15 +6524,7 @@ var render = function() {
         ? _c("div", { staticClass: "row" }, [
             _c("div", { staticClass: "col-md-8" }, [
               _c("div", { staticClass: "card mb-3" }, [
-                _c(
-                  "div",
-                  { staticClass: "card-header bg-primary text-light" },
-                  [
-                    _vm._v(
-                      "\n                        General Details\n                    "
-                    )
-                  ]
-                ),
+                _vm._m(0),
                 _vm._v(" "),
                 _c("div", { staticClass: "card-body" }, [
                   _c("div", { staticClass: "responsive-table" }, [
@@ -6642,8 +6626,6 @@ var render = function() {
                 ])
               ]),
               _vm._v(" "),
-              _vm._m(0),
-              _vm._v(" "),
               _c("div", { staticClass: "card mt-3" }, [
                 _c(
                   "div",
@@ -6734,21 +6716,19 @@ var staticRenderFns = [
     var _vm = this
     var _h = _vm.$createElement
     var _c = _vm._self._c || _h
-    return _c("div", { staticClass: "card mt-3" }, [
-      _c("div", { staticClass: "card-header text-light bg-primary" }, [
-        _vm._v("\n                        Backups\n                        "),
-        _c("button", { staticClass: "btn btn-sm btn-primary float-right" }, [
-          _c("i", { staticClass: "fas fa-upload" }),
-          _vm._v(" Import\n                        ")
-        ]),
-        _vm._v(" "),
-        _c("button", { staticClass: "btn btn-sm btn-primary float-right" }, [
-          _c("i", { staticClass: "fas fa-download" }),
-          _vm._v(" Export\n                        ")
-        ])
+    return _c("div", { staticClass: "card-header bg-primary text-light" }, [
+      _vm._v(
+        "\n                        General Details\n                        "
+      ),
+      _c("button", { staticClass: "btn btn-sm btn-primary float-right" }, [
+        _c("i", { staticClass: "fas fa-upload" }),
+        _vm._v(" Upload\n                        ")
       ]),
       _vm._v(" "),
-      _c("div", { staticClass: "card-body" })
+      _c("button", { staticClass: "btn btn-sm btn-primary float-right" }, [
+        _c("i", { staticClass: "fas fa-download" }),
+        _vm._v(" Download\n                        ")
+      ])
     ])
   }
 ]

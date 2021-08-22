@@ -11,6 +11,12 @@
                     <div class="card mb-3">
                         <div class="card-header bg-primary text-light">
                             General Details
+                            <button class="btn btn-sm btn-primary float-right">
+                                <i class="fas fa-upload"></i> Upload
+                            </button>
+                            <button class="btn btn-sm btn-primary float-right">
+                                <i class="fas fa-download"></i> Download
+                            </button>
                         </div>
                         <div class="card-body">
                             <div class="responsive-table">
@@ -58,20 +64,6 @@
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
-                    </div>
-                    <div class="card mt-3">
-                        <div class="card-header text-light bg-primary">
-                            Backups
-                            <button class="btn btn-sm btn-primary float-right">
-                                <i class="fas fa-upload"></i> Import
-                            </button>
-                            <button class="btn btn-sm btn-primary float-right">
-                                <i class="fas fa-download"></i> Export
-                            </button>
-                        </div>
-                        <div class="card-body">
-
                         </div>
                     </div>
                     <div class="card mt-3">
