@@ -32,12 +32,9 @@
                             {{ database.created }}
                         </td>
                         <td class="text-right">
-                            <button class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-cog"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-info">
-                                <i class="fas fa-download"></i>
-                            </button>
+                            <router-link :to="{name: 'database', params:{id: database.id}}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-cog"></i> Manage
+                            </router-link>
                         </td>
                     </tr>
                 </tbody>

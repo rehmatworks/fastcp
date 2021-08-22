@@ -40,6 +40,14 @@ export const routes = [
         }
     },
     {
+        path: '/databases/:id',
+        name: 'database',
+        component: require('./components/databases/DatabaseComponent').default,
+        meta: {
+            title: 'Manage Database'
+        }
+    },
+    {
         path: '/create-database',
         name: 'createdb',
         component: require('./components/databases/CreateComponent').default,

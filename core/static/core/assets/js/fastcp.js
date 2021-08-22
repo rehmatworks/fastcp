@@ -2161,6 +2161,206 @@ __webpack_require__.r(__webpack_exports__);
 
 /***/ }),
 
+/***/ "./node_modules/babel-loader/lib/index.js??clonedRuleSet-5[0].rules[0].use[0]!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/databases/DatabaseComponent.vue?vue&type=script&lang=js&":
+/*!**********************************************************************************************************************************************************************************************************************************!*\
+  !*** ./node_modules/babel-loader/lib/index.js??clonedRuleSet-5[0].rules[0].use[0]!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/databases/DatabaseComponent.vue?vue&type=script&lang=js& ***!
+  \**********************************************************************************************************************************************************************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({
+  data: function data() {
+    return {
+      database: false,
+      del: false,
+      reset: false,
+      change_php: false,
+      php_versions: [],
+      del_dom: false,
+      new_domain: '',
+      add_dom: false,
+      errors: {}
+    };
+  },
+  created: function created() {
+    this.getDatabase();
+  },
+  methods: {
+    resetPassword: function resetPassword() {
+      var _this = this;
+
+      _this.$store.commit('setBusy', true);
+
+      axios.post("/databases/".concat(_this.$route.params.id, "/reset-password/")).then(function (res) {
+        _this.$store.commit('setBusy', false);
+
+        toastr.success('SSH/SFTP password has been updated.');
+        _this.reset = false;
+      })["catch"](function (err) {
+        _this.$store.commit('setBusy', false);
+
+        toastr.error('SSH/SFTP password cannot be updated.');
+      });
+    },
+    getDatabase: function getDatabase() {
+      var _this = this;
+
+      _this.$store.commit('setBusy', true);
+
+      axios.get("/databases/".concat(_this.$route.params.id, "/")).then(function (res) {
+        _this.$store.commit('setBusy', false);
+
+        _this.database = res.data;
+      })["catch"](function (err) {
+        _this.$store.commit('setBusy', false);
+
+        toastr.error('Cannot fetch the database data.');
+      });
+    },
+    deleteDatabase: function deleteDatabase() {
+      var _this = this;
+
+      _this.$store.commit('setBusy', true);
+
+      axios["delete"]("/databases/".concat(_this.$route.params.id, "/")).then(function (res) {
+        toastr.error('The database and associated data has been deleted.');
+
+        _this.$router.push({
+          name: 'databases'
+        });
+      })["catch"](function (err) {
+        _this.$store.commit('setBusy', false);
+
+        toastr.error('An error occured while trying to delete this database.');
+      });
+    }
+  }
+});
+
+/***/ }),
+
 /***/ "./node_modules/babel-loader/lib/index.js??clonedRuleSet-5[0].rules[0].use[0]!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/databases/DatabasesComponent.vue?vue&type=script&lang=js&":
 /*!***********************************************************************************************************************************************************************************************************************************!*\
   !*** ./node_modules/babel-loader/lib/index.js??clonedRuleSet-5[0].rules[0].use[0]!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/databases/DatabasesComponent.vue?vue&type=script&lang=js& ***!
@@ -2198,9 +2398,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
-//
-//
-//
 //
 //
 //
@@ -4048,6 +4245,13 @@ var routes = [{
     title: 'Manage Databases'
   }
 }, {
+  path: '/databases/:id',
+  name: 'database',
+  component: __webpack_require__(/*! ./components/databases/DatabaseComponent */ "./resources/js/components/databases/DatabaseComponent.vue").default,
+  meta: {
+    title: 'Manage Database'
+  }
+}, {
   path: '/create-database',
   name: 'createdb',
   component: __webpack_require__(/*! ./components/databases/CreateComponent */ "./resources/js/components/databases/CreateComponent.vue").default,
@@ -4862,6 +5066,45 @@ component.options.__file = "resources/js/components/databases/CreateComponent.vu
 
 /***/ }),
 
+/***/ "./resources/js/components/databases/DatabaseComponent.vue":
+/*!*****************************************************************!*\
+  !*** ./resources/js/components/databases/DatabaseComponent.vue ***!
+  \*****************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var _DatabaseComponent_vue_vue_type_template_id_6eb4c5a0___WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./DatabaseComponent.vue?vue&type=template&id=6eb4c5a0& */ "./resources/js/components/databases/DatabaseComponent.vue?vue&type=template&id=6eb4c5a0&");
+/* harmony import */ var _DatabaseComponent_vue_vue_type_script_lang_js___WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./DatabaseComponent.vue?vue&type=script&lang=js& */ "./resources/js/components/databases/DatabaseComponent.vue?vue&type=script&lang=js&");
+/* harmony import */ var _node_modules_vue_loader_lib_runtime_componentNormalizer_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! !../../../../node_modules/vue-loader/lib/runtime/componentNormalizer.js */ "./node_modules/vue-loader/lib/runtime/componentNormalizer.js");
+
+
+
+
+
+/* normalize component */
+;
+var component = (0,_node_modules_vue_loader_lib_runtime_componentNormalizer_js__WEBPACK_IMPORTED_MODULE_2__.default)(
+  _DatabaseComponent_vue_vue_type_script_lang_js___WEBPACK_IMPORTED_MODULE_1__.default,
+  _DatabaseComponent_vue_vue_type_template_id_6eb4c5a0___WEBPACK_IMPORTED_MODULE_0__.render,
+  _DatabaseComponent_vue_vue_type_template_id_6eb4c5a0___WEBPACK_IMPORTED_MODULE_0__.staticRenderFns,
+  false,
+  null,
+  null,
+  null
+  
+)
+
+/* hot reload */
+if (false) { var api; }
+component.options.__file = "resources/js/components/databases/DatabaseComponent.vue"
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (component.exports);
+
+/***/ }),
+
 /***/ "./resources/js/components/databases/DatabasesComponent.vue":
 /*!******************************************************************!*\
   !*** ./resources/js/components/databases/DatabasesComponent.vue ***!
@@ -5286,6 +5529,22 @@ __webpack_require__.r(__webpack_exports__);
 
 /***/ }),
 
+/***/ "./resources/js/components/databases/DatabaseComponent.vue?vue&type=script&lang=js&":
+/*!******************************************************************************************!*\
+  !*** ./resources/js/components/databases/DatabaseComponent.vue?vue&type=script&lang=js& ***!
+  \******************************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var _node_modules_babel_loader_lib_index_js_clonedRuleSet_5_0_rules_0_use_0_node_modules_vue_loader_lib_index_js_vue_loader_options_DatabaseComponent_vue_vue_type_script_lang_js___WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! -!../../../../node_modules/babel-loader/lib/index.js??clonedRuleSet-5[0].rules[0].use[0]!../../../../node_modules/vue-loader/lib/index.js??vue-loader-options!./DatabaseComponent.vue?vue&type=script&lang=js& */ "./node_modules/babel-loader/lib/index.js??clonedRuleSet-5[0].rules[0].use[0]!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/databases/DatabaseComponent.vue?vue&type=script&lang=js&");
+ /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (_node_modules_babel_loader_lib_index_js_clonedRuleSet_5_0_rules_0_use_0_node_modules_vue_loader_lib_index_js_vue_loader_options_DatabaseComponent_vue_vue_type_script_lang_js___WEBPACK_IMPORTED_MODULE_0__.default); 
+
+/***/ }),
+
 /***/ "./resources/js/components/databases/DatabasesComponent.vue?vue&type=script&lang=js&":
 /*!*******************************************************************************************!*\
   !*** ./resources/js/components/databases/DatabasesComponent.vue?vue&type=script&lang=js& ***!
@@ -5489,6 +5748,23 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   "staticRenderFns": () => (/* reexport safe */ _node_modules_vue_loader_lib_loaders_templateLoader_js_vue_loader_options_node_modules_vue_loader_lib_index_js_vue_loader_options_CreateComponent_vue_vue_type_template_id_fcc8f662___WEBPACK_IMPORTED_MODULE_0__.staticRenderFns)
 /* harmony export */ });
 /* harmony import */ var _node_modules_vue_loader_lib_loaders_templateLoader_js_vue_loader_options_node_modules_vue_loader_lib_index_js_vue_loader_options_CreateComponent_vue_vue_type_template_id_fcc8f662___WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! -!../../../../node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!../../../../node_modules/vue-loader/lib/index.js??vue-loader-options!./CreateComponent.vue?vue&type=template&id=fcc8f662& */ "./node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/databases/CreateComponent.vue?vue&type=template&id=fcc8f662&");
+
+
+/***/ }),
+
+/***/ "./resources/js/components/databases/DatabaseComponent.vue?vue&type=template&id=6eb4c5a0&":
+/*!************************************************************************************************!*\
+  !*** ./resources/js/components/databases/DatabaseComponent.vue?vue&type=template&id=6eb4c5a0& ***!
+  \************************************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "render": () => (/* reexport safe */ _node_modules_vue_loader_lib_loaders_templateLoader_js_vue_loader_options_node_modules_vue_loader_lib_index_js_vue_loader_options_DatabaseComponent_vue_vue_type_template_id_6eb4c5a0___WEBPACK_IMPORTED_MODULE_0__.render),
+/* harmony export */   "staticRenderFns": () => (/* reexport safe */ _node_modules_vue_loader_lib_loaders_templateLoader_js_vue_loader_options_node_modules_vue_loader_lib_index_js_vue_loader_options_DatabaseComponent_vue_vue_type_template_id_6eb4c5a0___WEBPACK_IMPORTED_MODULE_0__.staticRenderFns)
+/* harmony export */ });
+/* harmony import */ var _node_modules_vue_loader_lib_loaders_templateLoader_js_vue_loader_options_node_modules_vue_loader_lib_index_js_vue_loader_options_DatabaseComponent_vue_vue_type_template_id_6eb4c5a0___WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! -!../../../../node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!../../../../node_modules/vue-loader/lib/index.js??vue-loader-options!./DatabaseComponent.vue?vue&type=template&id=6eb4c5a0& */ "./node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/databases/DatabaseComponent.vue?vue&type=template&id=6eb4c5a0&");
 
 
 /***/ }),
@@ -6226,6 +6502,262 @@ render._withStripped = true
 
 /***/ }),
 
+/***/ "./node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/databases/DatabaseComponent.vue?vue&type=template&id=6eb4c5a0&":
+/*!***************************************************************************************************************************************************************************************************************************************!*\
+  !*** ./node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/databases/DatabaseComponent.vue?vue&type=template&id=6eb4c5a0& ***!
+  \***************************************************************************************************************************************************************************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "render": () => (/* binding */ render),
+/* harmony export */   "staticRenderFns": () => (/* binding */ staticRenderFns)
+/* harmony export */ });
+var render = function() {
+  var _vm = this
+  var _h = _vm.$createElement
+  var _c = _vm._self._c || _h
+  return _c("div", { staticClass: "row" }, [
+    _c("div", { staticClass: "col-12" }, [
+      _c("div", { staticClass: "row mb-2" }, [
+        _c("div", { staticClass: "col-12" }, [
+          _c("h4", [
+            _vm._v("Manage Database: #" + _vm._s(_vm.$route.params.id))
+          ])
+        ])
+      ]),
+      _vm._v(" "),
+      _vm.database
+        ? _c("div", { staticClass: "row" }, [
+            _c("div", { staticClass: "col-md-8" }, [
+              _c("div", { staticClass: "card mb-3" }, [
+                _c(
+                  "div",
+                  { staticClass: "card-header bg-primary text-light" },
+                  [
+                    _vm._v(
+                      "\n                        General Details\n                    "
+                    )
+                  ]
+                ),
+                _vm._v(" "),
+                _c("div", { staticClass: "card-body" }, [
+                  _c("div", { staticClass: "responsive-table" }, [
+                    _c(
+                      "table",
+                      { staticClass: "table table-borderless table-striped" },
+                      [
+                        _c("tbody", [
+                          _c("tr", [
+                            _c("td", [_vm._v("Database Name")]),
+                            _vm._v(" "),
+                            _c("td", [
+                              _vm._v(
+                                "\n                                            " +
+                                  _vm._s(_vm.database.name) +
+                                  "\n                                        "
+                              )
+                            ])
+                          ]),
+                          _vm._v(" "),
+                          _c("tr", [
+                            _c("td", { staticStyle: { width: "40%" } }, [
+                              _vm._v("Database User")
+                            ]),
+                            _vm._v(" "),
+                            _c("td", [
+                              _c("span", [
+                                _vm._v(_vm._s(_vm.database.username))
+                              ]),
+                              _vm._v(" "),
+                              _c("small", [
+                                !_vm.reset
+                                  ? _c(
+                                      "a",
+                                      {
+                                        staticClass: "text-danger",
+                                        attrs: { href: "javascript:void(0)" },
+                                        on: {
+                                          click: function($event) {
+                                            _vm.reset = true
+                                          }
+                                        }
+                                      },
+                                      [
+                                        _c("i", { staticClass: "fas fa-redo" }),
+                                        _vm._v(
+                                          " Reset\n                                                    Password\n                                                "
+                                        )
+                                      ]
+                                    )
+                                  : _vm._e(),
+                                _vm._v(" "),
+                                _vm.reset
+                                  ? _c(
+                                      "a",
+                                      {
+                                        staticClass: "text-success",
+                                        attrs: { href: "javascript:void(0)" },
+                                        on: {
+                                          click: function($event) {
+                                            _vm.reset = false
+                                          }
+                                        }
+                                      },
+                                      [
+                                        _vm._v(
+                                          "\n                                                    Cancel\n                                                "
+                                        )
+                                      ]
+                                    )
+                                  : _vm._e(),
+                                _vm._v(" "),
+                                _vm.reset
+                                  ? _c(
+                                      "a",
+                                      {
+                                        staticClass: "text-danger",
+                                        attrs: { href: "javascript:void(0)" },
+                                        on: {
+                                          click: function($event) {
+                                            return _vm.resetPassword()
+                                          }
+                                        }
+                                      },
+                                      [
+                                        _vm._v(
+                                          "\n                                                    Reset\n                                                "
+                                        )
+                                      ]
+                                    )
+                                  : _vm._e()
+                              ])
+                            ])
+                          ])
+                        ])
+                      ]
+                    )
+                  ])
+                ])
+              ]),
+              _vm._v(" "),
+              _vm._m(0),
+              _vm._v(" "),
+              _c("div", { staticClass: "card mt-3" }, [
+                _c(
+                  "div",
+                  {
+                    staticClass: "card-header text-light",
+                    class: { "bg-secondary": !_vm.del, "bg-danger": _vm.del }
+                  },
+                  [
+                    _vm._v(
+                      "\n                        Danger Zone\n                    "
+                    )
+                  ]
+                ),
+                _vm._v(" "),
+                _c("div", { staticClass: "card-body" }, [
+                  _vm._v(
+                    "\n                        Do you want to delete this database? You can do so here. Beware\n                        that this action is irreversible and you cannot undo once the\n                        database is deleted. Entire data associated to this database\n                        will be permanently lost.\n                    "
+                  )
+                ]),
+                _vm._v(" "),
+                _c("div", { staticClass: "card-footer" }, [
+                  !_vm.del
+                    ? _c(
+                        "button",
+                        {
+                          staticClass: "btn btn-secondary",
+                          on: {
+                            click: function($event) {
+                              _vm.del = true
+                            }
+                          }
+                        },
+                        [
+                          _vm._v(
+                            "\n                            Delete Database\n                        "
+                          )
+                        ]
+                      )
+                    : _vm._e(),
+                  _vm._v(" "),
+                  _vm.del
+                    ? _c(
+                        "button",
+                        {
+                          staticClass: "btn btn-success",
+                          on: {
+                            click: function($event) {
+                              _vm.del = false
+                            }
+                          }
+                        },
+                        [
+                          _vm._v(
+                            "\n                            Don't Delete\n                        "
+                          )
+                        ]
+                      )
+                    : _vm._e(),
+                  _vm._v(" "),
+                  _vm.del
+                    ? _c(
+                        "button",
+                        {
+                          staticClass: "btn btn-danger",
+                          on: {
+                            click: function($event) {
+                              return _vm.deleteDatabase()
+                            }
+                          }
+                        },
+                        [
+                          _vm._v(
+                            "\n                            Confirm Deletion\n                        "
+                          )
+                        ]
+                      )
+                    : _vm._e()
+                ])
+              ])
+            ])
+          ])
+        : _vm._e()
+    ])
+  ])
+}
+var staticRenderFns = [
+  function() {
+    var _vm = this
+    var _h = _vm.$createElement
+    var _c = _vm._self._c || _h
+    return _c("div", { staticClass: "card mt-3" }, [
+      _c("div", { staticClass: "card-header text-light bg-primary" }, [
+        _vm._v("\n                        Backups\n                        "),
+        _c("button", { staticClass: "btn btn-sm btn-primary float-right" }, [
+          _c("i", { staticClass: "fas fa-upload" }),
+          _vm._v(" Import\n                        ")
+        ]),
+        _vm._v(" "),
+        _c("button", { staticClass: "btn btn-sm btn-primary float-right" }, [
+          _c("i", { staticClass: "fas fa-download" }),
+          _vm._v(" Export\n                        ")
+        ])
+      ]),
+      _vm._v(" "),
+      _c("div", { staticClass: "card-body" })
+    ])
+  }
+]
+render._withStripped = true
+
+
+
+/***/ }),
+
 /***/ "./node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/databases/DatabasesComponent.vue?vue&type=template&id=44b0ee87&":
 /*!****************************************************************************************************************************************************************************************************************************************!*\
   !*** ./node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/databases/DatabasesComponent.vue?vue&type=template&id=44b0ee87& ***!
@@ -6335,7 +6867,29 @@ var render = function() {
                     )
                   ]),
                   _vm._v(" "),
-                  _vm._m(1, true)
+                  _c(
+                    "td",
+                    { staticClass: "text-right" },
+                    [
+                      _c(
+                        "router-link",
+                        {
+                          staticClass: "btn btn-sm btn-outline-primary",
+                          attrs: {
+                            to: {
+                              name: "database",
+                              params: { id: database.id }
+                            }
+                          }
+                        },
+                        [
+                          _c("i", { staticClass: "fas fa-cog" }),
+                          _vm._v(" Manage\n                        ")
+                        ]
+                      )
+                    ],
+                    1
+                  )
                 ])
               }),
               0
@@ -6420,20 +6974,6 @@ var staticRenderFns = [
         _c("th", { attrs: { colspan: "2" } }, [
           _vm._v("\n                        Created\n                    ")
         ])
-      ])
-    ])
-  },
-  function() {
-    var _vm = this
-    var _h = _vm.$createElement
-    var _c = _vm._self._c || _h
-    return _c("td", { staticClass: "text-right" }, [
-      _c("button", { staticClass: "btn btn-sm btn-outline-primary" }, [
-        _c("i", { staticClass: "fas fa-cog" })
-      ]),
-      _vm._v(" "),
-      _c("button", { staticClass: "btn btn-sm btn-outline-info" }, [
-        _c("i", { staticClass: "fas fa-download" })
       ])
     ])
   }
