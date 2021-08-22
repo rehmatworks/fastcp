@@ -82,14 +82,8 @@ def get_path_info(p):
         dict: A dictionary containing the path details.
     """
     p = Path(p)
-    try:
-        username = str(p).split('fastcp/users')[1].split('/')[1]
-        user = User.objects.filter(username=username).first()
-    except IndexError as e:
-        user = None
     return {
         'name': p.name,
-        'user': user,
         'file_type': 'file' if p.is_file() else 'directory',
         'path': str(p).rstrip('/'),
         'size': os.path.getsize(p),
