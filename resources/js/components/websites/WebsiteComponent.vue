@@ -50,7 +50,7 @@
                                             </td>
                                         </tr>
                                         <tr>
-                                            <td>SFTP/SSH Address</td>
+                                            <td>SFTP/SSH Host</td>
                                             <td>
                                                 {{ website.metadata.ip_addr }}
                                             </td>

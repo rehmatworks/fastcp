@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.template.defaultfilters import slugify
 from django.conf import settings
+from api.websites.services.get_php_versions import PhpVersionListService
 
 
 class Notification(models.Model):
@@ -16,7 +17,12 @@ class Notification(models.Model):
         return self.title
 
 
-PHP_CHOICES = (('7.1', 'PHP 7.1'), ('7.2', 'PHP 7.2'), ('7.3', 'PHP 7.3'), ('7.4', 'PHP 7.4'), ('8.0', 'PHP 8.0'))
+php_versions = PhpVersionListService().get_php_versions()
+
+PHP_CHOICES = ()
+for v in php_versions:
+    PHP_CHOICES += ((v, f'PHP {v}'),)
+    
 class Website(models.Model):
     """Website model holds the websites owned by users."""
     user = models.ForeignKey(User, related_name='websites', on_delete=models.CASCADE)
@@ -28,15 +34,16 @@ class Website(models.Model):
     
     def save(self, *args, **kwargs):
         """Always generate a slug on save."""
-        i = 0
-        while True:
-            slug = slugify(self.label)
-            if i > 0:
-                slug = f'{slug}-{i}'
-            if Website.objects.filter(slug=slug).count() == 0:
-                break
-            i += 1
-        self.slug = slug
+        if not self.slug:
+            i = 0
+            while True:
+                slug = slugify(self.label)
+                if i > 0:
+                    slug = f'{slug}-{i}'
+                if Website.objects.filter(slug=slug).count() == 0:
+                    break
+                i += 1
+            self.slug = slug
         super(Website, self).save(*args, **kwargs)
     
     def __str__(self):

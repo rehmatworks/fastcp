@@ -7553,7 +7553,7 @@ var render = function() {
                           ]),
                           _vm._v(" "),
                           _c("tr", [
-                            _c("td", [_vm._v("SFTP/SSH Address")]),
+                            _c("td", [_vm._v("SFTP/SSH Host")]),
                             _vm._v(" "),
                             _c("td", [
                               _vm._v(

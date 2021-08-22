@@ -115,11 +115,10 @@ class ChangePHPVersion(APIView):
                 'message': f'Target website with ID {website_id} was not found.'
             }, status=status.HTTP_404_NOT_FOUND)
         
-        website.php = s.validated_data.get('php')
-        website.save()
-        # Send a signal once PHP version is updated so the FPM conf files will be
-        # updated promptly.
-        signals.php_updated.send(sender=website)
+        new_version=s.validated_data.get('php')
+        if website.php != new_version:
+            # Send a signal so the FPM conf files will be updated promptly.
+            signals.update_php.send(sender=website, new_version=new_version)
         return Response({
             'message': kwargs
         })

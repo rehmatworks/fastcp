@@ -1,9 +1,17 @@
 import django.dispatch
-from core.utils import php
+from django.db.models.signals import (
+    post_save, pre_delete
+)
+from django.dispatch import receiver
+from core.models import Website
+from core.utils import system as fcpsys
+from core.utils import filesystem
+
+
 
 # This signal will be sent when PHP version
 # of a website is updated.
-php_updated = django.dispatch.Signal()
+update_php = django.dispatch.Signal()
 domains_updated = django.dispatch.Signal()
 
 def update_php_conf(sender, **kwargs):
@@ -11,8 +19,12 @@ def update_php_conf(sender, **kwargs):
     
     Update the PHP-FPM pool configuration for the specified website.
     """
-    php.update_php_conf(sender)
-php_updated.connect(update_php_conf, dispatch_uid='update-php-conf')
+    filesystem.delete_fpm_conf(sender)
+    sender.php = kwargs.get('new_version')
+    sender.save()
+    filesystem.generate_fpm_conf(sender)
+
+update_php.connect(update_php_conf, dispatch_uid='update-php-conf')
 
 
 def update_domains(sender, **kwargs):
@@ -23,3 +35,13 @@ def update_domains(sender, **kwargs):
     # To-do: Updae vhost files physically
     pass
 domains_updated.connect(update_domains, dispatch_uid='domains-updated')
+
+@receiver(post_save, sender=Website)
+def setup_website(sender, instance=None, created=False, **kwargs):
+    if created:
+        fcpsys.setup_website(instance)
+
+
+@receiver(pre_delete, sender=Website)
+def delete_website(sender, instance=None, **kwargs):
+    fcpsys.delete_website(instance)
