@@ -120,6 +120,7 @@ class Domain(models.Model):
 
 class Database(models.Model):
     """Database model holds the MySQL databases."""
+    user = models.ForeignKey(User, related_name='databases', on_delete=models.CASCADE)
     name = models.SlugField(max_length=50, unique=True)
     username = models.SlugField(max_length=50, unique=True)
     created = models.DateTimeField(auto_now_add=True)
