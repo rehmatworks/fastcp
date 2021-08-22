@@ -95,9 +95,14 @@
                                             v-for="domain in website.domains"
                                             :key="domain.domain"
                                         >
-                                            <td style="width: 40%">{{ domain }}</td>
-                                            <td class="text-success" style="width: 30%">
-                                                <i class="fas fa-unlock"></i> HTTPS
+                                            <td style="width: 40%">{{ domain.domain }}</td>
+                                            <td :class="{'text-success': domain.ssl, 'text-muted': !domain.ssl}" style="width: 30%">
+                                                <span v-if="domain.ssl">
+                                                    <i class="fas fa-lock"></i> HTTPS
+                                                </span>
+                                                <span v-else>
+                                                    <i class="fas fa-unlock"></i> HTTP
+                                                </span>
                                             </td>
                                             <td class="text-right">
                                                 <button class="btn btn-sm btn-danger">

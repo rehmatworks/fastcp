@@ -8,6 +8,7 @@ from core.permissions import IsAdminOrOwner
 from rest_framework import permissions
 from django.db.models import Q
 from .services.get_php_versions import PhpVersionListService
+from core.signals import php_updated
 
 
 class PasswordUpdateView(APIView):
@@ -45,6 +46,9 @@ class ChangePHPVersion(APIView):
         
         website.php = s.validated_data.get('php')
         website.save()
+        # Send a signal once PHP version is updated so the FPM conf files will be
+        # updated promptly.
+        php_updated.send(sender=website)
         return Response({
             'message': kwargs
         })

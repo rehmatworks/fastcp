@@ -3444,6 +3444,11 @@ __webpack_require__.r(__webpack_exports__);
 //
 //
 //
+//
+//
+//
+//
+//
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({
   data: function data() {
     return {
@@ -3726,7 +3731,7 @@ var routes = [{
     title: 'Manage Website'
   }
 }, {
-  path: '/websites/deploy',
+  path: '/deploy-website',
   name: 'deploysite',
   component: __webpack_require__(/*! ./components/websites/CreateComponent */ "./resources/js/components/websites/CreateComponent.vue").default,
   meta: {
@@ -7630,12 +7635,38 @@ var render = function() {
                           _vm._l(_vm.website.domains, function(domain) {
                             return _c("tr", { key: domain.domain }, [
                               _c("td", { staticStyle: { width: "40%" } }, [
-                                _vm._v(_vm._s(domain))
+                                _vm._v(_vm._s(domain.domain))
                               ]),
                               _vm._v(" "),
-                              _vm._m(0, true),
+                              _c(
+                                "td",
+                                {
+                                  class: {
+                                    "text-success": domain.ssl,
+                                    "text-muted": !domain.ssl
+                                  },
+                                  staticStyle: { width: "30%" }
+                                },
+                                [
+                                  domain.ssl
+                                    ? _c("span", [
+                                        _c("i", { staticClass: "fas fa-lock" }),
+                                        _vm._v(
+                                          " HTTPS\n                                            "
+                                        )
+                                      ])
+                                    : _c("span", [
+                                        _c("i", {
+                                          staticClass: "fas fa-unlock"
+                                        }),
+                                        _vm._v(
+                                          " HTTP\n                                            "
+                                        )
+                                      ])
+                                ]
+                              ),
                               _vm._v(" "),
-                              _vm._m(1, true)
+                              _vm._m(0, true)
                             ])
                           }),
                           0
@@ -7732,19 +7763,6 @@ var render = function() {
   ])
 }
 var staticRenderFns = [
-  function() {
-    var _vm = this
-    var _h = _vm.$createElement
-    var _c = _vm._self._c || _h
-    return _c(
-      "td",
-      { staticClass: "text-success", staticStyle: { width: "30%" } },
-      [
-        _c("i", { staticClass: "fas fa-unlock" }),
-        _vm._v(" HTTPS\n                                        ")
-      ]
-    )
-  },
   function() {
     var _vm = this
     var _h = _vm.$createElement

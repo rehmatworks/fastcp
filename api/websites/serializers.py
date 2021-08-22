@@ -7,16 +7,23 @@ class ChangePhpVersionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Website
         fields = ['php']
+    
+class DomainSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Domain
+        fields = '__all__'
 
 
 class WebsiteSerializer(serializers.ModelSerializer):
+    domains = DomainSerializer(many=True, required=False)
     class Meta:
         model = Website
         fields = ['id', 'label', 'user', 'metadata', 'domains', 'has_ssl', 'php']
-        read_only_fields = ['id', 'has_ssl', 'metadata', 'domains', 'user']
+        read_only_fields = ['id', 'has_ssl', 'domains', 'metadata', 'domains', 'user']
         
     
     def validate_domains(self, value):
+        # Validate domains
         domains = list(filter(None, [domain.strip() for domain in value.strip().split(',')]))
         if len(domains) == 0:
             raise serializers.ValidationError({'domains': ['You have not provided any domains.']})

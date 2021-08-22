@@ -24,7 +24,7 @@ export const routes = [
         }
     },
     {
-        path: '/websites/deploy',
+        path: '/deploy-website',
         name: 'deploysite',
         component: require('./components/websites/CreateComponent').default,
         meta: {
