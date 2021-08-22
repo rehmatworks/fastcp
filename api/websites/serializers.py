@@ -2,6 +2,7 @@ from rest_framework import serializers
 from core.models import Website, Domain
 import validators
 from core import signals
+from core.models import User
 
 
 class ChangePhpVersionSerializer(serializers.ModelSerializer):
@@ -54,7 +55,21 @@ class WebsiteSerializer(serializers.ModelSerializer):
         domains = request.POST.get('domains')
         domains = self.validate_domains(domains)
         user = request.user
-        validated_data['user'] = user
+        if not user.is_superuser:
+            ssh_user = user
+        else:
+            ssh_user = request.POST.get('ssh_user')
+            
+            if ssh_user:
+                if ssh_user == 'root':
+                    raise serializers.ValidationError({'username': 'You cannot create any websites for root user.'})
+                else:
+                    ssh_user = User.objects.filter(username=ssh_user).first()
+            
+            if not ssh_user:
+                raise serializers.ValidationError({'username': 'An SSH user should be selected as the owner of this website.'})
+            
+        validated_data['user'] = ssh_user
         website = Website.objects.create(**validated_data)
         
         # Create domains

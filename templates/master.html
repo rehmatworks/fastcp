@@ -22,6 +22,7 @@
     <link href="{% static 'core/assets/css/sb-admin-2.min.css' %}" rel="stylesheet">
     {% block head %}{% endblock %}
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/vue-select@latest/dist/vue-select.css">
     <style>
         .fade-enter-active,
         .fade-leave-active {
@@ -36,6 +37,10 @@
         .fade-enter,
         .fade-leave-active {
             opacity: 0
+        }
+        .vs__search {
+            height: 25px;
+            font-size: 18px;
         }
     </style>
 </head>
@@ -203,6 +208,7 @@
     <script>
         let FM_ROOT = "{{ FASTCP_FM_ROOT }}";
     </script>
+    <script src="https://unpkg.com/vue-select@latest"></script>
     <script src="{% static 'core/assets/js/fastcp.js' %}?{% now 'U' %}"></script>
     {% block scripts %}{% endblock %}
 </body>

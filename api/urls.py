@@ -5,6 +5,7 @@ from api.databases.urls import router as databases_router
 app_name='api'
 urlpatterns=[
     path('websites/', include('api.websites.urls', namespace='websites')),
+    path('ssh-users/', include('api.users.urls', namespace='users')),
     path('databases/', include(databases_router.urls)),
     path('account/', include('api.account.urls', namespace='account')),
     path('stats/', include('api.stats.urls', namespace='stats')),

@@ -16,6 +16,8 @@ Vue.filter('floatformat', function(num) {
     return parseFloat(num).toFixed(2);
 });
 
+Vue.component('v-select', VueSelect.VueSelect);
+
 Vue.filter('prettyBytes', function (num) {
     if (typeof num !== 'number' || isNaN(num)) {
         throw new TypeError('Expected a number');
@@ -55,6 +57,12 @@ Vue.mixin({
         return {
             EventBus: EventBus,
             FM_ROOT: FM_ROOT
+        }
+    },
+    methods: {
+        genRandPassword(pwLen=15) {
+            var pwdChars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+            return Array(pwLen).fill(pwdChars).map(function(x) { return x[Math.floor(Math.random() * x.length)] }).join('');
         }
     }
 });

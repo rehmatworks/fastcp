@@ -1,8 +1,11 @@
 from django.db import models
-from django.contrib.auth.models import User
 from django.template.defaultfilters import slugify
 from django.conf import settings
 from api.websites.services.get_php_versions import PhpVersionListService
+from django.contrib.auth.models import AbstractUser
+
+class User(AbstractUser):
+    pass
 
 
 class Notification(models.Model):
