@@ -4,6 +4,7 @@ from datetime import datetime
 from django.contrib.auth.models import User
 from django.conf import settings
 from django.template.loader import render_to_string
+from core import signals
 
 
 def extract_zip(root_path, archive_path):
@@ -200,6 +201,7 @@ def delete_nginx_vhost(website: object) -> bool:
         
         if os.path.exists(non_ssl_vhost):
             os.remove(non_ssl_vhost)
+        signals.reload_services.send(sender=None, services='nginx')
         return True
     except:
         return False
@@ -248,8 +250,13 @@ def create_nginx_vhost(website: object, protocol: str='http', **kwargs) -> bool:
     else:
         tpl_data = render_to_string('system/nginx-vhost-http.txt', context=context)
     
-    with open(website_vhost_path, 'w') as f:
-        f.write(tpl_data)
+    try:
+        with open(website_vhost_path, 'w') as f:
+            f.write(tpl_data)
+        signals.reload_services.send(sender=None, services='nginx')
+        return True
+    except:
+        return False
         
 
 def create_website_dirs(website: object) -> bool:
@@ -325,6 +332,7 @@ def generate_fpm_conf(website: object) -> bool:
     try:
         with open(paths.get('fpm_path'), 'w') as f:
             f.write(data)
+        signals.reload_services.send(sender=None, services=f'php{website.php}-fpm')
         return True
     except:
         return False
@@ -344,6 +352,7 @@ def delete_fpm_conf(website: object) -> bool:
     if os.path.exists(fpm_path):
         try:
             os.remove(fpm_path)
+            signals.reload_services.send(sender=None, services=f'php{website.php}-fpm')
             return True
         except:
             pass

@@ -13,21 +13,25 @@ from core.utils import filesystem
 # of a website is updated.
 update_php = django.dispatch.Signal()
 domains_updated = django.dispatch.Signal()
+restart_services = django.dispatch.Signal()
+reload_services = django.dispatch.Signal()
 
-def update_php_conf(sender, **kwargs):
+def update_php_handler(sender, **kwargs):
     """Update PHP conf.
     
     Update the PHP-FPM pool configuration for the specified website.
     """
     filesystem.delete_fpm_conf(sender)
-    sender.php = kwargs.get('new_version')
+    old_version = sender.php
+    new_version = kwargs.get('new_version')
+    sender.php = new_version
     sender.save()
     filesystem.generate_fpm_conf(sender)
 
-update_php.connect(update_php_conf, dispatch_uid='update-php-conf')
+update_php.connect(update_php_handler, dispatch_uid='update-php-conf')
 
 
-def update_domains(sender, **kwargs):
+def domains_updated_handler(sender, **kwargs):
     """Update domains.
     
     Update the vhost conf files once a website's domains are updated.
@@ -35,14 +39,38 @@ def update_domains(sender, **kwargs):
     # Create NGINX vhost
     filesystem.create_nginx_vhost(sender)
     
-domains_updated.connect(update_domains, dispatch_uid='domains-updated')
+domains_updated.connect(domains_updated_handler, dispatch_uid='domains-updated')
 
 @receiver(post_save, sender=Website)
 def setup_website(sender, instance=None, created=False, **kwargs):
+    """Executes when a website is created at first. We will create the data."""
     if created:
         fcpsys.setup_website(instance)
 
 
 @receiver(pre_delete, sender=Website)
 def delete_website(sender, instance=None, **kwargs):
+    """Executes when a website is deleted. We will clean the data then."""
     fcpsys.delete_website(instance)
+    
+
+def restart_services_handler(sender=None, **kwargs):
+    """Restarts services. Expects the service names as a comma-separated string."""
+    services = kwargs.get('services').split(',')
+    for service in services:
+        # To-Do: Need to restart the services
+        pass
+
+restart_services.connect(restart_services_handler, dispatch_uid='restart-services')
+
+
+def reload_services_handler(sender=None, **kwargs):
+    """Reload services. Expects the service names as a comma-separated string."""
+    services = kwargs.get('services').split(',')
+    for service in services:
+        # To-Do: Need to reload the services
+        with open('/Users/rehmat/Downloads/test.txt', 'a') as f:
+            f.write(f'Service {service} reloaded.\n')
+        pass
+
+reload_services.connect(reload_services_handler, dispatch_uid='reload-services')
