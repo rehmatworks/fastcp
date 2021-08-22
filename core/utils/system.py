@@ -1,6 +1,31 @@
 from core.utils import filesystem
+import os
+from subprocess import (
+    STDOUT, check_call, CalledProcessError
+)
 
 
+def run_cmd(cmd: str, shell=False) -> bool:
+        """Runs a shell command.
+        Runs a shell command using subprocess.
+        
+        Args:
+            cmd (str): The shell command to run.
+            shell (bool): Defines either shell should be set to True or False.
+        
+        Returns:
+            bool: Returns True on success and False otherwise
+        """
+        try:
+            if not shell:
+                check_call(cmd.split(' '),
+                           stdout=open(os.devnull, 'wb'), stderr=STDOUT, timeout=300)
+            else:
+                check_call(cmd, stdout=open(os.devnull, 'wb'),
+                           stderr=STDOUT, shell=True, executable='bash', timeout=300)
+            return True
+        except CalledProcessError:
+            return False
 
 def setup_website(website: object):
     """Setup website.
