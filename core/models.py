@@ -2,10 +2,54 @@ from django.db import models
 from django.template.defaultfilters import slugify
 from django.conf import settings
 from api.websites.services.get_php_versions import PhpVersionListService
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, BaseUserManager
+
+class FastcpUserManager(BaseUserManager):
+    """FastCP User Manager.
+    
+    This user manager allows us to make customizations to create_superuser method to make the auth flow
+    compatible to FastCP's requirements.
+    """
+    
+    def _create_user(self, **extra_fields):
+        """
+        Creates a a user for the provided username.
+        """
+        user = self.model(**extra_fields)
+        user.save()
+        return user
+    
+    def create_superuser(self, username, **kwargs):
+        """Create superuser.
+        
+        We are overriding this method because the original method requires the email address. But we aren't
+        going to have a field for user email.
+        """
+        return self._create_user(
+            username=username,
+            is_staff=True,
+            is_superuser=True,
+            is_active=True
+        )
 
 class User(AbstractUser):
-    pass
+    """User model.
+    
+    We are not relying on password of the user stored in the database nor we need their email. Authentication
+    relies on the validation of the unix passwords.
+    """
+    password = None
+    email = None
+    username = models.CharField(max_length=30, unique=True)
+    
+    # FastCP resource limits
+    max_dbs = models.IntegerField(default=0) # Max number of databases a user can create
+    max_sites = models.IntegerField(default=0) # Max number of websites a user can create
+    max_storage = models.FloatField(default=0) # Max storage (in MBs) a user can create 1024 == 1GB
+    
+    # More customizations
+    REQUIRED_FIELDS = []
+    objects = FastcpUserManager()
 
 
 class Notification(models.Model):
