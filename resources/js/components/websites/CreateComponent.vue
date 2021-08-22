@@ -179,6 +179,7 @@ export default {
                 this.user_pass = this.genRandPassword();
                 this.ssh_user = '';
             }
+            this.errors = {};
         }
     }
 };

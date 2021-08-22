@@ -3374,6 +3374,8 @@ __webpack_require__.r(__webpack_exports__);
         this.user_pass = this.genRandPassword();
         this.ssh_user = '';
       }
+
+      this.errors = {};
     }
   }
 });

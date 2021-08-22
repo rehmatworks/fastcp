@@ -28,6 +28,12 @@ class ListFileService(object):
         search = validated_data.get('search')
         user = self.request.user
         
+        # List of protected files and folders (in root dir)
+        # For example, in run directory, we are storing socket files
+        # And a non-root user should not see this directory in file manager in
+        # general circumstances.
+        PROTECTED_LIST = ['run']
+        
         BASE_PATH = cpfs.get_user_path(user)
             
         if not path or not os.path.exists(path):
@@ -42,6 +48,8 @@ class ListFileService(object):
         for p in path.iterdir():
             data = cpfs.get_path_info(p)
             if not search or search.lower() in data.get('name').lower():
+                if str(path) == BASE_PATH and data.get('name').lower() in PROTECTED_LIST:
+                    continue
                 files.append(data)
         
         paginator = Paginator(files, 15)
