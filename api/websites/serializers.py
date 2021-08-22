@@ -63,5 +63,7 @@ class WebsiteSerializer(serializers.ModelSerializer):
                 domain=domain
             )
         
+        # Send domains updated signal so vhost file
+        # will be created.
         signals.domains_updated.send(sender=website)
         return website

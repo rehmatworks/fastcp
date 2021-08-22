@@ -113,16 +113,50 @@ def get_user_path(user, exact=False):
         return os.path.join(FM_ROOT, user.username)
 
 
-def get_fpm_path(website: object) -> str:
-    """Get PHP-FPM conf path.
-
+def get_user_paths(user: object) -> dict:
+    """Get user paths.
+    
+    This should not be confused with get_user_path (singular) and this function returns a dict containing
+    all paths associated to a user that FastCP needs.
+    
     Args:
-        website (object): Website model object.
+        user (object): User model object.
         
     Returns:
-        str: Returns the FPM conf path as a string.
+        dict: A dictionary containing user paths.
     """
-    return os.path.join(settings.PHP_INSTALL_PATH, website.php, 'fpm', 'pool.d', f'{website.slug}.conf')
+    user_path = get_user_path(user, exact=True)
+    return {
+        'base_path': user_path,
+        'apps_path': os.path.join(user_path, 'apps'),
+        'run_path': os.path.join(user_path, 'run'),
+        'logs_path': os.path.join(user_path, 'logs')
+    }
+
+
+def get_website_paths(website: object) -> dict:
+    """Get website paths.
+    
+    This function returns the common paths for a website. Generating the paths in a single
+    place makes things easier when it comes to modify a location of any installation.
+    
+    Args:
+        website (object): Website model object.
+    
+    Returns:
+        dict: Returns a dictionary that contains the path strings.
+    """
+    user_paths = get_user_paths(website.user)
+    web_base = os.path.join(user_paths.get('apps_path'), website.slug)
+    return {
+        'fpm_path': os.path.join(settings.PHP_INSTALL_PATH, website.php, 'fpm', 'pool.d', f'{website.slug}.conf'),
+        'base_path': web_base,
+        'web_root': os.path.join(web_base, 'public'),
+        'socket_path': os.path.join(user_paths.get('run_path'), f'{website.slug}.sock'),
+        'ngix_vhost_dir': os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}.d'),
+        'ngix_vhost_conf': os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}.conf'),
+        'ngix_vhost_ssl_conf': os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}-ssl.conf'),
+    }
 
 def create_if_missing(path: str) -> bool:
     """Create a path if missing.
@@ -154,11 +188,12 @@ def delete_nginx_vhost(website: object) -> bool:
     Returns:
         bool: True on success False otherwise.
     """
-    website_conf_dir = os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}.d')
+    website_paths = get_website_paths(website)
+    website_conf_dir = website_paths.get('ngix_vhost_dir')
     try:
         shutil.rmtree(website_conf_dir)
-        ssl_vhost = os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}-ssl.conf')
-        non_ssl_vhost = os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}.conf')
+        ssl_vhost = website_paths.get('ngix_vhost_ssl_conf')
+        non_ssl_vhost = website_paths.get('ngix_vhost_conf')
         
         if os.path.exists(ssl_vhost):
             os.remove(ssl_vhost)
@@ -182,15 +217,15 @@ def create_nginx_vhost(website: object, protocol: str='http', **kwargs) -> bool:
     Returns:
         bool: True on success and False otherwise.
     """
-    website_conf_dir = os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}.d')
-    create_if_missing(website_conf_dir)
+    website_paths = get_website_paths(website)
+    create_if_missing(website_paths.get('ngix_vhost_dir'))
     
     # Vhost conf path
     is_ssl = protocol == 'https' and kwargs.get('ssl_cert') and kwargs.get('ssl_key')
     if is_ssl:
-        website_vhost_path = os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}-ssl.conf')
+        website_vhost_path = website_paths.get('ngix_vhost_ssl_conf')
     else:
-        website_vhost_path = os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}.conf')
+        website_vhost_path = website_paths.get('ngix_vhost_conf')
     
     domains = ''
     i = 0
@@ -200,14 +235,10 @@ def create_nginx_vhost(website: object, protocol: str='http', **kwargs) -> bool:
         domains += domain.domain
         i += 1
     
-    user_path = get_user_path(website.user, exact=True)
-    web_root = os.path.join(user_path, 'apps', website.slug, 'public')
-    socket_path = os.path.join(user_path, 'run', f'{website.slug}.sock')
-    
     context = {
         'domains': domains,
-        'webroot': web_root,
-        'socket_path': socket_path
+        'webroot': website_paths.get('web_root'),
+        'socket_path': website_paths.get('socket_path')
     }
     
     if is_ssl:
@@ -233,30 +264,26 @@ def create_website_dirs(website: object) -> bool:
     Returns:
         bool: True on success False otherwise.
     """
-    user_path = get_user_path(website.user, exact=True)
+    user_paths = get_user_paths(website.user)
     try:
         # Create user dir if not exists
-        create_if_missing(user_path)
-            
+        create_if_missing(user_paths.get('base_path'))
+        
         # Sockets path
-        run_path = os.path.join(user_path, 'run')
-        create_if_missing(run_path)
+        create_if_missing(user_paths.get('run_path'))
         
         # Logs path
-        logs_path = os.path.join(user_path, 'logs')
-        create_if_missing(logs_path)
+        create_if_missing(user_paths.get('logs_path'))
         
         # Apps root path
-        apps_path = os.path.join(user_path, 'apps')
-        create_if_missing(apps_path)
+        create_if_missing(user_paths.get('apps_path'))
         
         # Website path
-        website_path = os.path.join(apps_path, website.slug)
-        create_if_missing(website_path)
+        website_paths = get_website_paths(website)
+        create_if_missing(website_paths.get('base_path'))
         
         # Website public path
-        public_path = os.path.join(website_path, 'public')
-        create_if_missing(public_path)
+        create_if_missing(website_paths.get('web_root'))
         
         return True
     except:
@@ -264,10 +291,9 @@ def create_website_dirs(website: object) -> bool:
 
 def delete_website_dirs(website: object) -> bool:
     """Deletes website directories."""
-    user_path = get_user_path(website.user, exact=True)
-    website_path = os.path.join(user_path, 'apps', website.slug)
+    website_paths = get_website_paths(website)
     try:
-        shutil.rmtree(website_path)
+        shutil.rmtree(website_paths.get('base_path'))
         return True
     except:
         return False
@@ -284,22 +310,20 @@ def generate_fpm_conf(website: object) -> bool:
     Returns:
         bool: True on success False otherwise.
     """
-    user_path = get_user_path(website.user, exact=True)
+    paths = get_website_paths(website)
     
     context = {
         'ssh_user': website.user.username,
         'ssh_group': website.user.username,
-        'app_name': website.slug,
-        'run_path': os.path.join(user_path, 'run')
+        'socket_path': paths.get('socket_path')
     }
 
     # Render template data
     data = render_to_string('system/php-fpm-pool.txt', context)
 
     # Write conf file
-    fpm_path = get_fpm_path(website)
     try:
-        with open(fpm_path, 'w') as f:
+        with open(paths.get('fpm_path'), 'w') as f:
             f.write(data)
         return True
     except:
@@ -316,7 +340,7 @@ def delete_fpm_conf(website: object) -> bool:
     Returns:
         bool: True on success Falase otherwise.
     """
-    fpm_path = get_fpm_path(website)
+    fpm_path = get_website_paths(website).get('fpm_path')
     if os.path.exists(fpm_path):
         try:
             os.remove(fpm_path)
