@@ -68,7 +68,17 @@ class WebsiteSerializer(serializers.ModelSerializer):
             
             if not ssh_user:
                 raise serializers.ValidationError({'username': 'An SSH user should be selected as the owner of this website.'})
-            
+        
+        
+        # Ensure that user doesn't go beyond their quota
+        if ssh_user.websites.count() >= ssh_user.max_sites:
+            if ssh_user.max_sites == 1:
+                limit_str = '1 website'
+            else:
+                limit_str = f'{ssh_user.max_sites} websites'
+                
+            raise serializers.ValidationError({'label': [f'The allowed quota limit of {limit_str} has reached.']})
+        
         validated_data['user'] = ssh_user
         website = Website.objects.create(**validated_data)
         
