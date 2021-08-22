@@ -1,5 +1,4 @@
-import os
-import zipfile
+import os, shutil, zipfile
 from pathlib import Path
 from datetime import datetime
 from django.contrib.auth.models import User
@@ -99,7 +98,7 @@ def get_path_info(p):
     }
 
 
-def get_user_path(user):
+def get_user_path(user, exact=False):
     """Get user path.
 
     This function returns the filesystem path for the provided user. Thie path is used by file manager.
@@ -108,7 +107,7 @@ def get_user_path(user):
         user (object): User model object.
     """
     FM_ROOT = settings.FILE_MANAGER_ROOT
-    if user.is_superuser:
+    if user.is_superuser and not exact:
         return FM_ROOT
     else:
         return os.path.join(FM_ROOT, user.username)
@@ -125,6 +124,76 @@ def get_fpm_path(website: object) -> str:
     """
     return os.path.join(settings.PHP_INSTALL_PATH, website.php, 'fpm', 'pool.d', f'{website.slug}.conf')
 
+def create_if_missing(path: str) -> bool:
+    """Create a path if missing.
+    
+    This function crates a path if it's missing.
+    
+    Args:
+        path (str): The path string.
+        
+    Returns:
+        bool: True if created, False if not.
+    """
+    if not os.path.exists(path):
+        try:
+            os.makedirs(path)
+            return True
+        except:
+            pass
+    return False
+
+def create_website_dirs(website: object) -> bool:
+    """Create website directories.
+    
+    This function creates the website directories. If the SSH user doesn't have the directories yet,
+    they are created as well.
+    
+    Args:
+        website (object): The website model object.
+        
+    Returns:
+        bool: True on success False otherwise.
+    """
+    user_path = get_user_path(website.user, exact=True)
+    try:
+        # Create user dir if not exists
+        create_if_missing(user_path)
+            
+        # Sockets path
+        run_path = os.path.join(user_path, 'run')
+        create_if_missing(run_path)
+        
+        # Logs path
+        logs_path = os.path.join(user_path, 'logs')
+        create_if_missing(logs_path)
+        
+        # Apps root path
+        apps_path = os.path.join(user_path, 'apps')
+        create_if_missing(apps_path)
+        
+        # Website path
+        website_path = os.path.join(apps_path, website.slug)
+        create_if_missing(website_path)
+        
+        # Website public path
+        public_path = os.path.join(website_path, 'public')
+        create_if_missing(public_path)
+        
+        return True
+    except:
+        return False
+
+def delete_website_dirs(website: object) -> bool:
+    """Deletes website directories."""
+    user_path = get_user_path(website.user, exact=True)
+    website_path = os.path.join(user_path, 'apps', website.slug)
+    try:
+        shutil.rmtree(website_path)
+        return True
+    except:
+        return False
+    
 
 def generate_fpm_conf(website: object) -> bool:
     """Generate FPM pool conf.
@@ -137,10 +206,13 @@ def generate_fpm_conf(website: object) -> bool:
     Returns:
         bool: True on success False otherwise.
     """
+    user_path = get_user_path(website.user, exact=True)
+    
     context = {
         'ssh_user': website.user.username,
         'ssh_group': website.user.username,
-        'app_name': website.slug
+        'app_name': website.slug,
+        'run_path': os.path.join(user_path, 'run')
     }
 
     # Render template data

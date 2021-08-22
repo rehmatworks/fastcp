@@ -10,7 +10,7 @@
 [www]
 user = {{ ssh_user }}
 group = {{ ssh_group }}
-listen = /run/php/{{ app_name }}-fpm.sock
+listen = {{ run_path }}/{{ app_name }}-fpm.sock
 listen.owner = www-data
 listen.group = www-data
 pm = ondemand
