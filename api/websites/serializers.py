@@ -7,12 +7,17 @@ class ChangePhpVersionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Website
         fields = ['php']
-    
+  
 class DomainSerializer(serializers.ModelSerializer):
     class Meta:
         model = Domain
         fields = '__all__'
-
+    
+    def validate_domain(self, value):
+        """Ensure that the value is a valid domain"""
+        if not validators.domain(value):
+            raise serializers.ValidationError(f'{value} is not a valid domain.')
+        return value
 
 class WebsiteSerializer(serializers.ModelSerializer):
     domains = DomainSerializer(many=True, required=False)

@@ -83,9 +83,29 @@
                             </div>
                         </div>
                     </div>
+                    <div v-if="add_dom" class="card mb-3">
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label for="domain">Domain Name</label>
+                                <input v-model="new_domain" :class="{'is-invalid': errors.domain}" type="text" class="form-control" placeholder="Add a new domain to this website.">
+                                <small class="d-block invalid-feedback" v-if="errors.domain">
+                                    {{ errors.domain[0] }}
+                                </small>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button @click="addDomain()" class="btn btn-primary">
+                                Add Domain
+                            </button>
+                            <button @click="add_dom=false" class="btn btn-success">Cancel</button>
+                        </div>
+                    </div>
                     <div class="card">
                         <div class="card-header text-light bg-primary">
                             Domains ({{ website.domains.length }})
+                            <button @click="add_dom=!add_dom" class="btn btn-primary float-right">
+                                <i class="fas fa-plus"></i> Add
+                            </button>
                         </div>
                         <div class="card-body">
                             <div class="table-responsive">
@@ -172,7 +192,10 @@ export default {
             reset: false,
             change_php: false,
             php_versions: [],
-            del_dom: false
+            del_dom: false,
+            new_domain: '',
+            add_dom: false,
+            errors: {}
         };
     },
     created() {
@@ -180,6 +203,27 @@ export default {
         this.getPhpVersions();
     },
     methods: {
+        addDomain() {
+            let _this = this;
+            _this.$store.commit('setBusy', true);
+            _this.errors = {};
+            let fd = new FormData();
+            fd.append('domain', _this.new_domain);
+            axios.post(`/websites/${_this.$route.params.id}/add-domain/`, fd).then((res) => {
+                _this.add_dom = false;
+                _this.new_domain = '';
+                _this.$store.commit('setbusy', false);
+                toastr.success('Domain has been added successfully.');
+                _this.getWebsite();
+            }).catch((err) => {
+                if(err.response && err.response.data.errors) {
+                    _this.errors = err.response.data.errors;
+                } else {
+                    toastr.error('An error occurred and the domain cannot be added.');
+                }
+                _this.$store.commit('setBusy', false);
+            });
+        },
         getPhpVersions() {
             let _this = this;
             _this.$store.commit('setBusy', true);

@@ -3455,6 +3455,26 @@ __webpack_require__.r(__webpack_exports__);
 //
 //
 //
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({
   data: function data() {
     return {
@@ -3463,7 +3483,10 @@ __webpack_require__.r(__webpack_exports__);
       reset: false,
       change_php: false,
       php_versions: [],
-      del_dom: false
+      del_dom: false,
+      new_domain: '',
+      add_dom: false,
+      errors: {}
     };
   },
   created: function created() {
@@ -3471,6 +3494,33 @@ __webpack_require__.r(__webpack_exports__);
     this.getPhpVersions();
   },
   methods: {
+    addDomain: function addDomain() {
+      var _this = this;
+
+      _this.$store.commit('setBusy', true);
+
+      _this.errors = {};
+      var fd = new FormData();
+      fd.append('domain', _this.new_domain);
+      axios.post("/websites/".concat(_this.$route.params.id, "/add-domain/"), fd).then(function (res) {
+        _this.add_dom = false;
+        _this.new_domain = '';
+
+        _this.$store.commit('setbusy', false);
+
+        toastr.success('Domain has been added successfully.');
+
+        _this.getWebsite();
+      })["catch"](function (err) {
+        if (err.response && err.response.data.errors) {
+          _this.errors = err.response.data.errors;
+        } else {
+          toastr.error('An error occurred and the domain cannot be added.');
+        }
+
+        _this.$store.commit('setBusy', false);
+      });
+    },
     getPhpVersions: function getPhpVersions() {
       var _this = this;
 
@@ -7639,6 +7689,90 @@ var render = function() {
                 ])
               ]),
               _vm._v(" "),
+              _vm.add_dom
+                ? _c("div", { staticClass: "card mb-3" }, [
+                    _c("div", { staticClass: "card-body" }, [
+                      _c("div", { staticClass: "form-group" }, [
+                        _c("label", { attrs: { for: "domain" } }, [
+                          _vm._v("Domain Name")
+                        ]),
+                        _vm._v(" "),
+                        _c("input", {
+                          directives: [
+                            {
+                              name: "model",
+                              rawName: "v-model",
+                              value: _vm.new_domain,
+                              expression: "new_domain"
+                            }
+                          ],
+                          staticClass: "form-control",
+                          class: { "is-invalid": _vm.errors.domain },
+                          attrs: {
+                            type: "text",
+                            placeholder: "Add a new domain to this website."
+                          },
+                          domProps: { value: _vm.new_domain },
+                          on: {
+                            input: function($event) {
+                              if ($event.target.composing) {
+                                return
+                              }
+                              _vm.new_domain = $event.target.value
+                            }
+                          }
+                        }),
+                        _vm._v(" "),
+                        _vm.errors.domain
+                          ? _c(
+                              "small",
+                              { staticClass: "d-block invalid-feedback" },
+                              [
+                                _vm._v(
+                                  "\n                                " +
+                                    _vm._s(_vm.errors.domain[0]) +
+                                    "\n                            "
+                                )
+                              ]
+                            )
+                          : _vm._e()
+                      ])
+                    ]),
+                    _vm._v(" "),
+                    _c("div", { staticClass: "card-footer" }, [
+                      _c(
+                        "button",
+                        {
+                          staticClass: "btn btn-primary",
+                          on: {
+                            click: function($event) {
+                              return _vm.addDomain()
+                            }
+                          }
+                        },
+                        [
+                          _vm._v(
+                            "\n                            Add Domain\n                        "
+                          )
+                        ]
+                      ),
+                      _vm._v(" "),
+                      _c(
+                        "button",
+                        {
+                          staticClass: "btn btn-success",
+                          on: {
+                            click: function($event) {
+                              _vm.add_dom = false
+                            }
+                          }
+                        },
+                        [_vm._v("Cancel")]
+                      )
+                    ])
+                  ])
+                : _vm._e(),
+              _vm._v(" "),
               _c("div", { staticClass: "card" }, [
                 _c(
                   "div",
@@ -7647,7 +7781,22 @@ var render = function() {
                     _vm._v(
                       "\n                        Domains (" +
                         _vm._s(_vm.website.domains.length) +
-                        ")\n                    "
+                        ")\n                        "
+                    ),
+                    _c(
+                      "button",
+                      {
+                        staticClass: "btn btn-primary float-right",
+                        on: {
+                          click: function($event) {
+                            _vm.add_dom = !_vm.add_dom
+                          }
+                        }
+                      },
+                      [
+                        _c("i", { staticClass: "fas fa-plus" }),
+                        _vm._v(" Add\n                        ")
+                      ]
                     )
                   ]
                 ),

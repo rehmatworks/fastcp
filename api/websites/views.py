@@ -11,6 +11,43 @@ from .services.get_php_versions import PhpVersionListService
 from core import signals
 
 
+class DomainAddView(APIView):
+    """Add a new domain to a website."""
+    http_method_names = ['post']
+    
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        website_id = kwargs.get('id')
+        if user.is_superuser:
+            website = Website.objects.filter(id=website_id).first()
+        else:
+            website = Website.objects.filter(user=user, id=website_id).first()
+        
+        if not website:
+            return Response({
+                'message': f'Target website with ID {website_id} was not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        data = request.POST.copy()
+        data['website'] = website.id
+        s = serializers.DomainSerializer(data=data)
+        if not s.is_valid():
+            return Response({
+                'errors': s.errors
+            }, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            
+        # Create domain
+        website.domains.create(
+            domain=s.validated_data.get('domain')
+        )
+        
+        # Send signal
+        signals.domains_updated.send(sender=website)
+        
+        return Response({
+            'message': 'The domain has been deleted successfully.'
+        })
+
 class DeleteDomainView(APIView):
     """Delete a domain from a website."""
     http_method_names = ['delete']
