@@ -3258,7 +3258,10 @@ __webpack_require__.r(__webpack_exports__);
   },
   created: function created() {
     this.getPhpVersions();
-    this.getUsers();
+
+    if (this.$store.state.user && this.$store.state.user.is_root) {
+      this.getUsers();
+    }
   },
   methods: {
     getUsers: function getUsers() {

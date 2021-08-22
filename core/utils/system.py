@@ -57,3 +57,19 @@ def delete_website(website: object):
     
     # Delete NGINX vhost files
     filesystem.delete_nginx_vhost(website)
+    
+
+def setup_user(user: object, password: str=None) -> bool:
+    """Setup the user.
+    
+    Setup the user data directories as well as create the unix user.
+    
+    Args:
+        user (object): User model object.
+        
+    Returns:
+        bool: True on success and False otherwise.
+    """
+    filesystem.create_user_dirs(user)
+    
+    

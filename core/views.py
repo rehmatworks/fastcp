@@ -3,7 +3,7 @@ from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required, user_passes_test
 from .forms import LoginForm
 from django.contrib.auth import login, logout
-from core.models import User
+from .models import User
 from django.http import FileResponse, Http404
 from django.conf import settings
 import os

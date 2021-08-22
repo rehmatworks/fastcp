@@ -3,7 +3,7 @@ from django.db.models.signals import (
     post_save, pre_delete
 )
 from django.dispatch import receiver
-from core.models import Website
+from core.models import Website, User
 from core.utils import system as fcpsys
 from core.utils import filesystem
 
@@ -52,6 +52,16 @@ def setup_website(sender, instance=None, created=False, **kwargs):
 def delete_website(sender, instance=None, **kwargs):
     """Executes when a website is deleted. We will clean the data then."""
     fcpsys.delete_website(instance)
+    
+
+@receiver(post_save, sender=User)
+def update_user(sender, instance=None, created=False, **kwargs):
+    """Executes when a user is created at first. We will set the user is_active to True here as well
+    we will create the user data directories."""
+    if created:
+        instance.is_active = True
+        instance.save()
+        fcpsys.setup_user(instance)
     
 
 def restart_services_handler(sender=None, **kwargs):

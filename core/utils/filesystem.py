@@ -251,7 +251,36 @@ def create_nginx_vhost(website: object, protocol: str='http', **kwargs) -> bool:
         return True
     except:
         return False
+ 
+ 
+def create_user_dirs(user: object) -> bool:
+    """Create user directories.
+    
+    Creates the user data directories.
+    
+    Args:
+        user (object): User model object.
         
+    Returns:
+        bool: Returns True on success and Falase otherwise
+    """     
+    user_paths = get_user_paths(user)  
+    
+    try:
+        # Create user dir if not exists
+        create_if_missing(user_paths.get('base_path'))
+        
+        # Sockets path
+        create_if_missing(user_paths.get('run_path'))
+        
+        # Logs path
+        create_if_missing(user_paths.get('logs_path'))
+        
+        # Apps root path
+        create_if_missing(user_paths.get('apps_path'))
+        return True
+    except:
+        return False
 
 def create_website_dirs(website: object) -> bool:
     """Create website directories.
@@ -265,19 +294,10 @@ def create_website_dirs(website: object) -> bool:
     Returns:
         bool: True on success False otherwise.
     """
-    user_paths = get_user_paths(website.user)
     try:
-        # Create user dir if not exists
-        create_if_missing(user_paths.get('base_path'))
-        
-        # Sockets path
-        create_if_missing(user_paths.get('run_path'))
-        
-        # Logs path
-        create_if_missing(user_paths.get('logs_path'))
-        
-        # Apps root path
-        create_if_missing(user_paths.get('apps_path'))
+       
+        # Create user dirs if missing
+        create_user_dirs(website.user) 
         
         # Website path
         website_paths = get_website_paths(website)
