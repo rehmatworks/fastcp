@@ -61,7 +61,8 @@ def update_user(sender, instance=None, created=False, **kwargs):
     if created:
         instance.is_active = True
         instance.save()
-        fcpsys.setup_user(instance)
+        if not instance.is_superuser:
+            fcpsys.setup_user(instance)
     
 
 def restart_services_handler(sender=None, **kwargs):
