@@ -73,9 +73,9 @@ for v in php_versions:
 class Website(models.Model):
     """Website model holds the websites owned by users."""
     user = models.ForeignKey(User, related_name='websites', on_delete=models.CASCADE)
-    label = models.CharField(max_length=100, unique=True)
+    label = models.CharField(max_length=30, unique=True)
     has_ssl = models.BooleanField(default=False)
-    slug = models.SlugField(max_length=100, unique=True, null=True, blank=True)
+    slug = models.SlugField(max_length=50, unique=True, null=True, blank=True)
     php = models.CharField(choices=PHP_CHOICES, max_length=20)
     created = models.DateTimeField(auto_now_add=True)
     

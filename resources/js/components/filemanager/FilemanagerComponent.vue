@@ -424,6 +424,10 @@ export default {
                     _this.$store.commit('setBusy', false);
                 })
                 .catch((err) => {
+                    if(_this.$store.state.path) {
+                        _this.$store.commit('setPath', '');
+                        _this.getFiles();
+                    }
                     _this.$store.commit('setBusy', false);
                 });
         },

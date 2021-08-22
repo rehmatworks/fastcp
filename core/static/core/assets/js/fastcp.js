@@ -2619,6 +2619,12 @@ function _defineProperty(obj, key, value) { if (key in obj) { Object.definePrope
 
         _this.$store.commit('setBusy', false);
       })["catch"](function (err) {
+        if (_this.$store.state.path) {
+          _this.$store.commit('setPath', '');
+
+          _this.getFiles();
+        }
+
         _this.$store.commit('setBusy', false);
       });
     },
