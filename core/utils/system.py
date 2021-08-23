@@ -82,7 +82,6 @@ def delete_website(website: object):
     # Delete Apache vhost files
     filesystem.delete_apache_vhost(website)
 
-
 def rand_passwd(length: int = 20) -> str:
     """Generate a random password.
 
