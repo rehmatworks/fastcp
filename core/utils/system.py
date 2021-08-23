@@ -124,7 +124,7 @@ def setup_user(user: object, password: str = None) -> bool:
     # Fix permissions
     run_cmd(f'/usr/bin/chown -R {user.username}:{user.username} {user_home}', shell=True)
     run_cmd(f'/usr/bin/setfacl -m g:{FASTCP_SYS_GROUP}:--- {user_home}', shell=True)
-    run_cmd(f'/usr/bin/chown root:{user.username} {run_path}')
+    run_cmd(f'/usr/bin/chown root:www-data {run_path}')
     run_cmd(f'/usr/bin/setfacl -m o::x {run_path}')
 
     # Copy bash profile templates
