@@ -1,5 +1,5 @@
 from core.utils import filesystem
-import os
+import os, crypt
 from subprocess import (
     STDOUT, check_call, CalledProcessError
 )
@@ -70,6 +70,12 @@ def setup_user(user: object, password: str=None) -> bool:
     Returns:
         bool: True on success and False otherwise.
     """
+    # Create SSH user
+    user_home = filesystem.get_user_path(user, exact=True)
+    user_pass = crypt.crypt(password, 22)
+    
+    # Create unix user
+    run_cmd(f'useradd -s /bin/bash -g {user.username} -p {user_pass} -d {user_home} {user.username}')
+    
+    # Create filesystem dirs
     filesystem.create_user_dirs(user)
-    
-    
