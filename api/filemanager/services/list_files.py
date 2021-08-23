@@ -32,7 +32,7 @@ class ListFileService(object):
         # For example, in run directory, we are storing socket files
         # And a non-root user should not see this directory in file manager in
         # general circumstances.
-        PROTECTED_LIST = ['run']
+        PROTECTED_LIST = ['run', '.profile', '.bashrc', '.bash_logout', '.bash_history', '.local']
         
         BASE_PATH = cpfs.get_user_path(user)
             
