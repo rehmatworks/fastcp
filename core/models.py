@@ -40,6 +40,7 @@ class User(AbstractUser):
     """
     password = None
     email = None
+    uid = models.IntegerField(null=True, blank=True)
     username = models.CharField(max_length=30, unique=True)
     
     # FastCP resource limits

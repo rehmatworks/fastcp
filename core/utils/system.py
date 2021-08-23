@@ -1,4 +1,4 @@
-import secrets, string, os, crypt
+import secrets, string, os, crypt, pwd
 from django.template.loader import render_to_string
 from core.utils import filesystem
 from subprocess import (
@@ -140,3 +140,8 @@ def setup_user(user: object, password: str = None) -> bool:
     
     with open(os.path.join(user_home, '.bashrc'), 'w') as f:
         f.write(render_to_string('system/bash_rc.txt'))
+        
+    # Get user uid
+    uid = pwd.getpwnam(user.username).pw_uid
+    user.uid = int(uid)
+    user.save()
