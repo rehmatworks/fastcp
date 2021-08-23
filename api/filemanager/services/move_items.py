@@ -40,7 +40,8 @@ class MoveDataService(BaseService):
                             shutil.move(p, dest_root)
                         else:
                             shutil.copy2(p, dest_root)
-                    except:
+                    except Exception as e:
+                        raise e
                         errors = True
         
         
