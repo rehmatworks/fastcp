@@ -8,7 +8,7 @@ server {
     root {{ webroot }};
     index index.php index.html;
 
-    access_log  {{ log_path }}/{{ app_name }}_nginx.access_ssl.log  main;
+    access_log  {{ log_path }}/{{ app_name }}_nginx.access_ssl.log;
     error_log  {{ log_path }}/{{ app_name }}_nginx.error_ssl.log;
 
     proxy_set_header    Host              $host;

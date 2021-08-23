@@ -292,6 +292,7 @@ def create_nginx_vhost(website: object, protocol: str='http', **kwargs) -> bool:
         bool: True on success and False otherwise.
     """
     website_paths = get_website_paths(website)
+    user_paths = get_user_paths(website.user)
     create_if_missing(website_paths.get('ngix_vhost_dir'))
     
     # Vhost conf path
@@ -312,6 +313,7 @@ def create_nginx_vhost(website: object, protocol: str='http', **kwargs) -> bool:
     context = {
         'domains': domains,
         'app_name': website.slug,
+        'log_path': user_paths.get('logs_path'),
         'webroot': website_paths.get('web_root'),
         'socket_path': website_paths.get('socket_path')
     }
