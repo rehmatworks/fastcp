@@ -1,5 +1,5 @@
 from core.utils import filesystem as cpfs
-import os
+from core.utils.system import run_cmd
 
 
 class UpdatePermissionService(object):
@@ -30,7 +30,7 @@ class UpdatePermissionService(object):
             try:
                 # To-Do: This needs to be improved, so this should
                 # not rely on os.system()
-                os.system(f'chmod {permissions} {path}')
+                run_cmd(f'/usr/bin/chmod {permissions} {path}', shell=True)
                 return True
             except Exception as e:
                 raise e
