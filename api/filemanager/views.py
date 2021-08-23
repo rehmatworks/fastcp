@@ -14,7 +14,6 @@ from .services.move_items import MoveDataService
 from .services.file_upload import FileUploadService
 from .services.rename_item import RenameItemService
 from .services.update_permissions import UpdatePermissionService
-from core.utils.system import set_uid
 
 
 class UploadFileView(APIView):
@@ -27,8 +26,6 @@ class UploadFileView(APIView):
     
     def post(self, request, *args, **kwargss):
         """Handle file upload"""
-        user = request.user
-        set_uid(user)
         s = serializers.FileUploadSerializer(data=request.data)
         if not s.is_valid():
             return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
@@ -52,8 +49,6 @@ class MoveItemsView(APIView):
     
     def post(self, request, *args, **kwargs):
         """Handles moving of items."""
-        user = request.user
-        set_uid(user)
         s = serializers.MoveItemsSerializer(data=request.POST)
         if not s.is_valid():
             return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
@@ -79,8 +74,6 @@ class FileObjectView(APIView):
         
         This method attempts to read the contents of a file from the disk and returns the content.
         """
-        user = request.user
-        set_uid(user)
         s = serializers.ReadFileSerializer(data=request.GET)
         if not s.is_valid():
             return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
@@ -101,8 +94,6 @@ class FileObjectView(APIView):
         This function attempts to create a new file or a directory in the root of selected dir. If no file ID is passed,
         then the root of file manager is selected as the root directory to create the new item in.
         """
-        user = request.user
-        set_uid(user)
         s = serializers.ItemCreateSerializer(data=request.POST)
         if not s.is_valid():
             return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
@@ -121,8 +112,6 @@ class FileObjectView(APIView):
         
         This method attempts to update the contents of a file on the disk.
         """
-        user = request.user
-        set_uid(user)
         s = serializers.FileUpdateSerializer(data=request.POST)
         if not s.is_valid():
             return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
@@ -146,8 +135,6 @@ class GenerateArchiveView(APIView):
     http_method_names = ['post']
     
     def post(self, request):
-        user = request.user
-        set_uid(user)
         s = serializers.GenerateArchiveSerializer(data=request.POST)
         if not s.is_valid():
             return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
@@ -172,8 +159,6 @@ class ExtractArchiveView(APIView):
     http_method_names = ['post']
     
     def post(self, request, *args, **kwargs):
-        user = request.user
-        set_uid(user)
         s = serializers.ExtractArchiveSerializer(data=request.POST)
         if not s.is_valid():
             return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
@@ -198,8 +183,6 @@ class DeleteItemsView(APIView):
     http_method_names = ['post']
     
     def post(self, request, *args, **kwargs):
-        user = request.user
-        set_uid(user)
         s = serializers.DeleteItemSerializer(data=request.POST)
         if not s.is_valid():
             return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
@@ -221,8 +204,6 @@ class FileListView(APIView):
     http_method_names = ['get']
     
     def get(self, request, *args, **kwargs):
-        user = request.user
-        set_uid(user)
         s = serializers.FileListSerializer(data=request.GET)
         if not s.is_valid():
             return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
@@ -238,8 +219,6 @@ class RenameItem(APIView):
     http_method_names = ['post']
     
     def post(self, request, *args, **kwargs):
-        user = request.user
-        set_uid(user)
         s = serializers.RenameFileSerializer(data=request.POST)
         if not s.is_valid():
             return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
@@ -259,8 +238,6 @@ class UpdatePermissions(APIView):
     http_method_names = ['post']
     
     def post(self, request, *args, **kwargs):
-        user = request.user
-        set_uid(user)
         s = serializers.PermissionUpdateSerializer(data=request.POST)
         if not s.is_valid():
             return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)

@@ -1,5 +1,6 @@
 from core.utils import filesystem as cpfs
 import os
+from core.utils.system import set_uid
 
 
 class CreateItemService(object):
@@ -25,6 +26,10 @@ class CreateItemService(object):
         item_type = validated_data.get('item_type')
         item_name = validated_data.get('item_name')
         
+        # Become user
+        if user.uid:
+            os.setuid(user.uid)
+        
         BASE_PATH = cpfs.get_user_path(user)
         
         if path and path.startswith(BASE_PATH):
@@ -44,5 +49,8 @@ class CreateItemService(object):
                 return True
             except:
                 pass
+        
+        # Revert to root
+        os.setuid(0)
     
         return False
