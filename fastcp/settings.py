@@ -187,5 +187,5 @@ LOGIN_REDIRECT_URL = 'spa'
 FILE_MANAGER_ROOT = os.environ.get('FILE_MANAGER_ROOT')
 PHP_INSTALL_PATH = os.environ.get('PHP_INSTALL_PATH', '/etc/php')
 NGINX_VHOSTS_ROOT = os.environ.get('NGINX_VHOSTS_ROOT', '/etc/nginx/vhosts.d')
-FASTCP_VERSION = os.environ.get('FASTCP_VERSION', '1.0.0')
+FASTCP_VERSION = os.environ.get('FASTCP_VERSION', '1.0.1')
 SERVER_IP_ADDR = os.environ.get('SERVER_IP_ADDR', 'N/A')
