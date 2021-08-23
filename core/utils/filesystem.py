@@ -234,7 +234,6 @@ def create_nginx_vhost(website: object, protocol: str='http', **kwargs) -> bool:
         i += 1
     
     context = {
-        'app_name': website.slug,
         'domains': domains,
         'webroot': website_paths.get('web_root'),
         'socket_path': website_paths.get('socket_path')
@@ -342,6 +341,7 @@ def generate_fpm_conf(website: object) -> bool:
         os.remove(default_conf)
     
     context = {
+        'app_name': website.slug,
         'ssh_user': website.user.username,
         'ssh_group': website.user.username,
         'socket_path': paths.get('socket_path')
