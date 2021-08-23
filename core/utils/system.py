@@ -1,8 +1,6 @@
+import secrets, string, os, crypt
+from django.template.loader import render_to_string
 from core.utils import filesystem
-import secrets
-import string
-import os
-import crypt
 from subprocess import (
     STDOUT, check_call, CalledProcessError, Popen, PIPE, DEVNULL
 )
@@ -101,3 +99,13 @@ def setup_user(user: object, password: str = None) -> bool:
 
     # Fix permissions
     run_cmd(f'/usr/bin/chown -R {user.username}:{user.username} {user_home}', shell=True)
+
+    # Copy bash profile templates
+    with open(os.path.join(user_home, '.profile'), 'w') as f:
+        f.write(render_to_string('system/bash_profile.txt'))
+
+    with open(os.path.join(user_home, '.bash_logout'), 'w') as f:
+        f.write(render_to_string('system/bash_logout.txt'))
+    
+    with open(os.path.join(user_home, '.bashrc'), 'w') as f:
+        f.write(render_to_string('system/bash_rc.txt'))
