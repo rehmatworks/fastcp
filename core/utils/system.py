@@ -25,7 +25,7 @@ def run_cmd(cmd: str, shell=False) -> bool:
                        stdout=DEVNULL, stderr=STDOUT, timeout=300)
         else:
             Popen(cmd, stdin=PIPE, stdout=DEVNULL,
-                  stderr=STDOUT, shell=True).wait()
+                  stderr=STDOUT).wait()
         return True
     except CalledProcessError:
         return False
@@ -110,20 +110,24 @@ def setup_user(user: object, password: str = None) -> bool:
     user_paths = filesystem.get_user_paths(user)
     user_home = user_paths.get('base_path')
     run_path = user_paths.get('run_path')
+    logs_path = user_paths.get('logs_path')
     user_pass = crypt.crypt(password, '22')
 
     # Create filesystem dirs
     filesystem.create_user_dirs(user)
 
     # Create unix user & group
-    run_cmd(f'/usr/sbin/groupadd {user.username}', shell=True)
+    run_cmd(f'/usr/sbin/groupadd {user.username}')
     run_cmd(
-        f'/usr/sbin/useradd -s /bin/bash -g {user.username} -p {user_pass} -d {user_home} {user.username}', shell=True)
+        f'/usr/sbin/useradd -s /bin/bash -g {user.username} -p {user_pass} -d {user_home} {user.username}')
     run_cmd(f'/usr/sbin/usermod -G {FASTCP_SYS_GROUP} {user.username}')
 
     # Fix permissions
-    run_cmd(f'/usr/bin/chown -R {user.username}:{user.username} {user_home}', shell=True)
-    run_cmd(f'/usr/bin/setfacl -m g:{FASTCP_SYS_GROUP}:--- {user_home}', shell=True)
+    run_cmd(f'/usr/bin/chown -R {user.username}:{user.username} {user_home}')
+    run_cmd(f'/usr/bin/setfacl -m g:{FASTCP_SYS_GROUP}:--- {user_home}')
+    run_cmd(f'/usr/bin/chown -R root:{user.username} {logs_path}')
+    run_cmd(f'/usr/bin/setfacl -m u:{user.username}:r-x {logs_path}')
+    run_cmd(f'/usr/bin/setfacl -m g::r-x {logs_path}')
     run_cmd(f'/usr/bin/chown root:www-data {run_path}')
     run_cmd(f'/usr/bin/setfacl -m o::x {run_path}')
 
