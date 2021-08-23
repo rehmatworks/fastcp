@@ -69,7 +69,7 @@ def restart_services_handler(sender=None, **kwargs):
     """Restarts services. Expects the service names as a comma-separated string."""
     services = kwargs.get('services').split(',')
     for service in services:
-        fcpsys.run_cmd(f'/usr/sbin/service restart {service}', shell=True)
+        fcpsys.run_cmd(f'/usr/sbin/service {service} restart', shell=True)
 
 restart_services.connect(restart_services_handler, dispatch_uid='restart-services')
 
@@ -78,6 +78,6 @@ def reload_services_handler(sender=None, **kwargs):
     """Reload services. Expects the service names as a comma-separated string."""
     services = kwargs.get('services').split(',')
     for service in services:
-        fcpsys.run_cmd(f'service reload {service}')
+        fcpsys.run_cmd(f'service {service} reload')
 
 reload_services.connect(reload_services_handler, dispatch_uid='reload-services')
