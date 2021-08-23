@@ -54,11 +54,14 @@ class ListFileService(object):
         path = Path(path)
         files = []
         for p in path.iterdir():
-            data = cpfs.get_path_info(p)
-            if not search or search.lower() in data.get('name').lower():
-                if str(path) == BASE_PATH and data.get('name').lower() in PROTECTED_LIST:
-                    continue
-                files.append(data)
+            try:
+                data = cpfs.get_path_info(p)
+                if not search or search.lower() in data.get('name').lower():
+                    if str(path) == BASE_PATH and data.get('name').lower() in PROTECTED_LIST:
+                        continue
+                    files.append(data)
+            except PermissionError:
+                pass
         
         # Revert to root
         set_uid(0)
