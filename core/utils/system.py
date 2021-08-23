@@ -30,6 +30,20 @@ def run_cmd(cmd: str, shell=False) -> bool:
     except CalledProcessError:
         return False
 
+def fix_ownership(website: object):
+    """Fix ownership.
+    
+    Fixes the ownership of a website base directory and sub-directoris and files recursively.
+    """
+    # SSH user
+    ssh_user = website.user.username
+
+    # Website paths
+    web_paths = filesystem.get_website_paths(website)
+    base_path = web_paths.get('base_path')
+    
+    # Fix permissions
+    run_cmd(f'/usr/bin/chown -R {ssh_user}:{ssh_user} {base_path}')
 
 def setup_website(website: object):
     """Setup website.
@@ -40,13 +54,10 @@ def setup_website(website: object):
     """
 
     # Create initial directories
-    web_path = filesystem.create_website_dirs(website)
+    filesystem.create_website_dirs(website)
     
-    # SSH user
-    ssh_user = website.user.username
-
     # Fix permissions
-    run_cmd(f'/usr/bin/chown -R {ssh_user}:{ssh_user} {web_path}')
+    fix_ownership(website)
 
     # Create FPM pool conf
     filesystem.generate_fpm_conf(website)
