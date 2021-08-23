@@ -11,7 +11,8 @@
 user = {{ ssh_user }}
 group = {{ ssh_group }}
 listen = {{ socket_path }}
-listen.owner = www-data
+listen.owner = {{ ssh_user }}
 listen.group = www-data
+listen.mode = 660
 pm = ondemand
 pm.max_children = 20

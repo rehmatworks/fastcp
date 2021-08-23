@@ -5,6 +5,8 @@ from subprocess import (
     STDOUT, check_call, CalledProcessError, Popen, PIPE, DEVNULL
 )
 
+# Constants
+FASTCP_SYS_GROUP = 'fcp-users'
 
 def run_cmd(cmd: str, shell=False) -> bool:
     """Runs a shell command.
@@ -96,12 +98,13 @@ def setup_user(user: object, password: str = None) -> bool:
     run_cmd(f'/usr/sbin/groupadd {user.username}', shell=True)
     run_cmd(
         f'/usr/sbin/useradd -s /bin/bash -g {user.username} -p {user_pass} -d {user_home} {user.username}', shell=True)
+    run_cmd(f'/usr/sbin/usermod -G {FASTCP_SYS_GROUP} {user.username}')
 
     # Fix permissions
     run_cmd(f'/usr/bin/chown -R {user.username}:{user.username} {user_home}', shell=True)
     
     # Allow owner permissions only
-    run_cmd(f'/usr/bin/chmod 750 {user_home}', shell=True)
+    run_cmd(f'/usr/bin/setfacl -m g:{FASTCP_SYS_GROUP}:--- {user_home}', shell=True)
 
     # Copy bash profile templates
     with open(os.path.join(user_home, '.profile'), 'w') as f:
