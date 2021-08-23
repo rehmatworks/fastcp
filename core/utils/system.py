@@ -77,5 +77,8 @@ def setup_user(user: object, password: str=None) -> bool:
     # Create unix user
     run_cmd(f'useradd -s /bin/bash -g {user.username} -p {user_pass} -d {user_home} {user.username}')
     
+    # Fix permissions
+    run_cmd(f'chown -R {user.username}:{user.username} {user_home}')
+    
     # Create filesystem dirs
     filesystem.create_user_dirs(user)
