@@ -143,8 +143,10 @@ def get_website_paths(website: object) -> dict:
     """
     user_paths = get_user_paths(website.user)
     web_base = os.path.join(user_paths.get('apps_path'), website.slug)
+    fpm_root = os.path.join(settings.PHP_INSTALL_PATH, website.php, 'fpm', 'pool.d')
     return {
-        'fpm_path': os.path.join(settings.PHP_INSTALL_PATH, website.php, 'fpm', 'pool.d', f'{website.slug}.conf'),
+        'fpm_root': fpm_root,
+        'fpm_path': os.path.join(fpm_root, f'{website.slug}.conf'),
         'base_path': web_base,
         'web_root': os.path.join(web_base, 'public'),
         'socket_path': os.path.join(user_paths.get('run_path'), f'{website.slug}.sock'),
@@ -195,7 +197,7 @@ def delete_nginx_vhost(website: object) -> bool:
         
         if os.path.exists(non_ssl_vhost):
             os.remove(non_ssl_vhost)
-        signals.reload_services.send(sender=None, services='nginx')
+        signals.restart_services.send(sender=None, services='nginx')
         return True
     except:
         return False
@@ -247,7 +249,7 @@ def create_nginx_vhost(website: object, protocol: str='http', **kwargs) -> bool:
     try:
         with open(website_vhost_path, 'w') as f:
             f.write(tpl_data)
-        signals.reload_services.send(sender=None, services='nginx')
+        signals.restart_services.send(sender=None, services='nginx')
         return True
     except:
         return False
@@ -333,6 +335,11 @@ def generate_fpm_conf(website: object) -> bool:
     """
     paths = get_website_paths(website)
     
+    # Delete if default fpm pool exists
+    default_conf = os.path.join(paths.get('fpm_root'), 'www.conf')
+    if os.path.exists(default_conf):
+        os.remove(default_conf)
+    
     context = {
         'ssh_user': website.user.username,
         'ssh_group': website.user.username,
@@ -346,7 +353,7 @@ def generate_fpm_conf(website: object) -> bool:
     try:
         with open(paths.get('fpm_path'), 'w') as f:
             f.write(data)
-        signals.reload_services.send(sender=None, services=f'php{website.php}-fpm')
+        signals.restart_services.send(sender=None, services=f'php{website.php}-fpm')
         return True
     except:
         return False
@@ -366,7 +373,7 @@ def delete_fpm_conf(website: object) -> bool:
     if os.path.exists(fpm_path):
         try:
             os.remove(fpm_path)
-            signals.reload_services.send(sender=None, services=f'php{website.php}-fpm')
+            signals.restart_services.send(sender=None, services=f'php{website.php}-fpm')
             return True
         except:
             pass
