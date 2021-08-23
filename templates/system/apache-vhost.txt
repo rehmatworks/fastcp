@@ -1,0 +1,44 @@
+<VirtualHost 127.0.0.1:8080>
+    Define DOCUMENT_ROOT {{ web_root }}
+    Define PHP_PROXY_URL unix:{{ socket_path }}|fcgi://localhost
+
+    ServerAdmin webmaster@
+    DocumentRoot ${DOCUMENT_ROOT}
+    ServerName {{ domain }}
+    {% for server_alias in server_aliases %}
+    ServerAlias {{ server_alias }}
+    {% endfor %}
+
+    ErrorLog "{{ log_root }}/{{ app_name }}_apache.error.log"
+    CustomLog "{{ log_root }}/{{ app_name }}_apache.access.log" common
+
+    RemoteIPHeader X-Real-IP
+    SetEnvIf X-Forwarded-SSL on HTTPS=on
+    SetEnvIf X-Forwarded-Proto https HTTPS=on
+
+    SuexecUserGroup {{ ssh_user }} {{ ssh_group }}
+
+    AcceptPathInfo on
+
+    DirectoryIndex index.html index.htm index.php
+
+    <Directory ${DOCUMENT_ROOT}>
+        AllowOverride All
+        Require all granted
+
+        RewriteCond %{DOCUMENT_ROOT}/%{REQUEST_URI} !-f
+        RewriteRule \.php$ - [R=404]
+    </Directory>
+
+    RewriteEngine On
+    RewriteCond %{HTTP:Authorization} .+
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    <Files *.php>
+        SetHandler proxy:${PHP_PROXY_URL}
+    </Files>
+
+    <Proxy ${PHP_PROXY_URL}>
+        ProxySet timeout=3600 retry=0
+    </Proxy>
+</VirtualHost>

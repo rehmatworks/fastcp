@@ -8,14 +8,20 @@ server {
     root {{ webroot }};
     index index.php index.html;
 
+    access_log  {{ log_path }}/{{ app_name }}_nginx.access_ssl.log  main;
+    error_log  {{ log_path }}/{{ app_name }}_nginx.error_ssl.log;
+
+    proxy_set_header    Host              $host;
+    proxy_set_header    X-Real-IP         $remote_addr;
+    proxy_set_header    X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header    X-Forwarded-SSL   on;
+    proxy_set_header    X-Forwarded-Proto $scheme;
+
+    include /etc/nginx/vhosts.d/{{ app_name }}.d/*.ssl_conf;
+
     location / {
-        try_files $uri $uri/ /index.php?$is_args$args;
+        proxy_pass http://127.0.0.1:8080;
     }
 
-    location ~ \.php$ {
-        include fastcgi_params;
-        fastcgi_pass unix:{{ socket_path }};
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root/$fastcgi_script_name;
-    }
+    include /etc/nginx/vhosts.d/{{ app_name }}.d/*.conf;
 }
