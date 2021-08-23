@@ -1,6 +1,8 @@
 from core.utils import filesystem as cpfs
 import os
-from core.utils.system import set_uid
+from core.utils.system import (
+    get_uid_by_path, set_uid
+)
 
 
 class CreateItemService(object):
@@ -27,8 +29,9 @@ class CreateItemService(object):
         item_name = validated_data.get('item_name')
         
         # Become user
-        if user.uid:
-            set_uid(user.uid)
+        uid = get_uid_by_path(path)
+        if uid:
+            set_uid(uid)
         
         BASE_PATH = cpfs.get_user_path(user)
         

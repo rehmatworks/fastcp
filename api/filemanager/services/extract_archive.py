@@ -1,6 +1,9 @@
 from django.conf import settings
 import os
 from core.utils import filesystem as cpfs
+from core.utils.system import (
+    get_uid_by_path, set_uid
+)
 
 
 class ExtractArchiveService(object):
@@ -29,7 +32,15 @@ class ExtractArchiveService(object):
                 root_path = settings.FILE_MANAGER_ROOT
                 
             if root_path and os.path.exists(root_path) and path and os.path.exists(path):
+                # Become user
+                uid = get_uid_by_path(root_path)
+                if uid:
+                    set_uid(uid)
+                
                 cpfs.extract_zip(root_path, archive_path=path)
+                
+                # Revert to root
+                set_uid(0)
                 return True
                         
         except Exception as e:
