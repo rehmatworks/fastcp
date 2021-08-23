@@ -7,7 +7,7 @@
 ;   - Optimize PHP settings
 ;   - Create socket file in user home dir
 
-[www]
+[{{ app_name }}]
 user = {{ ssh_user }}
 group = {{ ssh_group }}
 listen = {{ socket_path }}

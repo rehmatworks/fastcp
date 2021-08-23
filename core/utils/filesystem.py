@@ -234,6 +234,7 @@ def create_nginx_vhost(website: object, protocol: str='http', **kwargs) -> bool:
         i += 1
     
     context = {
+        'app_name': website.slug,
         'domains': domains,
         'webroot': website_paths.get('web_root'),
         'socket_path': website_paths.get('socket_path')
