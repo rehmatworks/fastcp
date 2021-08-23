@@ -1,8 +1,5 @@
 from core.utils import filesystem as cpfs
 import os
-from core.utils.system import (
-    get_uid_by_path, set_uid
-)
 
 
 class RenameItemService(object):
@@ -32,24 +29,14 @@ class RenameItemService(object):
             
         if not root_path or not root_path.startswith(BASE_PATH):
             root_path = BASE_PATH
-        
-        # Become user
-        uid = get_uid_by_path(root_path)
-        if uid:
-            set_uid(uid)
             
         old_path = os.path.join(root_path, old_name)
         new_path = os.path.join(root_path, new_name)
         if os.path.exists(old_path) and not os.path.exists(new_path):
             try:
                 os.rename(old_path, new_path)
-                
-                # Revert to root
-                set_uid(0)
                 return True
             except:
                 pass    
         
-        # Revert to root
-        set_uid(0)
         return False

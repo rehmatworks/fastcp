@@ -1,9 +1,6 @@
 from django.conf import settings
 import os
 import shutil
-from core.utils.system import (
-    get_uid_by_path, set_uid
-)
 
 
 class DeleteItemsService(object):
@@ -30,10 +27,6 @@ class DeleteItemsService(object):
             paths = validated_data.get('paths').split(',')
             user = self.request.user
             if len(paths):
-                # Become user
-                uid = get_uid_by_path(paths[0])
-                if uid:
-                    set_uid(uid)
                 for path in paths:
                     if user.is_superuser:
                         BASE_PATH = settings.FILE_MANAGER_ROOT
@@ -49,8 +42,6 @@ class DeleteItemsService(object):
                     if os.path.isfile(path):
                         os.remove(path)
                 
-                # Revert to root
-                set_uid(0)
                 return True
         except Exception as e:
             pass

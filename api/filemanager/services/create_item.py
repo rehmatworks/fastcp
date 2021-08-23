@@ -1,11 +1,9 @@
 from core.utils import filesystem as cpfs
 import os
-from core.utils.system import (
-    get_uid_by_path, set_uid
-)
+from .base_service import BaseService
 
 
-class CreateItemService(object):
+class CreateItemService(BaseService):
     """Create an item.
     
     Creates an item (either a file or a directory) based on the information obtained from a serializers.
@@ -24,14 +22,11 @@ class CreateItemService(object):
             bool: True on success and False on failure.
         """
         path = validated_data.get('path')
+        self.path = path
+        self.ensure_owner()
         user = self.request.user
         item_type = validated_data.get('item_type')
         item_name = validated_data.get('item_name')
-        
-        # Become user
-        uid = get_uid_by_path(path)
-        if uid:
-            set_uid(uid)
         
         BASE_PATH = cpfs.get_user_path(user)
         
@@ -52,8 +47,5 @@ class CreateItemService(object):
                 return True
             except:
                 pass
-        
-        # Revert to root
-        set_uid()
     
         return False
