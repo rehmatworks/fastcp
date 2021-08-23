@@ -85,7 +85,7 @@ def setup_user(user: object, password: str=None) -> bool:
     
     # Create SSH user
     user_home = filesystem.get_user_path(user, exact=True)
-    user_pass = crypt.crypt(password, 22)
+    user_pass = crypt.crypt(password, '22')
     
     # Create filesystem dirs
     filesystem.create_user_dirs(user)
