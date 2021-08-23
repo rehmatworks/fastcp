@@ -8,6 +8,20 @@ from subprocess import (
 # Constants
 FASTCP_SYS_GROUP = 'fcp-users'
 
+def set_uid(user) -> None:
+    """Set UID.
+    
+    This function sets the system uid for the user. It is used by file manager and other components where
+    permissions need to be persisted on created or updated items.
+    
+    Args:
+        user (object): User model object.
+    """
+    if user.uid:
+        os.setuid(user.uid)
+        return True
+    return False
+
 def run_cmd(cmd: str, shell=False) -> bool:
     """Runs a shell command.
     Runs a shell command using subprocess.

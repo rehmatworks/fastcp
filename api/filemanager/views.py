@@ -14,6 +14,7 @@ from .services.move_items import MoveDataService
 from .services.file_upload import FileUploadService
 from .services.rename_item import RenameItemService
 from .services.update_permissions import UpdatePermissionService
+import os
 
 
 class UploadFileView(APIView):
@@ -26,6 +27,9 @@ class UploadFileView(APIView):
     
     def post(self, request, *args, **kwargss):
         """Handle file upload"""
+        user = request.user
+        if user.uid:
+            os.setuid(user.uid)
         s = serializers.FileUploadSerializer(data=request.data)
         if not s.is_valid():
             return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
