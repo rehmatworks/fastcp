@@ -10,3 +10,11 @@ class UserSearilizer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['username']
+        
+    
+    def create(self, validated_data):
+        """Create user"""
+        user = User.objects.create(
+            username=validated_data.get('username')
+        )
+        return user
