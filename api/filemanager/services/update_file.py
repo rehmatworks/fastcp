@@ -1,5 +1,8 @@
 from core.utils import filesystem as cpfs
 import os
+from core.utils.system import (
+    get_uid_by_path, set_uid
+)
 
 
 class UpdateFileService(object):
@@ -23,11 +26,20 @@ class UpdateFileService(object):
         user = self.request.user
         path = validated_data.get('path')
         BASE_PATH = cpfs.get_user_path(user)
+        
         if path and os.path.exists(path) and path.startswith(BASE_PATH):
             try:
+                # Become user
+                uid = get_uid_by_path(path)
+                if uid:
+                    set_uid(uid)
+                    
                 data = validated_data.get('content')
                 with open(path, 'wb') as f:
                     f.write(data.encode())
+                
+                # Revert to root
+                set_uid(0)
                 return True
             except UnicodeDecodeError as e:
                 pass

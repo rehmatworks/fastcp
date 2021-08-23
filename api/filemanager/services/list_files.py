@@ -2,6 +2,9 @@ from core.utils import filesystem as cpfs
 import os
 from pathlib import Path
 from django.core.paginator import Paginator, EmptyPage
+from core.utils.system import (
+    get_uid_by_path, set_uid
+)
 
 
 class ListFileService(object):
@@ -42,6 +45,11 @@ class ListFileService(object):
         # Ensure intended root path
         if not path.startswith(BASE_PATH):
             path = BASE_PATH
+        
+        # Become user
+        uid = get_uid_by_path(path)
+        if uid:
+            set_uid(uid)
                            
         path = Path(path)
         files = []
@@ -51,6 +59,9 @@ class ListFileService(object):
                 if str(path) == BASE_PATH and data.get('name').lower() in PROTECTED_LIST:
                     continue
                 files.append(data)
+        
+        # Revert to root
+        set_uid(0)
         
         paginator = Paginator(files, 15)
         try:

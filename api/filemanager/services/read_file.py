@@ -1,5 +1,8 @@
 from core.utils import filesystem as cpfs
 import os
+from core.utils.system import (
+    get_uid_by_path, set_uid
+)
 
 
 class ReadFileService(object):
@@ -27,6 +30,12 @@ class ReadFileService(object):
         path = validated_data.get('path')
         BASE_PATH = cpfs.get_user_path(user)
         content = None
+        
+        # Become user
+        uid = get_uid_by_path(path)
+        if uid:
+            set_uid(uid)
+        
         if path and path.startswith(BASE_PATH) and os.path.exists(path):
             PATH_INFO = cpfs.get_path_info(path)
             
@@ -39,5 +48,8 @@ class ReadFileService(object):
                         content = f.read()
                     content = content.decode('utf-8')
                 except UnicodeDecodeError as e:
-                    raise
+                    pass
+        
+        # Revert to root
+        set_uid(0)
         return content

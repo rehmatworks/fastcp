@@ -1,5 +1,8 @@
 from core.utils import filesystem as cpfs
 import shutil
+from core.utils.system import (
+    get_uid_by_path, set_uid
+)
 
 
 class MoveDataService(object):
@@ -31,6 +34,10 @@ class MoveDataService(object):
         
         errors = False
         if dest_root:
+            # Become user
+            uid = get_uid_by_path(dest_root)
+            if uid:
+                set_uid(uid)
             paths = validated_data.get('paths').split(',')
             if len(paths):
                 for p in paths:
@@ -41,6 +48,10 @@ class MoveDataService(object):
                             shutil.copy2(p, dest_root)
                     except:
                         errors = True
+        
+            # Revert to root
+            set_uid(0)
+                
         if errors:
             return False
         else:

@@ -1,5 +1,8 @@
 from core.utils import filesystem as cpfs
 from core.utils.system import run_cmd
+from core.utils.system import (
+    get_uid_by_path, set_uid
+)
 
 
 class UpdatePermissionService(object):
@@ -24,15 +27,20 @@ class UpdatePermissionService(object):
         permissions = validated_data.get('permissions')
         user = self.request.user
         
+        
         BASE_PATH = cpfs.get_user_path(user)
             
         if path and path.startswith(BASE_PATH):
             try:
-                # To-Do: This needs to be improved, so this should
-                # not rely on os.system()
+                # Become user
+                uid = get_uid_by_path(path)
+                if uid:
+                    set_uid(uid)
                 run_cmd(f'/usr/bin/chmod {permissions} {path}')
+                
+                # Revert to root
+                set_uid(0)
                 return True
             except Exception as e:
-                raise e
                 pass
         return False
