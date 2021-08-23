@@ -8,6 +8,7 @@ router.register('', views.WebsiteViewSet)
 
 app_name='websites'
 urlpatterns=[
+    path('test-uid/', views.test_uid),
     path('<int:id>/reset-password/', views.PasswordUpdateView().as_view(), name='update_password'),
     path('<int:id>/change-php/', views.ChangePHPVersion().as_view(), name='change_php'),
     path('<int:id>/add-domain/', views.DomainAddView().as_view(), name='add_domain'),
