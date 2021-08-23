@@ -105,7 +105,9 @@ def setup_user(user: object, password: str = None) -> bool:
         password = rand_passwd(20)
 
     # Create SSH user
-    user_home = filesystem.get_user_path(user, exact=True)
+    user_paths = filesystem.get_user_paths(user)
+    user_home = user_paths.get('base_path')
+    run_path = user_paths.get('run_path')
     user_pass = crypt.crypt(password, '22')
 
     # Create filesystem dirs
@@ -119,9 +121,9 @@ def setup_user(user: object, password: str = None) -> bool:
 
     # Fix permissions
     run_cmd(f'/usr/bin/chown -R {user.username}:{user.username} {user_home}', shell=True)
-    
-    # Allow owner permissions only
     run_cmd(f'/usr/bin/setfacl -m g:{FASTCP_SYS_GROUP}:--- {user_home}', shell=True)
+    run_cmd(f'/usr/bin/chown root:root {run_path}')
+    run_cmd(f'/usr/bin/setfacl -m o::x {run_path}')
 
     # Copy bash profile templates
     with open(os.path.join(user_home, '.profile'), 'w') as f:
