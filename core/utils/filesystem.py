@@ -282,7 +282,7 @@ def create_user_dirs(user: object) -> bool:
     except:
         return False
 
-def create_website_dirs(website: object) -> bool:
+def create_website_dirs(website: object):
     """Create website directories.
     
     This function creates the website directories. If the SSH user doesn't have the directories yet,
@@ -292,7 +292,7 @@ def create_website_dirs(website: object) -> bool:
         website (object): The website model object.
         
     Returns:
-        bool: True on success False otherwise.
+        Website path string on success False otherwise.
     """
     try:
        
@@ -306,7 +306,7 @@ def create_website_dirs(website: object) -> bool:
         # Website public path
         create_if_missing(website_paths.get('web_root'))
         
-        return True
+        return website_paths.get('base_path')
     except:
         return False
 

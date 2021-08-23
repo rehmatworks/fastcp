@@ -40,7 +40,13 @@ def setup_website(website: object):
     """
 
     # Create initial directories
-    filesystem.create_website_dirs(website)
+    web_path = filesystem.create_website_dirs(website)
+    
+    # SSH user
+    ssh_user = website.user.username
+
+    # Fix permissions
+    run_cmd(f'/usr/bin/chown -R {ssh_user}:{ssh_user} {web_path}')
 
     # Create FPM pool conf
     filesystem.generate_fpm_conf(website)
