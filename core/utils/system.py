@@ -99,6 +99,9 @@ def setup_user(user: object, password: str = None) -> bool:
 
     # Fix permissions
     run_cmd(f'/usr/bin/chown -R {user.username}:{user.username} {user_home}', shell=True)
+    
+    # Allow owner permissions only
+    run_cmd(f'/usr/bin/chmod 750 {user_home}', shell=True)
 
     # Copy bash profile templates
     with open(os.path.join(user_home, '.profile'), 'w') as f:
