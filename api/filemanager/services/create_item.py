@@ -22,8 +22,6 @@ class CreateItemService(BaseService):
             bool: True on success and False on failure.
         """
         path = validated_data.get('path')
-        self.path = path
-        self.ensure_owner()
         user = self.request.user
         item_type = validated_data.get('item_type')
         item_name = validated_data.get('item_name')

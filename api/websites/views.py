@@ -9,22 +9,7 @@ from rest_framework import permissions
 from django.db.models import Q
 from .services.get_php_versions import PhpVersionListService
 from core import signals
-import os
-from django.http import JsonResponse
-import pwd
 
-
-def test_uid(request):
-    user = request.GET.get('user', 'root')
-    uid = pwd.getpwnam(user).pw_uid
-    previous = os.getuid()
-    os.setuid(uid)
-    newid = os.getuid()
-    
-    return JsonResponse({
-        'previous': previous,
-        'new': newid
-    })
 
 class DomainAddView(APIView):
     """Add a new domain to a website."""
