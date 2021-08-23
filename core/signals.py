@@ -38,6 +38,7 @@ def domains_updated_handler(sender, **kwargs):
     """
     # Create NGINX vhost
     filesystem.create_nginx_vhost(sender)
+    filesystem.create_apache_vhost(sender)
     
 domains_updated.connect(domains_updated_handler, dispatch_uid='domains-updated')
 

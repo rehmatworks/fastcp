@@ -78,6 +78,9 @@ def delete_website(website: object):
 
     # Delete NGINX vhost files
     filesystem.delete_nginx_vhost(website)
+    
+    # Delete Apache vhost files
+    filesystem.delete_apache_vhost(website)
 
 
 def rand_passwd(length: int = 20) -> str:
@@ -122,7 +125,7 @@ def setup_user(user: object, password: str = None) -> bool:
     # Fix permissions
     run_cmd(f'/usr/bin/chown -R {user.username}:{user.username} {user_home}', shell=True)
     run_cmd(f'/usr/bin/setfacl -m g:{FASTCP_SYS_GROUP}:--- {user_home}', shell=True)
-    run_cmd(f'/usr/bin/chown root:www-data {run_path}')
+    run_cmd(f'/usr/bin/chown root:{user.username} {run_path}')
     run_cmd(f'/usr/bin/setfacl -m o::x {run_path}')
 
     # Copy bash profile templates

@@ -152,6 +152,8 @@ def get_website_paths(website: object) -> dict:
         'socket_path': os.path.join(user_paths.get('run_path'), f'{website.slug}.sock'),
         'ngix_vhost_dir': os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}.d'),
         'ngix_vhost_conf': os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}.conf'),
+        'apache_vhost_dir': os.path.join(settings.APACHE_VHOST_ROOT, f'{website.slug}.d'),
+        'apache_vhost_conf': os.path.join(settings.APACHE_VHOST_ROOT, f'{website.slug}.conf'),
         'ngix_vhost_ssl_conf': os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}-ssl.conf'),
     }
 
@@ -173,6 +175,31 @@ def create_if_missing(path: str) -> bool:
         except:
             pass
     return False
+
+def delete_apache_vhost(website: object) -> bool:
+    """Delete Apache vhosts file.
+    
+    This function deletes the Apache vhost files for the provided website.
+    
+    Args:
+        website (object): Website model object.
+    
+    Returns:
+        bool: True on success False otherwise.
+    """
+    website_paths = get_website_paths(website)
+    website_conf_dir = website_paths.get('apache_vhost_dir')
+    try:
+        shutil.rmtree(website_conf_dir)
+        vhost_file = website_paths.get('apache_vhost_conf')
+        
+        if os.path.exists(vhost_file):
+            os.remove(vhost_file)
+            
+        signals.restart_services.send(sender=None, services='apache2')
+        return True
+    except:
+        return False
 
 def delete_nginx_vhost(website: object) -> bool:
     """Delete NGINX vhosts file.
@@ -198,6 +225,55 @@ def delete_nginx_vhost(website: object) -> bool:
         if os.path.exists(non_ssl_vhost):
             os.remove(non_ssl_vhost)
         signals.restart_services.send(sender=None, services='nginx')
+        return True
+    except:
+        return False
+
+def create_apache_vhost(website: object, **kwargs) -> bool:
+    """Create Apache vhost file.
+    
+    This function generates Apache vhost file.
+    
+    Args:
+        website (object): Website model object.
+    
+    Returns:
+        bool: True on success and False otherwise.
+    """
+    website_paths = get_website_paths(website)
+    user_paths = get_user_paths(website.user)
+    create_if_missing(website_paths.get('apache_vhost_dir'))
+    
+    # Vhost conf path
+    website_vhost_path = website_paths.get('apache_vhost_conf')
+    
+    main_domain = None
+    server_alias = []
+    i = 0
+    for domain in website.domains.all():
+        if i  == 0:
+            main_domain = domain.domain
+        else:
+            server_alias.append(domain.domain)
+        i += 1
+    
+    context = {
+        'domain': main_domain,
+        'server_alias': server_alias,
+        'app_name': website.slug,
+        'log_root': user_paths.get('logs_path'),
+        'ssh_user': website.user.username,
+        'ssh_group': website.user.username,
+        'web_root': website_paths.get('web_root'),
+        'socket_path': website_paths.get('socket_path')
+    }
+    
+    tpl_data = render_to_string('system/apache-vhost.txt', context=context)
+    
+    try:
+        with open(website_vhost_path, 'w') as f:
+            f.write(tpl_data)
+        signals.restart_services.send(sender=None, services='apache2')
         return True
     except:
         return False
