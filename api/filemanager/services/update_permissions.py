@@ -30,7 +30,7 @@ class UpdatePermissionService(object):
             try:
                 # To-Do: This needs to be improved, so this should
                 # not rely on os.system()
-                run_cmd(f'/usr/bin/chmod {permissions} {path}', shell=True)
+                run_cmd(f'/usr/bin/chmod {permissions} {path}')
                 return True
             except Exception as e:
                 raise e
