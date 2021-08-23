@@ -1,6 +1,7 @@
 import secrets, string, os, crypt, pwd
 from django.template.loader import render_to_string
 from core.utils import filesystem
+from core.models import User
 from subprocess import (
     STDOUT, check_call, CalledProcessError, Popen, PIPE, DEVNULL
 )
@@ -8,19 +9,36 @@ from subprocess import (
 # Constants
 FASTCP_SYS_GROUP = 'fcp-users'
 
-def set_uid(user) -> None:
+def get_uid_by_path(path: str) -> object:
+    """Get user by path.
+    
+    Parses the path and tries to get the user.
+    
+    Args:
+        path (str): Path of the file or a folder.
+    """
+    try:
+        username = path.split('/')[3]
+        user = User.objects.filter(username=username).first()
+        if user and user.uid:
+            return user.uid
+    except IndexError:
+        pass
+    
+    return None
+    
+
+def set_uid(uid=0) -> None:
     """Set UID.
     
     This function sets the system uid for the user. It is used by file manager and other components where
     permissions need to be persisted on created or updated items.
     
     Args:
-        user (object): User model object.
+        uid (int): UID of the user and group. Defaults to root.
     """
-    if user.uid:
-        os.setuid(user.uid)
-        return True
-    return False
+    os.setuid(uid)
+    os.setgid(uid)
 
 def run_cmd(cmd: str, shell=False) -> bool:
     """Runs a shell command.

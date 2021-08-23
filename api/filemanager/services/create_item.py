@@ -28,7 +28,7 @@ class CreateItemService(object):
         
         # Become user
         if user.uid:
-            os.setuid(user.uid)
+            set_uid(user.uid)
         
         BASE_PATH = cpfs.get_user_path(user)
         
@@ -51,6 +51,6 @@ class CreateItemService(object):
                 pass
         
         # Revert to root
-        os.setuid(0)
+        set_uid()
     
         return False
