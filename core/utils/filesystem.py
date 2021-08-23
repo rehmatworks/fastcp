@@ -343,7 +343,7 @@ def generate_fpm_conf(website: object) -> bool:
     context = {
         'app_name': website.slug,
         'ssh_user': website.user.username,
-        'ssh_group': website.user.username,
+        'ssh_group': 'www-data',
         'socket_path': paths.get('socket_path')
     }
 
