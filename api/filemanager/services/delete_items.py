@@ -1,9 +1,10 @@
 from django.conf import settings
 import os
 import shutil
+from .base_service import BaseService
 
 
-class DeleteItemsService(object):
+class DeleteItemsService(BaseService):
     """Deletes items.
     
     Deletes the provided paths. This permanently deletes both files and directories from the disk.

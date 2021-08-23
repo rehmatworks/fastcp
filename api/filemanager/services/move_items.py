@@ -1,8 +1,9 @@
 from core.utils import filesystem as cpfs
 import shutil
+from .base_service import BaseService
 
 
-class MoveDataService(object):
+class MoveDataService(BaseService):
     """Move data.
     
     This class is responsible to move or copy items from one location to another.
@@ -41,7 +42,10 @@ class MoveDataService(object):
                             shutil.copy2(p, dest_root)
                     except:
                         errors = True
-                
+        
+        
+            self.fix_ownership(dest_root) 
+                   
         if errors:
             return False
         else:

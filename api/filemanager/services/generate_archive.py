@@ -1,9 +1,10 @@
 from core.utils import filesystem as cpfs
 import os
 from django.template.defaultfilters import slugify
+from .base_service import BaseService
 
 
-class GenerateArchiveService(object):
+class GenerateArchiveService(BaseService):
     """Generates an archive.
     
     Generates an archive from the supplied paths in the provided root directory. The paths and root directory
@@ -35,6 +36,7 @@ class GenerateArchiveService(object):
                 filename = os.path.basename(paths[0])
                 archive_name = f'{slugify(filename)}.zip'
                 cpfs.create_zip(root_path, archive_name, selected=paths)
+                self.fix_ownership(root_path)
                 return True
         except Exception as e:
             pass

@@ -1,8 +1,8 @@
 from core.utils import filesystem as cpfs
 import os
+from .base_service import BaseService
 
-
-class RenameItemService(object):
+class RenameItemService(BaseService):
     """Rename item.
     
     This class is responsible to rename a file or a directory.
@@ -35,6 +35,7 @@ class RenameItemService(object):
         if os.path.exists(old_path) and not os.path.exists(new_path):
             try:
                 os.rename(old_path, new_path)
+                self.fix_ownership(new_path)
                 return True
             except:
                 pass    

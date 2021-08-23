@@ -1,8 +1,9 @@
 from core.utils import filesystem as cpfs
 import os
+from .base_service import BaseService
 
 
-class ReadFileService(object):
+class ReadFileService(BaseService):
     """Read a file.
         
     This class attempts to read the contents of a file from the disk and returns the content.

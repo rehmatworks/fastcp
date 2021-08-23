@@ -2,9 +2,10 @@ from core.utils import filesystem as cpfs
 import os
 from pathlib import Path
 from django.core.paginator import Paginator, EmptyPage
+from .base_service import BaseService
 
 
-class ListFileService(object):
+class ListFileService(BaseService):
     """List Files
     
     Scans the filesystem for the provided path and returns a dict containing paginated paths list.    

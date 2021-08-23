@@ -1,8 +1,9 @@
 from core.utils import filesystem as cpfs
 import os
+from .base_service import BaseService
 
 
-class UpdateFileService(object):
+class UpdateFileService(BaseService):
     """Update file.
     
     This class updates a file on the disk using the provided content.
@@ -31,6 +32,7 @@ class UpdateFileService(object):
                 with open(path, 'wb') as f:
                     f.write(data.encode())
                 
+                self.fix_ownership(path)
                 return True
             except UnicodeDecodeError as e:
                 pass

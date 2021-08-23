@@ -1,8 +1,9 @@
 from core.utils import filesystem as cpfs
 from core.utils.system import run_cmd
+from .base_service import BaseService
 
 
-class UpdatePermissionService(object):
+class UpdatePermissionService(BaseService):
     """Update permission.
     
     This class is responsible to update permissions on a file or a directory.
@@ -30,6 +31,7 @@ class UpdatePermissionService(object):
         if path and path.startswith(BASE_PATH):
             try:
                 run_cmd(f'/usr/bin/chmod {permissions} {path}')
+                self.fix_ownership(path)
                 return True
             except Exception as e:
                 pass

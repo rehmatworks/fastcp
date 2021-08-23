@@ -9,19 +9,22 @@ from subprocess import (
 # Constants
 FASTCP_SYS_GROUP = 'fcp-users'
 
-def get_uid_by_path(path: str) -> object:
+def get_user_by_path(path: str) -> str:
     """Get user by path.
     
     Parses the path and tries to get the user.
     
     Args:
         path (str): Path of the file or a folder.
+        
+    Returns:
+        str: Username if found or null.
     """
     try:
         username = path.split('/')[3]
         user = User.objects.filter(username=username).first()
-        if user and user.uid:
-            return user.uid
+        if user:
+            return user.username
     except IndexError:
         pass
     

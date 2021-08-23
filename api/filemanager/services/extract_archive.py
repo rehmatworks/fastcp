@@ -1,9 +1,10 @@
 from django.conf import settings
 import os
 from core.utils import filesystem as cpfs
+from .base_service import BaseService
 
 
-class ExtractArchiveService(object):
+class ExtractArchiveService(BaseService):
     """Extract Archive
     
     Extracts an archive by taking the archive path and the destination path from a serializers.
@@ -30,6 +31,7 @@ class ExtractArchiveService(object):
                 
             if root_path and os.path.exists(root_path) and path and os.path.exists(path):
                 cpfs.extract_zip(root_path, archive_path=path)
+                self.fix_ownership(root_path)
                 return True
                         
         except Exception as e:

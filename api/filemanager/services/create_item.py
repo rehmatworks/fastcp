@@ -38,6 +38,7 @@ class CreateItemService(BaseService):
             try:
                 if item_type == 'file':
                     open(new_path, 'a').close()
+                    self.fix_ownership(new_path)
                     return True
                 elif item_type == 'directory':
                     os.makedirs(new_path)

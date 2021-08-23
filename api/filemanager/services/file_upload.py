@@ -1,8 +1,9 @@
 from core.utils import filesystem as cpfs
 import os
+from .base_service import BaseService
 
 
-class FileUploadService(object):
+class FileUploadService(BaseService):
     """Upload a file.
     
     Processes an uploaded file and stores the content on the disk.
@@ -34,5 +35,7 @@ class FileUploadService(object):
             with open(dest_path, 'wb+') as destination:
                 for chunk in f.chunks():
                     destination.write(chunk)    
+            
+            self.fix_ownership(dest_path)
             return True
         return False
