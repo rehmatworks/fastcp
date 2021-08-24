@@ -72,6 +72,14 @@ export const routes = [
         }
     },
     {
+        path: '/users/:id',
+        name: 'user',
+        component: require('./components/users/UserComponent').default,
+        meta: {
+            title: 'Manage User'
+        }
+    },
+    {
         path: '/harware-info',
         name: 'hardware',
         component: require('./components/generic/HardwareComponent').default,

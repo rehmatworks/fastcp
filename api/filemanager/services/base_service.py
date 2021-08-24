@@ -1,5 +1,6 @@
 from core.utils.system import run_cmd
 from core.models import User
+from django.conf import settings
 
 
 class BaseService(object):
@@ -60,7 +61,7 @@ class BaseService(object):
         """
         path = str(path)
         if self.is_owner(path, user):
-            return len(path.split('/')) >= 7
+            return path.startswith(settings.FILE_MANAGER_ROOT) and len(path.split('/')) >= 7
         return False
         
     

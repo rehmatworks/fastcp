@@ -16,7 +16,7 @@ Vue.filter('floatformat', function(num) {
     return parseFloat(num).toFixed(2);
 });
 
-Vue.component('v-select', VueSelect.VueSelect);
+// Vue.component('v-select', VueSelect.VueSelect);
 
 Vue.filter('prettyBytes', function (num) {
     if (typeof num !== 'number' || isNaN(num)) {

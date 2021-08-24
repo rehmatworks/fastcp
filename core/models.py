@@ -46,11 +46,23 @@ class User(AbstractUser):
     # FastCP resource limits
     max_dbs = models.IntegerField(default=10) # Max number of databases a user can create
     max_sites = models.IntegerField(default=10) # Max number of websites a user can create
-    max_storage = models.FloatField(default=1024) # Max storage (in MBs) a user can create 1024 == 1GB
+    storage_used = models.FloatField(default=0) # Used storage in Bytes (1024 bytes == 1kb)
+    max_storage = models.FloatField(default=1024) # Max storage in Bytes a user can consume (1024 bytes == 1kb)
     
     # More customizations
     REQUIRED_FIELDS = []
     objects = FastcpUserManager()
+    
+    @property
+    def total_dbs(self):
+        """Get the count of total databases owned by this user."""
+        return self.databases.count()
+
+    
+    @property
+    def total_sites(self):
+        """Get the count of total sites owned by this user."""
+        return self.websites.count()
 
 
 class Notification(models.Model):

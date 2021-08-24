@@ -4,6 +4,7 @@
             <div class="row">
                 <div class="col-12">
                     <h4>File Manager ({{ files.count }})</h4>
+                    <small class="d-block">Website: {{ website_name }}</small>
                     <p v-if="(move || copy) && move_selected.length > 0" class="border p-1 file-toolbar rounded">
                         You are going to <span v-if="move">move</span><span v-else>copy</span> {{ move_selected.length }} <span v-if="move_selected.length == 1">item</span><span v-else>items</span>. Now go to the destination directory and click confirm.
                         <button @click="moveItems()" :disabled="!validDestination()" class="btn btn-sm btn-danger">Confirm</button>
@@ -174,19 +175,6 @@
                                 </div>
                             </div>
                         </nav>
-                    </p>
-                    <p
-                        class="mb-0 text-primary"
-                        v-if="files && files.count"
-                        style="font-size: 12px"
-                    >
-                        Browsing:
-                        {{
-                            files.results[0].path.substr(
-                                0,
-                                files.results[0].path.lastIndexOf("/")
-                            )
-                        }}
                     </p>
                 </div>
             </div>
@@ -366,7 +354,8 @@ export default {
             old_name: '',
             edit_permissions: '',
             new_permissions: '',
-            web_root: ''
+            web_root: '',
+            website_name: ''
         };
     },
     created() {
@@ -382,6 +371,7 @@ export default {
             axios.get(`/websites/${_this.$route.params.id}/`).then((res) => {
                 if(res.data && res.data.metadata.path) {
                     _this.web_root = res.data.metadata.path;
+                    _this.website_name = res.data.label;
                     _this.$store.commit('setPath', res.data.metadata.path);
                     _this.getFiles();
                 } else {
@@ -448,10 +438,7 @@ export default {
                     _this.$store.commit('setBusy', false);
                 })
                 .catch((err) => {
-                    if(_this.$store.state.path) {
-                        _this.$store.commit('setPath', '');
-                        _this.getFiles();
-                    }
+                    toastr.error('Directory listing cannot be retrieved.');
                     _this.$store.commit('setBusy', false);
                 });
         },

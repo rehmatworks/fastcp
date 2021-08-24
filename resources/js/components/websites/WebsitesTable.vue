@@ -33,11 +33,11 @@
                             <span v-else class="text-warning"><i class="fas fa-unlock"></i> HTTP</span>
                         </td>
                         <td class="text-right">
-                            <router-link :to="{name: 'filemanager', params:{id: website.id}}" class="btn btn-sm btn-outline-info">
+                            <router-link :to="{name: 'filemanager', params:{id: website.id}}" class="btn btn-sm btn-warning">
                                 <i class="fas fa-folder"></i> Files
                             </router-link>
-                            <router-link :to="{name: 'website', params:{id: website.id}}" class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-cog"></i> Manage
+                            <router-link :to="{name: 'website', params:{id: website.id}}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-cog"></i> Settings
                             </router-link>
                         </td>
                     </tr>
