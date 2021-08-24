@@ -118,10 +118,9 @@ class FastcpSsl(object):
                 # Remove verification file
                 if token_path and os.path.exists(token_path):
                     os.remove(token_path)
+                    
+                return True
         except Exception as e:
             raise e
-            # Not interested in the reason
-            pass
-                
         return False
                 
