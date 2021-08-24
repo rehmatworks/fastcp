@@ -28,41 +28,43 @@ class ListFileService(BaseService):
         path = validated_data.get('path')
         search = validated_data.get('search')
         user = self.request.user
-                           
-        path = Path(path)
-        files = []
-        for p in path.iterdir():
-            try:
-                data = cpfs.get_path_info(p)
-                if not search or search.lower() in data.get('name').lower():
-                    if self.is_allowed(p, user):
-                        files.append(data)
-            except PermissionError:
-                pass
         
-        paginator = Paginator(files, 15)
-        try:
-            page = paginator.page(validated_data.get('page'))
-        except EmptyPage:
-            page = paginator.page(1)
-        
-        try:
-            next_page = page.next_page_number()
-        except EmptyPage:
-            next_page = None
-        
-        try:
-            previous_page = page.previous_page_number()
-        except EmptyPage:
-            previous_page = None
+        if path:                
+            path = Path(path)
+            files = []
+            for p in path.iterdir():
+                try:
+                    data = cpfs.get_path_info(p)
+                    if not search or search.lower() in data.get('name').lower():
+                        if self.is_allowed(p, user):
+                            files.append(data)
+                except PermissionError:
+                    pass
             
-        data = {
-            'links': {
-                'next': next_page,
-                'previous': previous_page
-            },
-            'count': len(files),
-            'results': page.object_list
-        }
-        
-        return data
+            paginator = Paginator(files, 15)
+            try:
+                page = paginator.page(validated_data.get('page'))
+            except EmptyPage:
+                page = paginator.page(1)
+            
+            try:
+                next_page = page.next_page_number()
+            except EmptyPage:
+                next_page = None
+            
+            try:
+                previous_page = page.previous_page_number()
+            except EmptyPage:
+                previous_page = None
+            
+            data = {
+                'links': {
+                    'next': next_page,
+                    'previous': previous_page
+                },
+                'count': len(files),
+                'results': page.object_list
+            }
+            
+            return data
+        return None

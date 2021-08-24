@@ -209,7 +209,12 @@ class FileListView(APIView):
             return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
         
         data = ListFileService(request).get_files_list(s.validated_data)
-        return Response(data)
+        if data:
+            return Response(data)
+        else:
+            return Response({
+                'message': 'Directory listing cannot be retrieved.'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 class RenameItem(APIView):
     """Rename an item.

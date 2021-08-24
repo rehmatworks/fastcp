@@ -60,7 +60,7 @@ class BaseService(object):
         """
         path = str(path)
         if self.is_owner(path, user):
-            return len(path.split('/')) >= 6
+            return len(path.split('/')) >= 7
         return False
         
     
