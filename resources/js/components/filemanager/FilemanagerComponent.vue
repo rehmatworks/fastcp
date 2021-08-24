@@ -59,112 +59,121 @@
                             Cancel
                         </button>
                     </p>
-                    <p v-else class="border p-1 file-toolbar rounded">
-                        <a
-                            href="javascript:void(0)"
-                            class="border-right pr-2"
-                            :class="{ 'text-muted': $store.state.path == web_root }"
-                            @click="goHome()"
-                        >
-                            <i class="fas fa-home"></i> Home
-                        </a>
-                        <a
-                            :class="{ 'text-muted': $store.state.path == web_root }"
-                            href="javascript:void(0)"
-                            class="border-right p-2"
-                            @click="goBack()"
-                        >
-                            <i class="fas fa-arrow-left"></i> Back
-                        </a>
-                        <a
-                            @click="chooseFiles()"
-                            href="javascript:void(0)"
-                            class="border-right px-2"
-                        >
-                            <i class="fas fa-upload"></i> Upload
-                        </a>
-                        <a
-                            @click="create = true"
-                            href="javascript:void(0)"
-                            class="border-right px-2"
-                        >
-                            <i class="fas fa-plus"></i> Create
-                        </a>
-                        <a @click="getFiles()" href="javascript:void(0)" class="border-right px-2">
-                            <i class="fas fa-redo"></i> Refresh
-                        </a>
-                        <a
-                            @click="
-                                if (selected.length > 0) {
-                                    move = true;
-                                    copy = false;
-                                    move_selected = selected;
-                                    selall = false;
-                                    selected = [];
-                                }
-                            "
-                            href="javascript:void(0)"
-                            :class="{ 'text-muted': selected.length == 0 }"
-                            class="border-right px-2"
-                        >
-                            <i class="fas fa-arrows-alt"></i> Move
-                        </a>
-                        <a
-                            @click="
-                                if (selected.length > 0) {
-                                    copy = true;
-                                    move = false;
-                                    move_selected = selected;
-                                    selall = false;
-                                    selected = [];
-                                }
-                            "
-                            href="javascript:void(0)"
-                            :class="{ 'text-muted': selected.length == 0 }"
-                            class="border-right px-2"
-                        >
-                            <i class="fas fa-copy"></i> Copy
-                        </a>
-                        <a
-                            @click="prepareRename()"
-                            href="javascript:void(0)"
-                            :class="{ 'text-muted': selected.length != 1 }"
-                            class="border-right px-2"
-                        >
-                            <i class="fas fa-retweet"></i> Rename
-                        </a>
-                        <a
-                            @click="compressFiles()"
-                            :class="{ 'text-muted': selected.length == 0 }"
-                            href="javascript:void(0)"
-                            class="border-right px-2"
-                        >
-                            <i class="fas fa-archive"></i> Compress
-                        </a>
-                        <a
-                            @click="
-                                if (selected.length > 0) {
-                                    extract = true;
-                                }
-                            "
-                            :class="{ 'text-muted': !isZip(selected) }"
-                            href="javascript:void(0)"
-                            class="border-right px-2"
-                        >
-                            <i class="fas fa-file-archive"></i> Extract
-                        </a>
-                        <a
-                            @click="
-                                if (selected.length > 0) {
-                                    del = true;
-                                }
-                            "
-                            :class="{ 'text-muted': selected.length == 0 }"
-                            href="javascript:void(0)"
-                            class="border-right px-2"
-                        >
-                            <i class="fas fa-trash"></i> Delete
-                        </a>
+                    <p class="border mb-1 mt-1 file-toolbar rounded">
+                        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+                            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNavAltMarkup" aria-controls="navbarNavAltMarkup" aria-expanded="false" aria-label="Toggle navigation">
+                                <span class="navbar-toggler-icon"></span>
+                            </button>
+                            <div class="collapse navbar-collapse" id="navbarNavAltMarkup">
+                                <div class="navbar-nav">
+                                    <a
+                                        href="javascript:void(0)"
+                                        class="nav-item nav-link"
+                                        :class="{ 'disabled': $store.state.path == web_root }"
+                                        @click="goHome()"
+                                    >
+                                        <i class="fas fa-home"></i> Home
+                                    </a>
+                                    <a
+                                        :class="{ 'disabled': $store.state.path == web_root }"
+                                        href="javascript:void(0)"
+                                        class="nav-item nav-link"
+                                        @click="goBack()"
+                                    >
+                                        <i class="fas fa-arrow-left"></i> Back
+                                    </a>
+                                    <a
+                                        @click="chooseFiles()"
+                                        href="javascript:void(0)"
+                                        class="nav-item nav-link"
+                                    >
+                                        <i class="fas fa-upload"></i> Upload
+                                    </a>
+                                    <a
+                                        @click="create = true"
+                                        href="javascript:void(0)"
+                                        class="nav-item nav-link"
+                                    >
+                                        <i class="fas fa-plus"></i> Create
+                                    </a>
+                                    <a @click="getFiles()" href="javascript:void(0)" class="nav-item nav-link">
+                                        <i class="fas fa-redo"></i> Refresh
+                                    </a>
+                                    <a
+                                        @click="
+                                            if (selected.length > 0) {
+                                                move = true;
+                                                copy = false;
+                                                move_selected = selected;
+                                                selall = false;
+                                                selected = [];
+                                            }
+                                        "
+                                        href="javascript:void(0)"
+                                        :class="{ 'disabled': selected.length == 0 }"
+                                        class="nav-item nav-link"
+                                    >
+                                        <i class="fas fa-arrows-alt"></i> Move
+                                    </a>
+                                    <a
+                                        @click="
+                                            if (selected.length > 0) {
+                                                copy = true;
+                                                move = false;
+                                                move_selected = selected;
+                                                selall = false;
+                                                selected = [];
+                                            }
+                                        "
+                                        href="javascript:void(0)"
+                                        :class="{ 'disabled': selected.length == 0 }"
+                                        class="nav-item nav-link"
+                                    >
+                                        <i class="fas fa-copy"></i> Copy
+                                    </a>
+                                    <a
+                                        @click="prepareRename()"
+                                        href="javascript:void(0)"
+                                        :class="{ 'disabled': selected.length != 1 }"
+                                        class="nav-item nav-link"
+                                    >
+                                        <i class="fas fa-retweet"></i> Rename
+                                    </a>
+                                    <a
+                                        @click="compressFiles()"
+                                        :class="{ 'disabled': selected.length == 0 }"
+                                        href="javascript:void(0)"
+                                        class="nav-item nav-link"
+                                    >
+                                        <i class="fas fa-archive"></i> Compress
+                                    </a>
+                                    <a
+                                        @click="
+                                            if (selected.length > 0) {
+                                                extract = true;
+                                            }
+                                        "
+                                        :class="{ 'disabled': !isZip(selected) }"
+                                        href="javascript:void(0)"
+                                        class="nav-item nav-link"
+                                    >
+                                        <i class="fas fa-file-archive"></i> Extract
+                                    </a>
+                                    <a
+                                        @click="
+                                            if (selected.length > 0) {
+                                                del = true;
+                                            }
+                                        "
+                                        :class="{ 'disabled': selected.length == 0 }"
+                                        href="javascript:void(0)"
+                                        class="nav-item nav-link"
+                                    >
+                                        <i class="fas fa-trash"></i> Delete
+                                    </a>
+                                </div>
+                            </div>
+                        </nav>
                     </p>
                     <p
                         class="mb-0 text-primary"
@@ -187,7 +196,7 @@
                 <table v-if="files.count > 0" class="table table-striped">
                     <thead class="bg-primary text-white">
                         <tr>
-                            <th style="width: 2%">
+                            <th v-if="!move_selected.length" style="width: 2%">
                                 <input v-model="selall" type="checkbox" />
                             </th>
                             <th style="width: 25%">File name</th>
@@ -198,7 +207,7 @@
                     </thead>
                     <tbody>
                         <tr v-for="file in files.results" :key="file.path">
-                            <td>
+                            <td v-if="!move_selected.length">
                                 <input
                                     @click="selectItem(file.path)"
                                     :checked="selected.includes(file.path)"
@@ -728,7 +737,7 @@ tbody tr:hover {
     background-color: #ebfaff !important;
 }
 .file-toolbar {
-    font-size: 16px;
+    font-size: 15px;
 }
 .file-toolbar a {
     text-decoration: none;

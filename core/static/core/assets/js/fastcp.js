@@ -2834,6 +2834,15 @@ function _defineProperty(obj, key, value) { if (key in obj) { Object.definePrope
 //
 //
 //
+//
+//
+//
+//
+//
+//
+//
+//
+//
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({
   data: function data() {
     var _ref;
@@ -4380,7 +4389,7 @@ __webpack_require__.r(__webpack_exports__);
 
 var ___CSS_LOADER_EXPORT___ = _node_modules_css_loader_dist_runtime_api_js__WEBPACK_IMPORTED_MODULE_0___default()(function(i){return i[1]});
 // Module
-___CSS_LOADER_EXPORT___.push([module.id, "\ntbody tr[data-v-8d5b4d56] {\n    cursor: pointer;\n}\ntbody tr[data-v-8d5b4d56]:hover {\n    background-color: #ebfaff !important;\n}\n.file-toolbar[data-v-8d5b4d56] {\n    font-size: 16px;\n}\n.file-toolbar a[data-v-8d5b4d56] {\n    text-decoration: none;\n}\nselect[data-v-8d5b4d56] {\n    height: 30px;\n}\n", ""]);
+___CSS_LOADER_EXPORT___.push([module.id, "\ntbody tr[data-v-8d5b4d56] {\n    cursor: pointer;\n}\ntbody tr[data-v-8d5b4d56]:hover {\n    background-color: #ebfaff !important;\n}\n.file-toolbar[data-v-8d5b4d56] {\n    font-size: 15px;\n}\n.file-toolbar a[data-v-8d5b4d56] {\n    text-decoration: none;\n}\nselect[data-v-8d5b4d56] {\n    height: 30px;\n}\n", ""]);
 // Exports
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (___CSS_LOADER_EXPORT___);
 
@@ -7216,222 +7225,274 @@ var render = function() {
                       ]
                     )
                   ])
-                : _c("p", { staticClass: "border p-1 file-toolbar rounded" }, [
-                    _c(
-                      "a",
-                      {
-                        staticClass: "border-right pr-2",
-                        class: {
-                          "text-muted": _vm.$store.state.path == _vm.web_root
+                : _vm._e(),
+              _vm._v(" "),
+              _c(
+                "p",
+                { staticClass: "border mb-1 mt-1 file-toolbar rounded" },
+                [
+                  _c(
+                    "nav",
+                    {
+                      staticClass:
+                        "navbar navbar-expand-lg navbar-light bg-light"
+                    },
+                    [
+                      _vm._m(0),
+                      _vm._v(" "),
+                      _c(
+                        "div",
+                        {
+                          staticClass: "collapse navbar-collapse",
+                          attrs: { id: "navbarNavAltMarkup" }
                         },
-                        attrs: { href: "javascript:void(0)" },
-                        on: {
-                          click: function($event) {
-                            return _vm.goHome()
-                          }
-                        }
-                      },
-                      [
-                        _c("i", { staticClass: "fas fa-home" }),
-                        _vm._v(" Home\n                    ")
-                      ]
-                    ),
-                    _vm._v(" "),
-                    _c(
-                      "a",
-                      {
-                        staticClass: "border-right p-2",
-                        class: {
-                          "text-muted": _vm.$store.state.path == _vm.web_root
-                        },
-                        attrs: { href: "javascript:void(0)" },
-                        on: {
-                          click: function($event) {
-                            return _vm.goBack()
-                          }
-                        }
-                      },
-                      [
-                        _c("i", { staticClass: "fas fa-arrow-left" }),
-                        _vm._v(" Back\n                    ")
-                      ]
-                    ),
-                    _vm._v(" "),
-                    _c(
-                      "a",
-                      {
-                        staticClass: "border-right px-2",
-                        attrs: { href: "javascript:void(0)" },
-                        on: {
-                          click: function($event) {
-                            return _vm.chooseFiles()
-                          }
-                        }
-                      },
-                      [
-                        _c("i", { staticClass: "fas fa-upload" }),
-                        _vm._v(" Upload\n                    ")
-                      ]
-                    ),
-                    _vm._v(" "),
-                    _c(
-                      "a",
-                      {
-                        staticClass: "border-right px-2",
-                        attrs: { href: "javascript:void(0)" },
-                        on: {
-                          click: function($event) {
-                            _vm.create = true
-                          }
-                        }
-                      },
-                      [
-                        _c("i", { staticClass: "fas fa-plus" }),
-                        _vm._v(" Create\n                    ")
-                      ]
-                    ),
-                    _vm._v(" "),
-                    _c(
-                      "a",
-                      {
-                        staticClass: "border-right px-2",
-                        attrs: { href: "javascript:void(0)" },
-                        on: {
-                          click: function($event) {
-                            return _vm.getFiles()
-                          }
-                        }
-                      },
-                      [
-                        _c("i", { staticClass: "fas fa-redo" }),
-                        _vm._v(" Refresh\n                    ")
-                      ]
-                    ),
-                    _vm._v(" "),
-                    _c(
-                      "a",
-                      {
-                        staticClass: "border-right px-2",
-                        class: { "text-muted": _vm.selected.length == 0 },
-                        attrs: { href: "javascript:void(0)" },
-                        on: {
-                          click: function($event) {
-                            if (_vm.selected.length > 0) {
-                              _vm.move = true
-                              _vm.copy = false
-                              _vm.move_selected = _vm.selected
-                              _vm.selall = false
-                              _vm.selected = []
-                            }
-                          }
-                        }
-                      },
-                      [
-                        _c("i", { staticClass: "fas fa-arrows-alt" }),
-                        _vm._v(" Move\n                    ")
-                      ]
-                    ),
-                    _vm._v(" "),
-                    _c(
-                      "a",
-                      {
-                        staticClass: "border-right px-2",
-                        class: { "text-muted": _vm.selected.length == 0 },
-                        attrs: { href: "javascript:void(0)" },
-                        on: {
-                          click: function($event) {
-                            if (_vm.selected.length > 0) {
-                              _vm.copy = true
-                              _vm.move = false
-                              _vm.move_selected = _vm.selected
-                              _vm.selall = false
-                              _vm.selected = []
-                            }
-                          }
-                        }
-                      },
-                      [
-                        _c("i", { staticClass: "fas fa-copy" }),
-                        _vm._v(" Copy\n                    ")
-                      ]
-                    ),
-                    _vm._v(" "),
-                    _c(
-                      "a",
-                      {
-                        staticClass: "border-right px-2",
-                        class: { "text-muted": _vm.selected.length != 1 },
-                        attrs: { href: "javascript:void(0)" },
-                        on: {
-                          click: function($event) {
-                            return _vm.prepareRename()
-                          }
-                        }
-                      },
-                      [
-                        _c("i", { staticClass: "fas fa-retweet" }),
-                        _vm._v(" Rename\n                    ")
-                      ]
-                    ),
-                    _vm._v(" "),
-                    _c(
-                      "a",
-                      {
-                        staticClass: "border-right px-2",
-                        class: { "text-muted": _vm.selected.length == 0 },
-                        attrs: { href: "javascript:void(0)" },
-                        on: {
-                          click: function($event) {
-                            return _vm.compressFiles()
-                          }
-                        }
-                      },
-                      [
-                        _c("i", { staticClass: "fas fa-archive" }),
-                        _vm._v(" Compress\n                    ")
-                      ]
-                    ),
-                    _vm._v(" "),
-                    _c(
-                      "a",
-                      {
-                        staticClass: "border-right px-2",
-                        class: { "text-muted": !_vm.isZip(_vm.selected) },
-                        attrs: { href: "javascript:void(0)" },
-                        on: {
-                          click: function($event) {
-                            if (_vm.selected.length > 0) {
-                              _vm.extract = true
-                            }
-                          }
-                        }
-                      },
-                      [
-                        _c("i", { staticClass: "fas fa-file-archive" }),
-                        _vm._v(" Extract\n                    ")
-                      ]
-                    ),
-                    _vm._v(" "),
-                    _c(
-                      "a",
-                      {
-                        staticClass: "border-right px-2",
-                        class: { "text-muted": _vm.selected.length == 0 },
-                        attrs: { href: "javascript:void(0)" },
-                        on: {
-                          click: function($event) {
-                            if (_vm.selected.length > 0) {
-                              _vm.del = true
-                            }
-                          }
-                        }
-                      },
-                      [
-                        _c("i", { staticClass: "fas fa-trash" }),
-                        _vm._v(" Delete\n                    ")
-                      ]
-                    )
-                  ]),
+                        [
+                          _c("div", { staticClass: "navbar-nav" }, [
+                            _c(
+                              "a",
+                              {
+                                staticClass: "nav-item nav-link",
+                                class: {
+                                  disabled:
+                                    _vm.$store.state.path == _vm.web_root
+                                },
+                                attrs: { href: "javascript:void(0)" },
+                                on: {
+                                  click: function($event) {
+                                    return _vm.goHome()
+                                  }
+                                }
+                              },
+                              [
+                                _c("i", { staticClass: "fas fa-home" }),
+                                _vm._v(
+                                  " Home\n                                "
+                                )
+                              ]
+                            ),
+                            _vm._v(" "),
+                            _c(
+                              "a",
+                              {
+                                staticClass: "nav-item nav-link",
+                                class: {
+                                  disabled:
+                                    _vm.$store.state.path == _vm.web_root
+                                },
+                                attrs: { href: "javascript:void(0)" },
+                                on: {
+                                  click: function($event) {
+                                    return _vm.goBack()
+                                  }
+                                }
+                              },
+                              [
+                                _c("i", { staticClass: "fas fa-arrow-left" }),
+                                _vm._v(
+                                  " Back\n                                "
+                                )
+                              ]
+                            ),
+                            _vm._v(" "),
+                            _c(
+                              "a",
+                              {
+                                staticClass: "nav-item nav-link",
+                                attrs: { href: "javascript:void(0)" },
+                                on: {
+                                  click: function($event) {
+                                    return _vm.chooseFiles()
+                                  }
+                                }
+                              },
+                              [
+                                _c("i", { staticClass: "fas fa-upload" }),
+                                _vm._v(
+                                  " Upload\n                                "
+                                )
+                              ]
+                            ),
+                            _vm._v(" "),
+                            _c(
+                              "a",
+                              {
+                                staticClass: "nav-item nav-link",
+                                attrs: { href: "javascript:void(0)" },
+                                on: {
+                                  click: function($event) {
+                                    _vm.create = true
+                                  }
+                                }
+                              },
+                              [
+                                _c("i", { staticClass: "fas fa-plus" }),
+                                _vm._v(
+                                  " Create\n                                "
+                                )
+                              ]
+                            ),
+                            _vm._v(" "),
+                            _c(
+                              "a",
+                              {
+                                staticClass: "nav-item nav-link",
+                                attrs: { href: "javascript:void(0)" },
+                                on: {
+                                  click: function($event) {
+                                    return _vm.getFiles()
+                                  }
+                                }
+                              },
+                              [
+                                _c("i", { staticClass: "fas fa-redo" }),
+                                _vm._v(
+                                  " Refresh\n                                "
+                                )
+                              ]
+                            ),
+                            _vm._v(" "),
+                            _c(
+                              "a",
+                              {
+                                staticClass: "nav-item nav-link",
+                                class: { disabled: _vm.selected.length == 0 },
+                                attrs: { href: "javascript:void(0)" },
+                                on: {
+                                  click: function($event) {
+                                    if (_vm.selected.length > 0) {
+                                      _vm.move = true
+                                      _vm.copy = false
+                                      _vm.move_selected = _vm.selected
+                                      _vm.selall = false
+                                      _vm.selected = []
+                                    }
+                                  }
+                                }
+                              },
+                              [
+                                _c("i", { staticClass: "fas fa-arrows-alt" }),
+                                _vm._v(
+                                  " Move\n                                "
+                                )
+                              ]
+                            ),
+                            _vm._v(" "),
+                            _c(
+                              "a",
+                              {
+                                staticClass: "nav-item nav-link",
+                                class: { disabled: _vm.selected.length == 0 },
+                                attrs: { href: "javascript:void(0)" },
+                                on: {
+                                  click: function($event) {
+                                    if (_vm.selected.length > 0) {
+                                      _vm.copy = true
+                                      _vm.move = false
+                                      _vm.move_selected = _vm.selected
+                                      _vm.selall = false
+                                      _vm.selected = []
+                                    }
+                                  }
+                                }
+                              },
+                              [
+                                _c("i", { staticClass: "fas fa-copy" }),
+                                _vm._v(
+                                  " Copy\n                                "
+                                )
+                              ]
+                            ),
+                            _vm._v(" "),
+                            _c(
+                              "a",
+                              {
+                                staticClass: "nav-item nav-link",
+                                class: { disabled: _vm.selected.length != 1 },
+                                attrs: { href: "javascript:void(0)" },
+                                on: {
+                                  click: function($event) {
+                                    return _vm.prepareRename()
+                                  }
+                                }
+                              },
+                              [
+                                _c("i", { staticClass: "fas fa-retweet" }),
+                                _vm._v(
+                                  " Rename\n                                "
+                                )
+                              ]
+                            ),
+                            _vm._v(" "),
+                            _c(
+                              "a",
+                              {
+                                staticClass: "nav-item nav-link",
+                                class: { disabled: _vm.selected.length == 0 },
+                                attrs: { href: "javascript:void(0)" },
+                                on: {
+                                  click: function($event) {
+                                    return _vm.compressFiles()
+                                  }
+                                }
+                              },
+                              [
+                                _c("i", { staticClass: "fas fa-archive" }),
+                                _vm._v(
+                                  " Compress\n                                "
+                                )
+                              ]
+                            ),
+                            _vm._v(" "),
+                            _c(
+                              "a",
+                              {
+                                staticClass: "nav-item nav-link",
+                                class: { disabled: !_vm.isZip(_vm.selected) },
+                                attrs: { href: "javascript:void(0)" },
+                                on: {
+                                  click: function($event) {
+                                    if (_vm.selected.length > 0) {
+                                      _vm.extract = true
+                                    }
+                                  }
+                                }
+                              },
+                              [
+                                _c("i", { staticClass: "fas fa-file-archive" }),
+                                _vm._v(
+                                  " Extract\n                                "
+                                )
+                              ]
+                            ),
+                            _vm._v(" "),
+                            _c(
+                              "a",
+                              {
+                                staticClass: "nav-item nav-link",
+                                class: { disabled: _vm.selected.length == 0 },
+                                attrs: { href: "javascript:void(0)" },
+                                on: {
+                                  click: function($event) {
+                                    if (_vm.selected.length > 0) {
+                                      _vm.del = true
+                                    }
+                                  }
+                                }
+                              },
+                              [
+                                _c("i", { staticClass: "fas fa-trash" }),
+                                _vm._v(
+                                  " Delete\n                                "
+                                )
+                              ]
+                            )
+                          ])
+                        ]
+                      )
+                    ]
+                  )
+                ]
+              ),
               _vm._v(" "),
               _vm.files && _vm.files.count
                 ? _c(
@@ -7464,45 +7525,48 @@ var render = function() {
               ? _c("table", { staticClass: "table table-striped" }, [
                   _c("thead", { staticClass: "bg-primary text-white" }, [
                     _c("tr", [
-                      _c("th", { staticStyle: { width: "2%" } }, [
-                        _c("input", {
-                          directives: [
-                            {
-                              name: "model",
-                              rawName: "v-model",
-                              value: _vm.selall,
-                              expression: "selall"
-                            }
-                          ],
-                          attrs: { type: "checkbox" },
-                          domProps: {
-                            checked: Array.isArray(_vm.selall)
-                              ? _vm._i(_vm.selall, null) > -1
-                              : _vm.selall
-                          },
-                          on: {
-                            change: function($event) {
-                              var $$a = _vm.selall,
-                                $$el = $event.target,
-                                $$c = $$el.checked ? true : false
-                              if (Array.isArray($$a)) {
-                                var $$v = null,
-                                  $$i = _vm._i($$a, $$v)
-                                if ($$el.checked) {
-                                  $$i < 0 && (_vm.selall = $$a.concat([$$v]))
-                                } else {
-                                  $$i > -1 &&
-                                    (_vm.selall = $$a
-                                      .slice(0, $$i)
-                                      .concat($$a.slice($$i + 1)))
+                      !_vm.move_selected.length
+                        ? _c("th", { staticStyle: { width: "2%" } }, [
+                            _c("input", {
+                              directives: [
+                                {
+                                  name: "model",
+                                  rawName: "v-model",
+                                  value: _vm.selall,
+                                  expression: "selall"
                                 }
-                              } else {
-                                _vm.selall = $$c
+                              ],
+                              attrs: { type: "checkbox" },
+                              domProps: {
+                                checked: Array.isArray(_vm.selall)
+                                  ? _vm._i(_vm.selall, null) > -1
+                                  : _vm.selall
+                              },
+                              on: {
+                                change: function($event) {
+                                  var $$a = _vm.selall,
+                                    $$el = $event.target,
+                                    $$c = $$el.checked ? true : false
+                                  if (Array.isArray($$a)) {
+                                    var $$v = null,
+                                      $$i = _vm._i($$a, $$v)
+                                    if ($$el.checked) {
+                                      $$i < 0 &&
+                                        (_vm.selall = $$a.concat([$$v]))
+                                    } else {
+                                      $$i > -1 &&
+                                        (_vm.selall = $$a
+                                          .slice(0, $$i)
+                                          .concat($$a.slice($$i + 1)))
+                                    }
+                                  } else {
+                                    _vm.selall = $$c
+                                  }
+                                }
                               }
-                            }
-                          }
-                        })
-                      ]),
+                            })
+                          ])
+                        : _vm._e(),
                       _vm._v(" "),
                       _c("th", { staticStyle: { width: "25%" } }, [
                         _vm._v("File name")
@@ -7526,19 +7590,21 @@ var render = function() {
                     "tbody",
                     _vm._l(_vm.files.results, function(file) {
                       return _c("tr", { key: file.path }, [
-                        _c("td", [
-                          _c("input", {
-                            attrs: { type: "checkbox" },
-                            domProps: {
-                              checked: _vm.selected.includes(file.path)
-                            },
-                            on: {
-                              click: function($event) {
-                                return _vm.selectItem(file.path)
-                              }
-                            }
-                          })
-                        ]),
+                        !_vm.move_selected.length
+                          ? _c("td", [
+                              _c("input", {
+                                attrs: { type: "checkbox" },
+                                domProps: {
+                                  checked: _vm.selected.includes(file.path)
+                                },
+                                on: {
+                                  click: function($event) {
+                                    return _vm.selectItem(file.path)
+                                  }
+                                }
+                              })
+                            ])
+                          : _vm._e(),
                         _vm._v(" "),
                         _c("td", [
                           _vm.rename == file.path
@@ -7869,7 +7935,7 @@ var render = function() {
                       [_vm._v("Edit " + _vm._s(_vm.edit.name))]
                     ),
                     _vm._v(" "),
-                    _vm._m(0)
+                    _vm._m(1)
                   ]),
                   _vm._v(" "),
                   _c("div", { staticClass: "modal-body" }, [
@@ -7950,6 +8016,26 @@ var render = function() {
     : _vm._e()
 }
 var staticRenderFns = [
+  function() {
+    var _vm = this
+    var _h = _vm.$createElement
+    var _c = _vm._self._c || _h
+    return _c(
+      "button",
+      {
+        staticClass: "navbar-toggler",
+        attrs: {
+          type: "button",
+          "data-toggle": "collapse",
+          "data-target": "#navbarNavAltMarkup",
+          "aria-controls": "navbarNavAltMarkup",
+          "aria-expanded": "false",
+          "aria-label": "Toggle navigation"
+        }
+      },
+      [_c("span", { staticClass: "navbar-toggler-icon" })]
+    )
+  },
   function() {
     var _vm = this
     var _h = _vm.$createElement
