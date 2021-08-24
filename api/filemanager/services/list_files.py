@@ -44,7 +44,7 @@ class ListFileService(BaseService):
             try:
                 data = cpfs.get_path_info(p)
                 if not search or search.lower() in data.get('name').lower():
-                    if str(path) == BASE_PATH and not self.is_protected(path):
+                    if self.is_protected(path):
                         continue
                     files.append(data)
             except PermissionError:
