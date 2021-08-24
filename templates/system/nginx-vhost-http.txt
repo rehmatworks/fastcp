@@ -11,6 +11,9 @@ server {
     access_log  {{ log_path }}/{{ app_name }}_nginx.access_ssl.log;
     error_log  {{ log_path }}/{{ app_name }}_nginx.error_ssl.log;
 
+    # For ACME verification
+    include /etc/nginx/snippets/fastcp-acme.conf;
+
     proxy_set_header    Host              $host;
     proxy_set_header    X-Real-IP         $remote_addr;
     proxy_set_header    X-Forwarded-For   $proxy_add_x_forwarded_for;

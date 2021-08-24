@@ -144,6 +144,8 @@ def get_website_paths(website: object) -> dict:
     user_paths = get_user_paths(website.user)
     web_base = os.path.join(user_paths.get('apps_path'), website.slug)
     fpm_root = os.path.join(settings.PHP_INSTALL_PATH, website.php, 'fpm', 'pool.d')
+    ssl_base = os.path.join(settings.NGINX_BASE_DIR, 'ssl', website.slug)
+    
     return {
         'fpm_root': fpm_root,
         'fpm_path': os.path.join(fpm_root, f'{website.slug}.conf'),
@@ -155,6 +157,9 @@ def get_website_paths(website: object) -> dict:
         'apache_vhost_dir': os.path.join(settings.APACHE_VHOST_ROOT, f'{website.slug}.d'),
         'apache_vhost_conf': os.path.join(settings.APACHE_VHOST_ROOT, f'{website.slug}.conf'),
         'ngix_vhost_ssl_conf': os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}-ssl.conf'),
+        'ssl_base': ssl_base,
+        'priv_key_path': os.path.join(ssl_base, 'priv.key'),
+        'cert_chain_path': os.path.join(ssl_base, 'cert.chain')
     }
 
 def create_if_missing(path: str) -> bool:
