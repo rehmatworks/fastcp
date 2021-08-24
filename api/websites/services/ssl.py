@@ -105,8 +105,8 @@ class FastcpSsl(object):
                         f.write(result.get('priv_key'))
                     
                     # Write cert chain
-                    with open(paths.get('cert_chain_path'), 'wb') as f:
-                        f.write(result.get('full_chain'))
+                    with open(paths.get('cert_chain_path'), 'w') as f:
+                        f.write(str(result.get('full_chain')))
                         
                     # Restart NGINX
                     restart_services.send('nginx')
