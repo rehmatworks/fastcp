@@ -26,6 +26,7 @@ class BaseService(object):
             bool: True on success False otherwise.
         """
         try:
+            path = str(path)
             dir_name = path.split('/')[4]
             return str(dir_name).lower() in self.PROTECTED_PATHS
         except IndexError:
@@ -40,7 +41,7 @@ class BaseService(object):
         Args:
             path (str): Path string.
         """
-        
+        path = str(path)
         user = get_user_by_path(path)
         if user and not self.is_protected(path) and len(path.split('/')) >= 4:
             run_cmd(f'/usr/bin/chown -R {user}:{user} {path}')
