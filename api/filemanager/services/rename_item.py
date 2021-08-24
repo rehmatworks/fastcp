@@ -24,15 +24,10 @@ class RenameItemService(BaseService):
         new_name = validated_data.get('new_name')
         old_name = validated_data.get('old_name')
         user = self.request.user
-        
-        BASE_PATH = cpfs.get_user_path(user)
-            
-        if not root_path or not root_path.startswith(BASE_PATH):
-            root_path = BASE_PATH
             
         old_path = os.path.join(root_path, old_name)
         new_path = os.path.join(root_path, new_name)
-        if os.path.exists(old_path) and not os.path.exists(new_path) and not self.is_protected(new_path):
+        if all([os.path.exists(old_path), not os.path.exists(new_path), self.is_allowed(new_path, user), self.is_allowed(old_path, user)]):
             try:
                 os.rename(old_path, new_path)
                 self.fix_ownership(new_path)

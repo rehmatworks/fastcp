@@ -28,15 +28,6 @@ class ListFileService(BaseService):
         path = validated_data.get('path')
         search = validated_data.get('search')
         user = self.request.user
-        
-        BASE_PATH = cpfs.get_user_path(user)
-            
-        if not path or not os.path.exists(path):
-            path = BASE_PATH
-        
-        # Ensure intended root path
-        if not path.startswith(BASE_PATH):
-            path = BASE_PATH
                            
         path = Path(path)
         files = []
@@ -44,7 +35,7 @@ class ListFileService(BaseService):
             try:
                 data = cpfs.get_path_info(p)
                 if not search or search.lower() in data.get('name').lower():
-                    if not self.is_protected(p):
+                    if not self.is_allowed(p, user):
                         files.append(data)
             except PermissionError:
                 pass

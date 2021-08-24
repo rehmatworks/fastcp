@@ -23,11 +23,9 @@ class UpdateFileService(BaseService):
         """
         user = self.request.user
         path = validated_data.get('path')
-        BASE_PATH = cpfs.get_user_path(user)
         
-        if path and os.path.exists(path) and path.startswith(BASE_PATH) and not self.is_protected(path):
-            try:
-                    
+        if path and os.path.exists(path) and self.is_allowed(path, user):
+            try: 
                 data = validated_data.get('content')
                 with open(path, 'wb') as f:
                     f.write(data.encode())

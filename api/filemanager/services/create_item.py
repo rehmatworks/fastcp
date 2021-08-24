@@ -26,15 +26,9 @@ class CreateItemService(BaseService):
         item_type = validated_data.get('item_type')
         item_name = validated_data.get('item_name')
         
-        BASE_PATH = cpfs.get_user_path(user)
+        new_path = os.path.join(path, item_name)
         
-        if path and path.startswith(BASE_PATH):
-            root_path = path
-        else:
-            root_path = BASE_PATH
-        
-        new_path = os.path.join(root_path, item_name)
-        if not self.is_protected(path) and not os.path.exists(new_path):
+        if self.is_allowed(new_path, user) and not os.path.exists(new_path):
             try:
                 if item_type == 'file':
                     open(new_path, 'a').close()

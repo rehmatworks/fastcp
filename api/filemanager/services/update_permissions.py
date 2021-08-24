@@ -24,10 +24,8 @@ class UpdatePermissionService(BaseService):
         path = validated_data.get('path')
         permissions = validated_data.get('permissions')
         user = self.request.user
-        
-        BASE_PATH = cpfs.get_user_path(user)
             
-        if path and path.startswith(BASE_PATH) and not self.is_protected(path):
+        if path and self.is_allowed(path, user):
             try:
                 run_cmd(f'/usr/bin/chmod {permissions} {path}')
                 self.fix_ownership(path)

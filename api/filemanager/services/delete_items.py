@@ -29,19 +29,14 @@ class DeleteItemsService(BaseService):
             user = self.request.user
             if len(paths):
                 for path in paths:
-                    if user.is_superuser:
-                        BASE_PATH = settings.FILE_MANAGER_ROOT
-                    else:
-                        BASE_PATH = os.path.join(settings.FILE_MANAGER_ROOT, user.username)
-                    if not path.startswith(BASE_PATH) or self.is_protected(path):
-                        continue
-                    if os.path.isdir(path):
-                        try:
-                            shutil.rmtree(path)
-                        except:
-                            pass
-                    if os.path.isfile(path):
-                        os.remove(path)
+                    if self.is_allowed(path, user):
+                        if os.path.isdir(path):
+                            try:
+                                shutil.rmtree(path)
+                            except:
+                                pass
+                        if os.path.isfile(path):
+                            os.remove(path)
                 
                 return True
         except Exception as e:

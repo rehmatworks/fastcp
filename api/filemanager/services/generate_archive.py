@@ -27,12 +27,8 @@ class GenerateArchiveService(BaseService):
             paths = validated_data.get('paths').split(',')
             root_path = validated_data.get('path')
             user = self.request.user
-            BASE_PATH = cpfs.get_user_path(user)
-            
-            if not root_path or not root_path.startswith(BASE_PATH):
-                root_path = BASE_PATH
-                
-            if len(paths) and root_path and not self.is_protected(root_path):
+
+            if len(paths) and root_path and self.is_allowed(root_path, user):
                 filename = os.path.basename(paths[0])
                 archive_name = f'{slugify(filename)}.zip'
                 cpfs.create_zip(root_path, archive_name, selected=paths)

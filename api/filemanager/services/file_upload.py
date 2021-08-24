@@ -22,16 +22,10 @@ class FileUploadService(BaseService):
         """
         path = validated_data.get('path')
         user = self.request.user
-        BASE_PATH = cpfs.get_user_path(user)
-        
-        if path and path.startswith(BASE_PATH):
-            root_path = path
-        else:
-            root_path = BASE_PATH
             
         f = validated_data.get('file')
-        dest_path = os.path.join(root_path, f.name)
-        if not self.is_protected(root_path) and not os.path.exists(dest_path):
+        dest_path = os.path.join(path, f.name)
+        if self.is_allowed(path, user) and not os.path.exists(dest_path):
             with open(dest_path, 'wb+') as destination:
                 for chunk in f.chunks():
                     destination.write(chunk)    

@@ -1,6 +1,6 @@
-from core.utils.system import (
-    get_user_by_path, run_cmd
-)
+from core.utils.system import run_cmd
+from core.models import User
+
 
 class BaseService(object):
     """Base service.
@@ -12,25 +12,57 @@ class BaseService(object):
         PROTECTED_PATHS (list): List of protected paths to ignore during listing and other operations. The are relative
                                 to user's home directory.
     """
-    PROTECTED_PATHS = ['run', '.profile', '.bashrc', '.bash_logout', '.bash_history', '.local']
     
-    def is_protected(self, path: str) -> bool:
+    def get_owner_by_path(self, path: str) -> str:
+        """Get user by path.
+        
+        Parses the path and tries to get the user.
+        
+        Args:
+            path (str): Path of the file or a folder.
+            
+        Returns:
+            str: Username if found or null.
+        """
+        try:
+            username = path.split('/')[3]
+            return User.objects.filter(username=username).first()
+        except IndexError:
+            return None
+    
+    def is_owner(self, path: str, user: object) -> bool:
         """Checks either path is protected or not.
         
         This method checks and ensures that the provided path is not included in protected paths list.
         
         Args:
             path (str): The path string.
+            owner (object): The user model.
         
         Returns:
             bool: True on success False otherwise.
         """
-        try:
-            path = str(path)
-            dir_name = path.split('/')[4]
-            return str(dir_name).lower() in self.PROTECTED_PATHS
-        except IndexError:
-            return False
+        owner = self.get_owner_by_path(path)
+        return owner and (user.id == owner.id or user.is_superuser)
+        
+    def is_allowed(self, path: str, user: object) -> bool:
+        """Ensure path is allowed.
+        
+        For security reasons, only certain paths are allowed. This method checks and ensures that the path
+        is allowed.
+        
+        Args:
+            path (str): Path string.
+            user (object): Userm odel object.
+            
+        Returns:
+            bool: True if allowed False otherwise.
+        """
+        path = str(path)
+        if self.is_owner(path, user):
+            return len(path.split('/')) >= 4
+        return False
+        
     
     def fix_ownership(self, path: str) -> None:
         """Fix ownership.
@@ -42,6 +74,6 @@ class BaseService(object):
             path (str): Path string.
         """
         path = str(path)
-        user = get_user_by_path(path)
-        if user and not self.is_protected(path) and len(path.split('/')) >= 4:
+        user = self.get_owner_by_path(path)
+        if user and self.is_allowed(path):
             run_cmd(f'/usr/bin/chown -R {user}:{user} {path}')

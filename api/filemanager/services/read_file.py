@@ -26,10 +26,9 @@ class ReadFileService(BaseService):
         
         user = self.request.user
         path = validated_data.get('path')
-        BASE_PATH = cpfs.get_user_path(user)
         content = None
     
-        if path and path.startswith(BASE_PATH) and not self.is_protected(path) and os.path.exists(path):
+        if path and self.is_allowed(path) and os.path.exists(path):
             PATH_INFO = cpfs.get_path_info(path)
             
             # Check for file existence, as well as discard

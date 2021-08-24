@@ -24,14 +24,8 @@ class MoveDataService(BaseService):
         dest_root = validated_data.get('path')
         user = self.request.user
         
-        BASE_PATH = cpfs.get_user_path(user)
-            
-        if not dest_root or not dest_root.startswith(BASE_PATH):
-            dest_root = BASE_PATH
-            
-        
         errors = False
-        if dest_root and not self.is_protected(dest_root):
+        if dest_root and not self.is_allowed(dest_root, user):
             paths = validated_data.get('paths').split(',')
             if len(paths):
                 for p in paths:
