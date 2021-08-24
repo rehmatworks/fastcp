@@ -26,10 +26,12 @@ class ExtractArchiveService(BaseService):
             root_path = validated_data.get('root_path')
             user = self.request.user
             
-            if not root_path and user.is_superuser:
+            BASE_PATH = os.path.join(settings.FILE_MANAGER_ROOT, user.username)
+            
+            if (not root_path or not root_path.startswith(BASE_PATH)) and user.is_superuser:
                 root_path = settings.FILE_MANAGER_ROOT
                 
-            if root_path and os.path.exists(root_path) and path and os.path.exists(path):
+            if root_path and not self.is_protected(root_path) and os.path.exists(root_path) and path and os.path.exists(path):
                 cpfs.extract_zip(root_path, archive_path=path)
                 self.fix_ownership(root_path)
                 return True

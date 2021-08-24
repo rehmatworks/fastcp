@@ -29,7 +29,7 @@ class ReadFileService(BaseService):
         BASE_PATH = cpfs.get_user_path(user)
         content = None
     
-        if path and path.startswith(BASE_PATH) and os.path.exists(path):
+        if path and path.startswith(BASE_PATH) and not self.is_protected(path) and os.path.exists(path):
             PATH_INFO = cpfs.get_path_info(path)
             
             # Check for file existence, as well as discard

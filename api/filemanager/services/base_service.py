@@ -7,7 +7,29 @@ class BaseService(object):
     
     All file manager services should extend this class. Here, we are going to write reusable code that can be
     used in multiple other places.
+    
+    Attributes:
+        PROTECTED_PATHS (list): List of protected paths to ignore during listing and other operations. The are relative
+                                to user's home directory.
     """
+    PROTECTED_PATHS = ['run', '.profile', '.bashrc', '.bash_logout', '.bash_history', '.local']
+    
+    def is_protected(self, path: str) -> bool:
+        """Checks either path is protected or not.
+        
+        This method checks and ensures that the provided path is not included in protected paths list.
+        
+        Args:
+            path (str): The path string.
+        
+        Returns:
+            bool: True on success False otherwise.
+        """
+        try:
+            dir_name = path.split('/')[4]
+            return str(dir_name).lower() in self.PROTECTED_PATHS
+        except IndexError:
+            return False
     
     def fix_ownership(self, path: str) -> None:
         """Fix ownership.
@@ -20,5 +42,5 @@ class BaseService(object):
         """
         
         user = get_user_by_path(path)
-        if user:
+        if user and not self.is_protected(path) and len(path.split('/')) >= 4:
             run_cmd(f'/usr/bin/chown -R {user}:{user} {path}')

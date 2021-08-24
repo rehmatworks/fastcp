@@ -34,7 +34,7 @@ class CreateItemService(BaseService):
             root_path = BASE_PATH
         
         new_path = os.path.join(root_path, item_name)
-        if not os.path.exists(new_path):
+        if not self.is_protected(path) and not os.path.exists(new_path):
             try:
                 if item_type == 'file':
                     open(new_path, 'a').close()

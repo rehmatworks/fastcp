@@ -31,7 +31,7 @@ class FileUploadService(BaseService):
             
         f = validated_data.get('file')
         dest_path = os.path.join(root_path, f.name)
-        if not os.path.exists(dest_path):
+        if not self.is_protected(root_path) and not os.path.exists(dest_path):
             with open(dest_path, 'wb+') as destination:
                 for chunk in f.chunks():
                     destination.write(chunk)    

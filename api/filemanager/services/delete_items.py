@@ -33,7 +33,7 @@ class DeleteItemsService(BaseService):
                         BASE_PATH = settings.FILE_MANAGER_ROOT
                     else:
                         BASE_PATH = os.path.join(settings.FILE_MANAGER_ROOT, user.username)
-                    if not path.startswith(BASE_PATH):
+                    if not path.startswith(BASE_PATH) or self.is_protected(path):
                         continue
                     if os.path.isdir(path):
                         try:

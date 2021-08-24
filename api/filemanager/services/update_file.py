@@ -25,7 +25,7 @@ class UpdateFileService(BaseService):
         path = validated_data.get('path')
         BASE_PATH = cpfs.get_user_path(user)
         
-        if path and os.path.exists(path) and path.startswith(BASE_PATH):
+        if path and os.path.exists(path) and path.startswith(BASE_PATH) and not self.is_protected(path):
             try:
                     
                 data = validated_data.get('content')

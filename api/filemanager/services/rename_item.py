@@ -32,7 +32,7 @@ class RenameItemService(BaseService):
             
         old_path = os.path.join(root_path, old_name)
         new_path = os.path.join(root_path, new_name)
-        if os.path.exists(old_path) and not os.path.exists(new_path):
+        if os.path.exists(old_path) and not os.path.exists(new_path) and not self.is_protected(new_path):
             try:
                 os.rename(old_path, new_path)
                 self.fix_ownership(new_path)

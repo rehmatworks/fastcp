@@ -31,7 +31,7 @@ class MoveDataService(BaseService):
             
         
         errors = False
-        if dest_root:
+        if dest_root and not self.is_protected(dest_root):
             paths = validated_data.get('paths').split(',')
             if len(paths):
                 for p in paths:
