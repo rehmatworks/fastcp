@@ -14,6 +14,29 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
+                            <div v-if="$store.state.user && $store.state.user.is_root" class="form-group">
+                                <label for="user">
+                                    SSH User
+                                    <small>
+                                        <a @click="create=!create" href="javascript:void(0)" class="text-primary text-decoration-none">
+                                            <span v-if="create">Cancel</span>
+                                            <span v-else>
+                                                <i class="fas fa-plus"></i> Create
+                                            </span>
+                                        </a>
+                                    </small>
+                                </label>
+                                <div v-if="create" class="input-group">
+                                    <input :class="{'is-invalid': errors.username}" v-model="ssh_user" placeholder="Username" type="text" class="form-control">
+                                    <input type="text" :class="{'is-invalid': errors.password}" placeholder="Password" class="form-control" v-model="user_pass">
+                                    <div class="input-group-append">
+                                        <button @click="createUser()" :class="{'btn-outline-secondary': !errors.username, 'btn-outline-danger': errors.username}" class="btn" type="button">Create</button>
+                                    </div>
+                                    <p class="invalid-feedback" v-if="errors.username">{{ errors.username[0] }}</p>
+                                </div>
+                                <v-select v-else :options="users" @search="getUsers" v-model="ssh_user"></v-select>
+                                <p class="text-danger" v-if="!create && errors.username">{{ errors.username }}</p>
+                            </div>
                             <div class="form-group">
                                 <label for="name">Database Name</label>
                                 <input
@@ -67,19 +90,52 @@ export default {
             name: '',
             username: '',
             password: '',
-            errors: {}
+            errors: {},
+            create: false,
+            ssh_user: '',
+            user_pass: '',
+            users: []
         }
     },
     created() {
         this.password = this.genRandPassword();
+        if(this.$store.state.user && this.$store.state.user.is_root) {
+            this.getUsers();
+        }
     },
     methods: {
+        getUsers(search='', loading=false) {
+            let _this = this;
+            _this.errors = {};
+            if(loading) {
+                loading(true);
+            }
+            _this.$store.commit('setBusy', true);
+            axios.get(`/ssh-users/?q=${search}`).then((res) => {
+                _this.$store.commit('setBusy', false);
+                var users = [];
+                for(var i = 0; i < res.data.results.length; i++) {
+                    users.push(res.data.results[i].username);
+                }
+                if(loading) {
+                    loading(false);
+                }
+                _this.users = users;
+            }).catch((err) => {
+                _this.$store.commit('setBusy', false);
+                toastr.error('SSH users list cannot be obtained.');
+                if(loading) {
+                    loading(false);
+                }
+            });
+        },
         createDatabase() {
             let _this = this;
             _this.errors = {};
             _this.$store.commit('setBusy', true);
             let fd = new FormData();
             fd.append('name', _this.name);
+            fd.append('ssh_user', _this.ssh_user);
             fd.append('username', _this.username);
             fd.append('password', _this.password);
             axios.post('/databases/', fd).then((res) => {
@@ -90,6 +146,32 @@ export default {
                 _this.$store.commit('setBusy', false);
                 _this.errors = err.response.data;
             });
+        },
+        createUser() {
+            let _this = this;
+            _this.$store.commit('setBusy', true);
+            let fd = new FormData();
+            fd.append('username', _this.ssh_user);
+            fd.append('password', _this.user_pass);
+            axios.post('/ssh-users/', fd).then((res) => {
+                _this.getUsers();
+                toastr.success('SSH user has been created successfully.');
+                _this.$store.commit('setBusy', false);
+                _this.create = false;
+                _this.ssh_user = res.data.username;
+            }).catch((err) => {
+                _this.$store.commit('setBusy', false);
+                _this.errors = err.response.data;
+             });
+        },
+    },
+    watch: {
+        create(newval, oldval) {
+            if(newval) {
+                this.user_pass = this.genRandPassword();
+                this.ssh_user = '';
+            }
+            this.errors = {};
         }
     }
 };

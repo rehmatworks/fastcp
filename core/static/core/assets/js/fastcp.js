@@ -2118,19 +2118,88 @@ __webpack_require__.r(__webpack_exports__);
 //
 //
 //
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({
   data: function data() {
     return {
       name: '',
       username: '',
       password: '',
-      errors: {}
+      errors: {},
+      create: false,
+      ssh_user: '',
+      user_pass: '',
+      users: []
     };
   },
   created: function created() {
     this.password = this.genRandPassword();
+
+    if (this.$store.state.user && this.$store.state.user.is_root) {
+      this.getUsers();
+    }
   },
   methods: {
+    getUsers: function getUsers() {
+      var search = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : '';
+      var loading = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
+
+      var _this = this;
+
+      _this.errors = {};
+
+      if (loading) {
+        loading(true);
+      }
+
+      _this.$store.commit('setBusy', true);
+
+      axios.get("/ssh-users/?q=".concat(search)).then(function (res) {
+        _this.$store.commit('setBusy', false);
+
+        var users = [];
+
+        for (var i = 0; i < res.data.results.length; i++) {
+          users.push(res.data.results[i].username);
+        }
+
+        if (loading) {
+          loading(false);
+        }
+
+        _this.users = users;
+      })["catch"](function (err) {
+        _this.$store.commit('setBusy', false);
+
+        toastr.error('SSH users list cannot be obtained.');
+
+        if (loading) {
+          loading(false);
+        }
+      });
+    },
     createDatabase: function createDatabase() {
       var _this = this;
 
@@ -2140,6 +2209,7 @@ __webpack_require__.r(__webpack_exports__);
 
       var fd = new FormData();
       fd.append('name', _this.name);
+      fd.append('ssh_user', _this.ssh_user);
       fd.append('username', _this.username);
       fd.append('password', _this.password);
       axios.post('/databases/', fd).then(function (res) {
@@ -2155,6 +2225,39 @@ __webpack_require__.r(__webpack_exports__);
 
         _this.errors = err.response.data;
       });
+    },
+    createUser: function createUser() {
+      var _this = this;
+
+      _this.$store.commit('setBusy', true);
+
+      var fd = new FormData();
+      fd.append('username', _this.ssh_user);
+      fd.append('password', _this.user_pass);
+      axios.post('/ssh-users/', fd).then(function (res) {
+        _this.getUsers();
+
+        toastr.success('SSH user has been created successfully.');
+
+        _this.$store.commit('setBusy', false);
+
+        _this.create = false;
+        _this.ssh_user = res.data.username;
+      })["catch"](function (err) {
+        _this.$store.commit('setBusy', false);
+
+        _this.errors = err.response.data;
+      });
+    }
+  },
+  watch: {
+    create: function create(newval, oldval) {
+      if (newval) {
+        this.user_pass = this.genRandPassword();
+        this.ssh_user = '';
+      }
+
+      this.errors = {};
     }
   }
 });
@@ -6988,6 +7091,138 @@ var render = function() {
         _c("div", { staticClass: "card-body" }, [
           _c("div", { staticClass: "row" }, [
             _c("div", { staticClass: "col-md-6" }, [
+              _vm.$store.state.user && _vm.$store.state.user.is_root
+                ? _c(
+                    "div",
+                    { staticClass: "form-group" },
+                    [
+                      _c("label", { attrs: { for: "user" } }, [
+                        _vm._v(
+                          "\n                                SSH User\n                                "
+                        ),
+                        _c("small", [
+                          _c(
+                            "a",
+                            {
+                              staticClass: "text-primary text-decoration-none",
+                              attrs: { href: "javascript:void(0)" },
+                              on: {
+                                click: function($event) {
+                                  _vm.create = !_vm.create
+                                }
+                              }
+                            },
+                            [
+                              _vm.create
+                                ? _c("span", [_vm._v("Cancel")])
+                                : _c("span", [
+                                    _c("i", { staticClass: "fas fa-plus" }),
+                                    _vm._v(
+                                      " Create\n                                        "
+                                    )
+                                  ])
+                            ]
+                          )
+                        ])
+                      ]),
+                      _vm._v(" "),
+                      _vm.create
+                        ? _c("div", { staticClass: "input-group" }, [
+                            _c("input", {
+                              directives: [
+                                {
+                                  name: "model",
+                                  rawName: "v-model",
+                                  value: _vm.ssh_user,
+                                  expression: "ssh_user"
+                                }
+                              ],
+                              staticClass: "form-control",
+                              class: { "is-invalid": _vm.errors.username },
+                              attrs: { placeholder: "Username", type: "text" },
+                              domProps: { value: _vm.ssh_user },
+                              on: {
+                                input: function($event) {
+                                  if ($event.target.composing) {
+                                    return
+                                  }
+                                  _vm.ssh_user = $event.target.value
+                                }
+                              }
+                            }),
+                            _vm._v(" "),
+                            _c("input", {
+                              directives: [
+                                {
+                                  name: "model",
+                                  rawName: "v-model",
+                                  value: _vm.user_pass,
+                                  expression: "user_pass"
+                                }
+                              ],
+                              staticClass: "form-control",
+                              class: { "is-invalid": _vm.errors.password },
+                              attrs: { type: "text", placeholder: "Password" },
+                              domProps: { value: _vm.user_pass },
+                              on: {
+                                input: function($event) {
+                                  if ($event.target.composing) {
+                                    return
+                                  }
+                                  _vm.user_pass = $event.target.value
+                                }
+                              }
+                            }),
+                            _vm._v(" "),
+                            _c("div", { staticClass: "input-group-append" }, [
+                              _c(
+                                "button",
+                                {
+                                  staticClass: "btn",
+                                  class: {
+                                    "btn-outline-secondary": !_vm.errors
+                                      .username,
+                                    "btn-outline-danger": _vm.errors.username
+                                  },
+                                  attrs: { type: "button" },
+                                  on: {
+                                    click: function($event) {
+                                      return _vm.createUser()
+                                    }
+                                  }
+                                },
+                                [_vm._v("Create")]
+                              )
+                            ]),
+                            _vm._v(" "),
+                            _vm.errors.username
+                              ? _c("p", { staticClass: "invalid-feedback" }, [
+                                  _vm._v(_vm._s(_vm.errors.username[0]))
+                                ])
+                              : _vm._e()
+                          ])
+                        : _c("v-select", {
+                            attrs: { options: _vm.users },
+                            on: { search: _vm.getUsers },
+                            model: {
+                              value: _vm.ssh_user,
+                              callback: function($$v) {
+                                _vm.ssh_user = $$v
+                              },
+                              expression: "ssh_user"
+                            }
+                          }),
+                      _vm._v(" "),
+                      !_vm.create && _vm.errors.username
+                        ? _c("p", { staticClass: "text-danger" }, [
+                            _vm._v(_vm._s(_vm.errors.username))
+                          ])
+                        : _vm._e()
+                    ],
+                    1
+                  )
+                : _vm._e(),
+              _vm._v(" "),
               _c("div", { staticClass: "form-group" }, [
                 _c("label", { attrs: { for: "name" } }, [
                   _vm._v("Database Name")
