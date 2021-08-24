@@ -1,5 +1,10 @@
-import secrets, string, os, crypt, pwd
+import secrets
+import string
+import os
+import crypt
+import pwd
 from django.template.loader import render_to_string
+from api.databases.services.mysql import FastcpSqlService
 from core.utils import filesystem
 from subprocess import (
     STDOUT, check_call, CalledProcessError, Popen, PIPE, DEVNULL
@@ -8,19 +13,21 @@ import shutil
 
 
 # Constants
-FASTCP_SYS_GROUP = 'fcp-users'    
+FASTCP_SYS_GROUP = 'fcp-users'
+
 
 def set_uid(uid=0) -> None:
     """Set UID.
-    
+
     This function sets the system uid for the user. It is used by file manager and other components where
     permissions need to be persisted on created or updated items.
-    
+
     Args:
         uid (int): UID of the user and group. Defaults to root.
     """
     os.setuid(uid)
     os.setgid(uid)
+
 
 def run_cmd(cmd: str, shell=False) -> bool:
     """Runs a shell command.
@@ -44,9 +51,10 @@ def run_cmd(cmd: str, shell=False) -> bool:
     except CalledProcessError:
         return False
 
+
 def fix_ownership(website: object):
     """Fix ownership.
-    
+
     Fixes the ownership of a website base directory and sub-directoris and files recursively.
     """
     # SSH user
@@ -55,9 +63,10 @@ def fix_ownership(website: object):
     # Website paths
     web_paths = filesystem.get_website_paths(website)
     base_path = web_paths.get('base_path')
-    
+
     # Fix permissions
     run_cmd(f'/usr/bin/chown -R {ssh_user}:{ssh_user} {base_path}')
+
 
 def setup_website(website: object):
     """Setup website.
@@ -69,7 +78,7 @@ def setup_website(website: object):
 
     # Create initial directories
     filesystem.create_website_dirs(website)
-    
+
     # Fix permissions
     fix_ownership(website)
 
@@ -92,9 +101,10 @@ def delete_website(website: object):
 
     # Delete NGINX vhost files
     filesystem.delete_nginx_vhost(website)
-    
+
     # Delete Apache vhost files
     filesystem.delete_apache_vhost(website)
+
 
 def rand_passwd(length: int = 20) -> str:
     """Generate a random password.
@@ -151,52 +161,68 @@ def setup_user(user: object, password: str = None) -> bool:
 
     with open(os.path.join(user_home, '.bash_logout'), 'w') as f:
         f.write(render_to_string('system/bash_logout.txt'))
-    
+
     with open(os.path.join(user_home, '.bashrc'), 'w') as f:
         f.write(render_to_string('system/bash_rc.txt'))
-        
+
     # Get user uid
     uid = pwd.getpwnam(user.username).pw_uid
     user.uid = int(uid)
     user.save()
-    
 
-def create_database(database: object) -> bool:
+
+def create_database(database: object, password: str) -> bool:
     """Create database.
-    
+
     Creates the MySQL database in the system.
-    
+
     Args:
         database (object): The database model object.
-        
+        password (str): Database password.
+
     Returns:
         bool: True on success False otherwise.
     """
-    
-    # Create the SQL database here.
-    
-    return True
 
+    return FastcpSqlService().setup_db(
+        user=database.username,
+        dbname=database.name,
+        password=password
+    )
+
+def drop_db(database: object) -> None:
+    """Deletes the database.
+    
+    Drops the database as well as the associated user.
+    
+    Args:
+        database (object): Database model object.
+    """
+    try:
+        FastcpSqlService().drop_db(database.name)
+        FastcpSqlService().drop_user(database.username)
+    except:
+        pass
 
 def delete_user_data(user: object) -> None:
     """Delete user data.
-    
+
     Delete user directories, websites, and databases before a user model is deleted.
-    
+
     Args:
         user (object): User model object.
     """
-    
+
     # Delete webites
     for website in user.websites.all():
         website.delete()
-        
+
     # Delete databases
     for db in user.databases.all():
         db.delete()
-    
+
     # Delete user paths
     filesystem.delete_user_dirs(user)
-    
+
     # Delete system user
     run_cmd(f'/usr/sbin/userdel {user.username}')

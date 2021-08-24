@@ -1,5 +1,6 @@
 from core.models import Database, User
 from rest_framework import serializers
+from core.signals import create_db
 
 
 # Disallowed names
@@ -56,4 +57,5 @@ class DatabaseSerializer(serializers.ModelSerializer):
 
         validated_data['user'] = ssh_user
         database = Database.objects.create(**validated_data)
+        create_db.send(sender=database, password=request.POST.get('password'))
         return database

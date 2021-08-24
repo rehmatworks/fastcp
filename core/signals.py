@@ -15,6 +15,7 @@ update_php = django.dispatch.Signal()
 domains_updated = django.dispatch.Signal()
 restart_services = django.dispatch.Signal()
 reload_services = django.dispatch.Signal()
+create_db = django.dispatch.Signal()
 
 def update_php_handler(sender, **kwargs):
     """Update PHP conf.
@@ -88,9 +89,11 @@ reload_services.connect(reload_services_handler, dispatch_uid='reload-services')
 def delete_user_data(sender=None, instance=None, **kwargs):
     fcpsys.delete_user_data(instance)
 
+@receiver(pre_delete, sender=Database)
+def delete_database(sender=None, instance=None, **kwargs):
+    fcpsys.drop_db(instance)
 
-@receiver(post_save, sender=Database)
-def create_database(sender, instance=None, created=False, **kwargs):
+def create_database_handler(sender, **kwargs):
     """Create the database in the system"""
-    if created:
-        fcpsys.create_database(instance)
+    fcpsys.create_database(sender, password=kwargs.get('password'))
+create_db.connect(create_database_handler)
