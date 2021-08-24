@@ -112,7 +112,8 @@ class FastcpSsl(object):
                     # Update domains
                     for dom in verified_domains:
                         Domain.objects.filter(domain=dom).update(ssl=True)
-        except:
+        except Exception as e:
+            raise e
             # Not interested in the reason
             pass
                 
