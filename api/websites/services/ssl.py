@@ -91,7 +91,7 @@ class FastcpSsl(object):
                     if not os.path.exists(base_dir):
                         os.makedirs(base_dir)
                     
-                    with open(os.path.join(base_dir, os.path.basename(result.get('path'))), 'w') as f:
+                    with open(os.path.join(base_dir, os.path.basename(result.get('path'))), 'wb') as f:
                         f.write(result.get('token'))
                 
                 # After the challange token is written, request SSL cert
