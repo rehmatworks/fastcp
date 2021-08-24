@@ -100,11 +100,11 @@ class FastcpSsl(object):
                 if result:
                     # Write private key
                     with open(paths.get('priv_key_path'), 'w') as f:
-                        f.write(result.get('priv_key'))
+                        f.write(str(result.get('priv_key')))
                     
                     # Write cert chain
                     with open(paths.get('cert_chain_path'), 'w') as f:
-                        f.write(result.get('full_chain'))
+                        f.write(str(result.get('full_chain')))
                         
                     # Restart NGINX
                     restart_services.send('nginx')
