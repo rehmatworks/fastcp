@@ -56,6 +56,17 @@
                                             </td>
                                         </tr>
                                         <tr>
+                                            <td>Status</td>
+                                            <td>
+                                                <span v-if="user.is_active" class="text-success">
+                                                    <i class="fas fa-check-circle"></i> Active
+                                                </span>
+                                                <span v-else class="text-danger">
+                                                    <i class="fas fa-times-circle"></i> Suspended
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        <tr>
                                             <td>Websites</td>
                                             <td>
                                                 {{ user.total_sites }}/{{ user.max_sites }}
@@ -73,15 +84,67 @@
                                                 {{ user.storage_used | prettyBytes }}/{{ user.max_storage | prettyBytes }}
                                             </td>
                                         </tr>
-                                        <tr>
-                                            <td>Unix ID</td>
-                                            <td>
-                                                {{ user.uid }}
-                                            </td>
-                                        </tr>
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    </div>
+                    <div class="card mt-3">
+                        <div class="card-header bg-primary text-light">
+                            Updated User
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="max_sites">User Status</label>
+                                        <select :class="{'is-invalid': errors.is_active}" class="form-control" v-model="user.is_active">
+                                            <option :value="true">Active</option>
+                                            <option :value="false">Suspended</option>
+                                        </select>
+                                        <p class="invalid-feedback" v-if="errors.is_active">{{ errors.is_active[0] }}</p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="max_sites">Max. Websites</label>
+                                        <input
+                                            id="max_sites"
+                                            type="text"
+                                            class="form-control"
+                                            :class="{'is-invalid': errors.max_sites}"
+                                            v-model="user.max_sites"
+                                            placeholder="Max. websites allowed..."
+                                        />
+                                        <p class="invalid-feedback" v-if="errors.max_sites">{{ errors.max_sites[0] }}</p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="max_sites">Max. Databases</label>
+                                        <input
+                                            id="max_dbs"
+                                            type="text"
+                                            class="form-control"
+                                            :class="{'is-invalid': errors.max_dbs}"
+                                            v-model="user.max_dbs"
+                                            placeholder="Max. websites allowed..."
+                                        />
+                                        <p class="invalid-feedback" v-if="errors.max_dbs">{{ errors.max_dbs[0] }}</p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="max_sites">Max. Storage</label>
+                                        <input
+                                            id="max_dbs"
+                                            type="text"
+                                            class="form-control"
+                                            :class="{'is-invalid': errors.max_storage}"
+                                            v-model="user.max_storage"
+                                            placeholder="Max. storage allowed in bytes..."
+                                        />
+                                        <p class="invalid-feedback" v-if="errors.max_storage">{{ errors.max_storage[0] }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button @click="saveSettings()" class="btn btn-primary">Save Settings</button>
                         </div>
                     </div>
                     <div class="card mt-3">
@@ -133,11 +196,6 @@ export default {
             user: false,
             del: false,
             reset: false,
-            change_php: false,
-            php_versions: [],
-            del_dom: false,
-            new_domain: '',
-            add_dom: false,
             errors: {}
         };
     },
@@ -145,6 +203,23 @@ export default {
         this.getUser();
     },
     methods: {
+        saveSettings() {
+            let _this = this;
+            _this.$store.commit('setBusy', true);
+            let fd = new FormData();
+            fd.append('is_active', _this.user.is_active);
+            fd.append('max_dbs', _this.user.max_dbs);
+            fd.append('max_dbs', _this.user.max_dbs);
+            fd.append('max_storage', _this.user.max_storage);
+            axios.patch(`/ssh-users/${_this.user.id}/`, fd).then((res) => {
+                _this.$store.commit('setBusy', false);
+                _this.getUser();
+                toastr.success('User settings have been updated.');
+            }).catch((err) => {
+                _this.$store.commit('setBusy', false);
+                toastr.error('User settings cannot be updated.');
+            });
+        },
         resetPassword() {
             let _this = this;
             _this.$store.commit('setBusy', true);

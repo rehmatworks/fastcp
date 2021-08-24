@@ -80,6 +80,14 @@ export const routes = [
         }
     },
     {
+        path: '/create-user',
+        name: 'createuser',
+        component: require('./components/users/CreateComponent').default,
+        meta: {
+            title: 'Create User'
+        }
+    },
+    {
         path: '/harware-info',
         name: 'hardware',
         component: require('./components/generic/HardwareComponent').default,

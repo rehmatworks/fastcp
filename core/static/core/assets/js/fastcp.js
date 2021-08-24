@@ -3354,6 +3354,160 @@ __webpack_require__.r(__webpack_exports__);
 
 /***/ }),
 
+/***/ "./node_modules/babel-loader/lib/index.js??clonedRuleSet-5[0].rules[0].use[0]!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/users/CreateComponent.vue?vue&type=script&lang=js&":
+/*!****************************************************************************************************************************************************************************************************************************!*\
+  !*** ./node_modules/babel-loader/lib/index.js??clonedRuleSet-5[0].rules[0].use[0]!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/users/CreateComponent.vue?vue&type=script&lang=js& ***!
+  \****************************************************************************************************************************************************************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({
+  data: function data() {
+    return {
+      errors: {},
+      username: '',
+      max_sites: 10,
+      max_dbs: 10,
+      max_storage: '',
+      is_active: true,
+      password: ''
+    };
+  },
+  created: function created() {
+    this.password = this.genRandPassword();
+  },
+  methods: {
+    createUser: function createUser() {
+      var _this = this;
+
+      _this.$store.commit('setBusy', true);
+
+      var fd = new FormData();
+      fd.append('username', _this.username);
+      fd.append('password', _this.password);
+      fd.append('max_sites', _this.max_sites);
+      fd.append('max_dbs', _this.max_dbs);
+      fd.append('max_storage', _this.max_storage);
+      fd.append('is_active', _this.is_active);
+      axios.post('/ssh-users/', fd).then(function (res) {
+        _this.getUsers();
+
+        toastr.success('SSH user has been created successfully.');
+
+        _this.$store.commit('setBusy', false);
+
+        _this.$router.push({
+          name: 'users'
+        });
+      })["catch"](function (err) {
+        _this.$store.commit('setBusy', false);
+
+        _this.errors = err.response.data;
+      });
+    }
+  }
+});
+
+/***/ }),
+
 /***/ "./node_modules/babel-loader/lib/index.js??clonedRuleSet-5[0].rules[0].use[0]!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/users/UserComponent.vue?vue&type=script&lang=js&":
 /*!**************************************************************************************************************************************************************************************************************************!*\
   !*** ./node_modules/babel-loader/lib/index.js??clonedRuleSet-5[0].rules[0].use[0]!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/users/UserComponent.vue?vue&type=script&lang=js& ***!
@@ -3493,17 +3647,75 @@ __webpack_require__.r(__webpack_exports__);
 //
 //
 //
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({
   data: function data() {
     return {
       user: false,
       del: false,
       reset: false,
-      change_php: false,
-      php_versions: [],
-      del_dom: false,
-      new_domain: '',
-      add_dom: false,
       errors: {}
     };
   },
@@ -3511,6 +3723,28 @@ __webpack_require__.r(__webpack_exports__);
     this.getUser();
   },
   methods: {
+    saveSettings: function saveSettings() {
+      var _this = this;
+
+      _this.$store.commit('setBusy', true);
+
+      var fd = new FormData();
+      fd.append('is_active', _this.user.is_active);
+      fd.append('max_dbs', _this.user.max_dbs);
+      fd.append('max_dbs', _this.user.max_dbs);
+      fd.append('max_storage', _this.user.max_storage);
+      axios.patch("/ssh-users/".concat(_this.user.id, "/"), fd).then(function (res) {
+        _this.$store.commit('setBusy', false);
+
+        _this.getUser();
+
+        toastr.success('User settings have been updated.');
+      })["catch"](function (err) {
+        _this.$store.commit('setBusy', false);
+
+        toastr.error('User settings cannot be updated.');
+      });
+    },
     resetPassword: function resetPassword() {
       var _this = this;
 
@@ -4525,6 +4759,13 @@ var routes = [{
     title: 'Manage User'
   }
 }, {
+  path: '/create-user',
+  name: 'createuser',
+  component: __webpack_require__(/*! ./components/users/CreateComponent */ "./resources/js/components/users/CreateComponent.vue").default,
+  meta: {
+    title: 'Create User'
+  }
+}, {
   path: '/harware-info',
   name: 'hardware',
   component: __webpack_require__(/*! ./components/generic/HardwareComponent */ "./resources/js/components/generic/HardwareComponent.vue").default,
@@ -5515,6 +5756,45 @@ component.options.__file = "resources/js/components/generic/HardwareComponent.vu
 
 /***/ }),
 
+/***/ "./resources/js/components/users/CreateComponent.vue":
+/*!***********************************************************!*\
+  !*** ./resources/js/components/users/CreateComponent.vue ***!
+  \***********************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var _CreateComponent_vue_vue_type_template_id_31201aff___WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./CreateComponent.vue?vue&type=template&id=31201aff& */ "./resources/js/components/users/CreateComponent.vue?vue&type=template&id=31201aff&");
+/* harmony import */ var _CreateComponent_vue_vue_type_script_lang_js___WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./CreateComponent.vue?vue&type=script&lang=js& */ "./resources/js/components/users/CreateComponent.vue?vue&type=script&lang=js&");
+/* harmony import */ var _node_modules_vue_loader_lib_runtime_componentNormalizer_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! !../../../../node_modules/vue-loader/lib/runtime/componentNormalizer.js */ "./node_modules/vue-loader/lib/runtime/componentNormalizer.js");
+
+
+
+
+
+/* normalize component */
+;
+var component = (0,_node_modules_vue_loader_lib_runtime_componentNormalizer_js__WEBPACK_IMPORTED_MODULE_2__.default)(
+  _CreateComponent_vue_vue_type_script_lang_js___WEBPACK_IMPORTED_MODULE_1__.default,
+  _CreateComponent_vue_vue_type_template_id_31201aff___WEBPACK_IMPORTED_MODULE_0__.render,
+  _CreateComponent_vue_vue_type_template_id_31201aff___WEBPACK_IMPORTED_MODULE_0__.staticRenderFns,
+  false,
+  null,
+  null,
+  null
+  
+)
+
+/* hot reload */
+if (false) { var api; }
+component.options.__file = "resources/js/components/users/CreateComponent.vue"
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (component.exports);
+
+/***/ }),
+
 /***/ "./resources/js/components/users/UserComponent.vue":
 /*!*********************************************************!*\
   !*** ./resources/js/components/users/UserComponent.vue ***!
@@ -5900,6 +6180,22 @@ __webpack_require__.r(__webpack_exports__);
 
 /***/ }),
 
+/***/ "./resources/js/components/users/CreateComponent.vue?vue&type=script&lang=js&":
+/*!************************************************************************************!*\
+  !*** ./resources/js/components/users/CreateComponent.vue?vue&type=script&lang=js& ***!
+  \************************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var _node_modules_babel_loader_lib_index_js_clonedRuleSet_5_0_rules_0_use_0_node_modules_vue_loader_lib_index_js_vue_loader_options_CreateComponent_vue_vue_type_script_lang_js___WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! -!../../../../node_modules/babel-loader/lib/index.js??clonedRuleSet-5[0].rules[0].use[0]!../../../../node_modules/vue-loader/lib/index.js??vue-loader-options!./CreateComponent.vue?vue&type=script&lang=js& */ "./node_modules/babel-loader/lib/index.js??clonedRuleSet-5[0].rules[0].use[0]!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/users/CreateComponent.vue?vue&type=script&lang=js&");
+ /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (_node_modules_babel_loader_lib_index_js_clonedRuleSet_5_0_rules_0_use_0_node_modules_vue_loader_lib_index_js_vue_loader_options_CreateComponent_vue_vue_type_script_lang_js___WEBPACK_IMPORTED_MODULE_0__.default); 
+
+/***/ }),
+
 /***/ "./resources/js/components/users/UserComponent.vue?vue&type=script&lang=js&":
 /*!**********************************************************************************!*\
   !*** ./resources/js/components/users/UserComponent.vue?vue&type=script&lang=js& ***!
@@ -6140,6 +6436,23 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   "staticRenderFns": () => (/* reexport safe */ _node_modules_vue_loader_lib_loaders_templateLoader_js_vue_loader_options_node_modules_vue_loader_lib_index_js_vue_loader_options_HardwareComponent_vue_vue_type_template_id_aaf8e93c___WEBPACK_IMPORTED_MODULE_0__.staticRenderFns)
 /* harmony export */ });
 /* harmony import */ var _node_modules_vue_loader_lib_loaders_templateLoader_js_vue_loader_options_node_modules_vue_loader_lib_index_js_vue_loader_options_HardwareComponent_vue_vue_type_template_id_aaf8e93c___WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! -!../../../../node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!../../../../node_modules/vue-loader/lib/index.js??vue-loader-options!./HardwareComponent.vue?vue&type=template&id=aaf8e93c& */ "./node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/generic/HardwareComponent.vue?vue&type=template&id=aaf8e93c&");
+
+
+/***/ }),
+
+/***/ "./resources/js/components/users/CreateComponent.vue?vue&type=template&id=31201aff&":
+/*!******************************************************************************************!*\
+  !*** ./resources/js/components/users/CreateComponent.vue?vue&type=template&id=31201aff& ***!
+  \******************************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "render": () => (/* reexport safe */ _node_modules_vue_loader_lib_loaders_templateLoader_js_vue_loader_options_node_modules_vue_loader_lib_index_js_vue_loader_options_CreateComponent_vue_vue_type_template_id_31201aff___WEBPACK_IMPORTED_MODULE_0__.render),
+/* harmony export */   "staticRenderFns": () => (/* reexport safe */ _node_modules_vue_loader_lib_loaders_templateLoader_js_vue_loader_options_node_modules_vue_loader_lib_index_js_vue_loader_options_CreateComponent_vue_vue_type_template_id_31201aff___WEBPACK_IMPORTED_MODULE_0__.staticRenderFns)
+/* harmony export */ });
+/* harmony import */ var _node_modules_vue_loader_lib_loaders_templateLoader_js_vue_loader_options_node_modules_vue_loader_lib_index_js_vue_loader_options_CreateComponent_vue_vue_type_template_id_31201aff___WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! -!../../../../node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!../../../../node_modules/vue-loader/lib/index.js??vue-loader-options!./CreateComponent.vue?vue&type=template&id=31201aff& */ "./node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/users/CreateComponent.vue?vue&type=template&id=31201aff&");
 
 
 /***/ }),
@@ -8489,6 +8802,326 @@ render._withStripped = true
 
 /***/ }),
 
+/***/ "./node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/users/CreateComponent.vue?vue&type=template&id=31201aff&":
+/*!*********************************************************************************************************************************************************************************************************************************!*\
+  !*** ./node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/users/CreateComponent.vue?vue&type=template&id=31201aff& ***!
+  \*********************************************************************************************************************************************************************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "render": () => (/* binding */ render),
+/* harmony export */   "staticRenderFns": () => (/* binding */ staticRenderFns)
+/* harmony export */ });
+var render = function() {
+  var _vm = this
+  var _h = _vm.$createElement
+  var _c = _vm._self._c || _h
+  return _c("div", { staticClass: "row" }, [
+    _c("div", { staticClass: "col-12" }, [
+      _c("div", { staticClass: "card" }, [
+        _c(
+          "div",
+          { staticClass: "card-header" },
+          [
+            _c("h4", { staticClass: "float-left mt-1" }, [
+              _vm._v("Create User")
+            ]),
+            _vm._v(" "),
+            _c(
+              "router-link",
+              {
+                staticClass: "btn mt-1 btn-sm float-right btn-warning",
+                attrs: { to: { name: "users" } }
+              },
+              [
+                _c("i", { staticClass: "fas fa-times" }),
+                _vm._v(" Cancel\n                ")
+              ]
+            )
+          ],
+          1
+        ),
+        _vm._v(" "),
+        _c("div", { staticClass: "card-body" }, [
+          _c("div", { staticClass: "row" }, [
+            _c("div", { staticClass: "col-md-6" }, [
+              _c("div", { staticClass: "form-group" }, [
+                _c("label", { attrs: { for: "username" } }, [
+                  _vm._v("Username")
+                ]),
+                _vm._v(" "),
+                _c("input", {
+                  directives: [
+                    {
+                      name: "model",
+                      rawName: "v-model",
+                      value: _vm.username,
+                      expression: "username"
+                    }
+                  ],
+                  staticClass: "form-control",
+                  class: { "is-invalid": _vm.errors.username },
+                  attrs: {
+                    id: "username",
+                    type: "text",
+                    placeholder: "SSH username"
+                  },
+                  domProps: { value: _vm.username },
+                  on: {
+                    input: function($event) {
+                      if ($event.target.composing) {
+                        return
+                      }
+                      _vm.username = $event.target.value
+                    }
+                  }
+                }),
+                _vm._v(" "),
+                _vm.errors.username
+                  ? _c("p", { staticClass: "invalid-feedback" }, [
+                      _vm._v(_vm._s(_vm.errors.username[0]))
+                    ])
+                  : _vm._e()
+              ]),
+              _vm._v(" "),
+              _c("div", { staticClass: "form-group" }, [
+                _c("label", { attrs: { for: "password" } }, [
+                  _vm._v("Password")
+                ]),
+                _vm._v(" "),
+                _c("input", {
+                  directives: [
+                    {
+                      name: "model",
+                      rawName: "v-model",
+                      value: _vm.password,
+                      expression: "password"
+                    }
+                  ],
+                  staticClass: "form-control",
+                  class: { "is-invalid": _vm.errors.password },
+                  attrs: {
+                    id: "password",
+                    type: "text",
+                    placeholder: "SSH & control panel login password"
+                  },
+                  domProps: { value: _vm.password },
+                  on: {
+                    input: function($event) {
+                      if ($event.target.composing) {
+                        return
+                      }
+                      _vm.password = $event.target.value
+                    }
+                  }
+                }),
+                _vm._v(" "),
+                _vm.errors.password
+                  ? _c("p", { staticClass: "invalid-feedback" }, [
+                      _vm._v(_vm._s(_vm.errors.password[0]))
+                    ])
+                  : _vm._e()
+              ]),
+              _vm._v(" "),
+              _c("div", { staticClass: "form-group" }, [
+                _c("label", { attrs: { for: "max_sites" } }, [
+                  _vm._v("User Status")
+                ]),
+                _vm._v(" "),
+                _c(
+                  "select",
+                  {
+                    directives: [
+                      {
+                        name: "model",
+                        rawName: "v-model",
+                        value: _vm.is_active,
+                        expression: "is_active"
+                      }
+                    ],
+                    staticClass: "form-control",
+                    class: { "is-invalid": _vm.errors.is_active },
+                    on: {
+                      change: function($event) {
+                        var $$selectedVal = Array.prototype.filter
+                          .call($event.target.options, function(o) {
+                            return o.selected
+                          })
+                          .map(function(o) {
+                            var val = "_value" in o ? o._value : o.value
+                            return val
+                          })
+                        _vm.is_active = $event.target.multiple
+                          ? $$selectedVal
+                          : $$selectedVal[0]
+                      }
+                    }
+                  },
+                  [
+                    _c("option", { domProps: { value: true } }, [
+                      _vm._v("Active")
+                    ]),
+                    _vm._v(" "),
+                    _c("option", { domProps: { value: false } }, [
+                      _vm._v("Suspended")
+                    ])
+                  ]
+                ),
+                _vm._v(" "),
+                _vm.errors.is_active
+                  ? _c("p", { staticClass: "invalid-feedback" }, [
+                      _vm._v(_vm._s(_vm.errors.is_active[0]))
+                    ])
+                  : _vm._e()
+              ]),
+              _vm._v(" "),
+              _c("div", { staticClass: "form-group" }, [
+                _c("label", { attrs: { for: "max_sites" } }, [
+                  _vm._v("Max. Websites")
+                ]),
+                _vm._v(" "),
+                _c("input", {
+                  directives: [
+                    {
+                      name: "model",
+                      rawName: "v-model",
+                      value: _vm.max_sites,
+                      expression: "max_sites"
+                    }
+                  ],
+                  staticClass: "form-control",
+                  class: { "is-invalid": _vm.errors.max_sites },
+                  attrs: {
+                    id: "max_sites",
+                    type: "text",
+                    placeholder: "Max. websites allowed..."
+                  },
+                  domProps: { value: _vm.max_sites },
+                  on: {
+                    input: function($event) {
+                      if ($event.target.composing) {
+                        return
+                      }
+                      _vm.max_sites = $event.target.value
+                    }
+                  }
+                }),
+                _vm._v(" "),
+                _vm.errors.max_sites
+                  ? _c("p", { staticClass: "invalid-feedback" }, [
+                      _vm._v(_vm._s(_vm.errors.max_sites[0]))
+                    ])
+                  : _vm._e()
+              ]),
+              _vm._v(" "),
+              _c("div", { staticClass: "form-group" }, [
+                _c("label", { attrs: { for: "max_sites" } }, [
+                  _vm._v("Max. Databases")
+                ]),
+                _vm._v(" "),
+                _c("input", {
+                  directives: [
+                    {
+                      name: "model",
+                      rawName: "v-model",
+                      value: _vm.max_dbs,
+                      expression: "max_dbs"
+                    }
+                  ],
+                  staticClass: "form-control",
+                  class: { "is-invalid": _vm.errors.max_dbs },
+                  attrs: {
+                    id: "max_dbs",
+                    type: "text",
+                    placeholder: "Max. websites allowed..."
+                  },
+                  domProps: { value: _vm.max_dbs },
+                  on: {
+                    input: function($event) {
+                      if ($event.target.composing) {
+                        return
+                      }
+                      _vm.max_dbs = $event.target.value
+                    }
+                  }
+                }),
+                _vm._v(" "),
+                _vm.errors.max_dbs
+                  ? _c("p", { staticClass: "invalid-feedback" }, [
+                      _vm._v(_vm._s(_vm.errors.max_dbs[0]))
+                    ])
+                  : _vm._e()
+              ]),
+              _vm._v(" "),
+              _c("div", { staticClass: "form-group" }, [
+                _c("label", { attrs: { for: "max_sites" } }, [
+                  _vm._v("Max. Storage")
+                ]),
+                _vm._v(" "),
+                _c("input", {
+                  directives: [
+                    {
+                      name: "model",
+                      rawName: "v-model",
+                      value: _vm.max_storage,
+                      expression: "max_storage"
+                    }
+                  ],
+                  staticClass: "form-control",
+                  class: { "is-invalid": _vm.errors.max_storage },
+                  attrs: {
+                    id: "max_dbs",
+                    type: "text",
+                    placeholder: "Max. storage allowed in bytes..."
+                  },
+                  domProps: { value: _vm.max_storage },
+                  on: {
+                    input: function($event) {
+                      if ($event.target.composing) {
+                        return
+                      }
+                      _vm.max_storage = $event.target.value
+                    }
+                  }
+                }),
+                _vm._v(" "),
+                _vm.errors.max_storage
+                  ? _c("p", { staticClass: "invalid-feedback" }, [
+                      _vm._v(_vm._s(_vm.errors.max_storage[0]))
+                    ])
+                  : _vm._e()
+              ])
+            ])
+          ])
+        ]),
+        _vm._v(" "),
+        _c("div", { staticClass: "card-footer" }, [
+          _c(
+            "button",
+            {
+              staticClass: "btn btn-primary",
+              on: {
+                click: function($event) {
+                  return _vm.createUser()
+                }
+              }
+            },
+            [_vm._v("Create User")]
+          )
+        ])
+      ])
+    ])
+  ])
+}
+var staticRenderFns = []
+render._withStripped = true
+
+
+
+/***/ }),
+
 /***/ "./node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/users/UserComponent.vue?vue&type=template&id=46adc210&":
 /*!*******************************************************************************************************************************************************************************************************************************!*\
   !*** ./node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!./node_modules/vue-loader/lib/index.js??vue-loader-options!./resources/js/components/users/UserComponent.vue?vue&type=template&id=46adc210& ***!
@@ -8634,6 +9267,38 @@ var render = function() {
                               ]),
                               _vm._v(" "),
                               _c("tr", [
+                                _c("td", [_vm._v("Status")]),
+                                _vm._v(" "),
+                                _c("td", [
+                                  _vm.user.is_active
+                                    ? _c(
+                                        "span",
+                                        { staticClass: "text-success" },
+                                        [
+                                          _c("i", {
+                                            staticClass: "fas fa-check-circle"
+                                          }),
+                                          _vm._v(
+                                            " Active\n                                            "
+                                          )
+                                        ]
+                                      )
+                                    : _c(
+                                        "span",
+                                        { staticClass: "text-danger" },
+                                        [
+                                          _c("i", {
+                                            staticClass: "fas fa-times-circle"
+                                          }),
+                                          _vm._v(
+                                            " Suspended\n                                            "
+                                          )
+                                        ]
+                                      )
+                                ])
+                              ]),
+                              _vm._v(" "),
+                              _c("tr", [
                                 _c("td", [_vm._v("Websites")]),
                                 _vm._v(" "),
                                 _c("td", [
@@ -8681,23 +9346,230 @@ var render = function() {
                                       "\n                                        "
                                   )
                                 ])
-                              ]),
-                              _vm._v(" "),
-                              _c("tr", [
-                                _c("td", [_vm._v("Unix ID")]),
-                                _vm._v(" "),
-                                _c("td", [
-                                  _vm._v(
-                                    "\n                                            " +
-                                      _vm._s(_vm.user.uid) +
-                                      "\n                                        "
-                                  )
-                                ])
                               ])
                             ])
                           ]
                         )
                       ])
+                    ])
+                  ]),
+                  _vm._v(" "),
+                  _c("div", { staticClass: "card mt-3" }, [
+                    _c(
+                      "div",
+                      { staticClass: "card-header bg-primary text-light" },
+                      [
+                        _vm._v(
+                          "\n                        Updated User\n                    "
+                        )
+                      ]
+                    ),
+                    _vm._v(" "),
+                    _c("div", { staticClass: "card-body" }, [
+                      _c("div", { staticClass: "row" }, [
+                        _c("div", { staticClass: "col-md-6" }, [
+                          _c("div", { staticClass: "form-group" }, [
+                            _c("label", { attrs: { for: "max_sites" } }, [
+                              _vm._v("User Status")
+                            ]),
+                            _vm._v(" "),
+                            _c(
+                              "select",
+                              {
+                                directives: [
+                                  {
+                                    name: "model",
+                                    rawName: "v-model",
+                                    value: _vm.user.is_active,
+                                    expression: "user.is_active"
+                                  }
+                                ],
+                                staticClass: "form-control",
+                                class: { "is-invalid": _vm.errors.is_active },
+                                on: {
+                                  change: function($event) {
+                                    var $$selectedVal = Array.prototype.filter
+                                      .call($event.target.options, function(o) {
+                                        return o.selected
+                                      })
+                                      .map(function(o) {
+                                        var val =
+                                          "_value" in o ? o._value : o.value
+                                        return val
+                                      })
+                                    _vm.$set(
+                                      _vm.user,
+                                      "is_active",
+                                      $event.target.multiple
+                                        ? $$selectedVal
+                                        : $$selectedVal[0]
+                                    )
+                                  }
+                                }
+                              },
+                              [
+                                _c("option", { domProps: { value: true } }, [
+                                  _vm._v("Active")
+                                ]),
+                                _vm._v(" "),
+                                _c("option", { domProps: { value: false } }, [
+                                  _vm._v("Suspended")
+                                ])
+                              ]
+                            ),
+                            _vm._v(" "),
+                            _vm.errors.is_active
+                              ? _c("p", { staticClass: "invalid-feedback" }, [
+                                  _vm._v(_vm._s(_vm.errors.is_active[0]))
+                                ])
+                              : _vm._e()
+                          ]),
+                          _vm._v(" "),
+                          _c("div", { staticClass: "form-group" }, [
+                            _c("label", { attrs: { for: "max_sites" } }, [
+                              _vm._v("Max. Websites")
+                            ]),
+                            _vm._v(" "),
+                            _c("input", {
+                              directives: [
+                                {
+                                  name: "model",
+                                  rawName: "v-model",
+                                  value: _vm.user.max_sites,
+                                  expression: "user.max_sites"
+                                }
+                              ],
+                              staticClass: "form-control",
+                              class: { "is-invalid": _vm.errors.max_sites },
+                              attrs: {
+                                id: "max_sites",
+                                type: "text",
+                                placeholder: "Max. websites allowed..."
+                              },
+                              domProps: { value: _vm.user.max_sites },
+                              on: {
+                                input: function($event) {
+                                  if ($event.target.composing) {
+                                    return
+                                  }
+                                  _vm.$set(
+                                    _vm.user,
+                                    "max_sites",
+                                    $event.target.value
+                                  )
+                                }
+                              }
+                            }),
+                            _vm._v(" "),
+                            _vm.errors.max_sites
+                              ? _c("p", { staticClass: "invalid-feedback" }, [
+                                  _vm._v(_vm._s(_vm.errors.max_sites[0]))
+                                ])
+                              : _vm._e()
+                          ]),
+                          _vm._v(" "),
+                          _c("div", { staticClass: "form-group" }, [
+                            _c("label", { attrs: { for: "max_sites" } }, [
+                              _vm._v("Max. Databases")
+                            ]),
+                            _vm._v(" "),
+                            _c("input", {
+                              directives: [
+                                {
+                                  name: "model",
+                                  rawName: "v-model",
+                                  value: _vm.user.max_dbs,
+                                  expression: "user.max_dbs"
+                                }
+                              ],
+                              staticClass: "form-control",
+                              class: { "is-invalid": _vm.errors.max_dbs },
+                              attrs: {
+                                id: "max_dbs",
+                                type: "text",
+                                placeholder: "Max. websites allowed..."
+                              },
+                              domProps: { value: _vm.user.max_dbs },
+                              on: {
+                                input: function($event) {
+                                  if ($event.target.composing) {
+                                    return
+                                  }
+                                  _vm.$set(
+                                    _vm.user,
+                                    "max_dbs",
+                                    $event.target.value
+                                  )
+                                }
+                              }
+                            }),
+                            _vm._v(" "),
+                            _vm.errors.max_dbs
+                              ? _c("p", { staticClass: "invalid-feedback" }, [
+                                  _vm._v(_vm._s(_vm.errors.max_dbs[0]))
+                                ])
+                              : _vm._e()
+                          ]),
+                          _vm._v(" "),
+                          _c("div", { staticClass: "form-group" }, [
+                            _c("label", { attrs: { for: "max_sites" } }, [
+                              _vm._v("Max. Storage")
+                            ]),
+                            _vm._v(" "),
+                            _c("input", {
+                              directives: [
+                                {
+                                  name: "model",
+                                  rawName: "v-model",
+                                  value: _vm.user.max_storage,
+                                  expression: "user.max_storage"
+                                }
+                              ],
+                              staticClass: "form-control",
+                              class: { "is-invalid": _vm.errors.max_storage },
+                              attrs: {
+                                id: "max_dbs",
+                                type: "text",
+                                placeholder: "Max. storage allowed in bytes..."
+                              },
+                              domProps: { value: _vm.user.max_storage },
+                              on: {
+                                input: function($event) {
+                                  if ($event.target.composing) {
+                                    return
+                                  }
+                                  _vm.$set(
+                                    _vm.user,
+                                    "max_storage",
+                                    $event.target.value
+                                  )
+                                }
+                              }
+                            }),
+                            _vm._v(" "),
+                            _vm.errors.max_storage
+                              ? _c("p", { staticClass: "invalid-feedback" }, [
+                                  _vm._v(_vm._s(_vm.errors.max_storage[0]))
+                                ])
+                              : _vm._e()
+                          ])
+                        ])
+                      ])
+                    ]),
+                    _vm._v(" "),
+                    _c("div", { staticClass: "card-footer" }, [
+                      _c(
+                        "button",
+                        {
+                          staticClass: "btn btn-primary",
+                          on: {
+                            click: function($event) {
+                              return _vm.saveSettings()
+                            }
+                          }
+                        },
+                        [_vm._v("Save Settings")]
+                      )
                     ])
                   ]),
                   _vm._v(" "),
