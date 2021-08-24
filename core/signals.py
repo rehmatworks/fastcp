@@ -3,7 +3,7 @@ from django.db.models.signals import (
     post_save, pre_delete
 )
 from django.dispatch import receiver
-from core.models import Website, User
+from core.models import Website, User, Database
 from core.utils import system as fcpsys
 from core.utils import filesystem
 
@@ -82,3 +82,15 @@ def reload_services_handler(sender=None, **kwargs):
         fcpsys.run_cmd(f'/usr/bin/systemctl restart {service}')
 
 reload_services.connect(reload_services_handler, dispatch_uid='reload-services')
+
+
+@receiver(pre_delete, sender=User)
+def delete_user_data(sender=None, instance=None, **kwargs):
+    fcpsys.delete_user_data(instance)
+
+
+@receiver(post_save, sender=Database)
+def create_database(sender, instance=None, created=False, **kwargs):
+    """Create the database in the system"""
+    if created:
+        fcpsys.create_database(instance)

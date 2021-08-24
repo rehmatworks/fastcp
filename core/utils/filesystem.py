@@ -460,3 +460,22 @@ def delete_fpm_conf(website: object) -> bool:
             pass
     
     return False
+
+
+def delete_user_dirs(user: object) -> bool:
+    """Delete user directories.
+    
+    Deletes the directories of the user from the filesystem.
+    
+    Args:
+        user (object): User model object.
+        
+    Returns:
+        bool: Returns True on success and False otherwise.
+    """
+    user_paths = get_user_paths(user)
+    try:
+        shutil.rmtree(user_paths.get('base_path'))
+        return True
+    except:
+        return False

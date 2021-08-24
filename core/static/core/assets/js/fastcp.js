@@ -3488,8 +3488,6 @@ __webpack_require__.r(__webpack_exports__);
       fd.append('max_storage', _this.max_storage);
       fd.append('is_active', _this.is_active);
       axios.post('/ssh-users/', fd).then(function (res) {
-        _this.getUsers();
-
         toastr.success('SSH user has been created successfully.');
 
         _this.$store.commit('setBusy', false);
@@ -3500,7 +3498,11 @@ __webpack_require__.r(__webpack_exports__);
       })["catch"](function (err) {
         _this.$store.commit('setBusy', false);
 
-        _this.errors = err.response.data;
+        if (err.response) {
+          _this.errors = err.response.data;
+        }
+
+        toastr.error('SSH user cannot be created.');
       });
     }
   }
@@ -9313,7 +9315,7 @@ var render = function() {
                               ]),
                               _vm._v(" "),
                               _c("tr", [
-                                _c("td", [_vm._v("Websites")]),
+                                _c("td", [_vm._v("Databases")]),
                                 _vm._v(" "),
                                 _c("td", [
                                   _vm._v(
@@ -27777,8 +27779,8 @@ vue__WEBPACK_IMPORTED_MODULE_0__.default.use(vue_router__WEBPACK_IMPORTED_MODULE
 vue__WEBPACK_IMPORTED_MODULE_0__.default.component('loading', (vue_loading_overlay__WEBPACK_IMPORTED_MODULE_2___default()));
 vue__WEBPACK_IMPORTED_MODULE_0__.default.filter('floatformat', function (num) {
   return parseFloat(num).toFixed(2);
-}); // Vue.component('v-select', VueSelect.VueSelect);
-
+});
+vue__WEBPACK_IMPORTED_MODULE_0__.default.component('v-select', VueSelect.VueSelect);
 vue__WEBPACK_IMPORTED_MODULE_0__.default.filter('prettyBytes', function (num) {
   if (typeof num !== 'number' || isNaN(num)) {
     throw new TypeError('Expected a number');

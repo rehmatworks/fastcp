@@ -73,7 +73,7 @@
                                             </td>
                                         </tr>
                                         <tr>
-                                            <td>Websites</td>
+                                            <td>Databases</td>
                                             <td>
                                                 {{ user.total_dbs }}/{{ user.max_dbs }}
                                             </td>

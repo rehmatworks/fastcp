@@ -1,10 +1,11 @@
 import secrets, string, os, crypt, pwd
 from django.template.loader import render_to_string
 from core.utils import filesystem
-from core.models import User
 from subprocess import (
     STDOUT, check_call, CalledProcessError, Popen, PIPE, DEVNULL
 )
+import shutil
+
 
 # Constants
 FASTCP_SYS_GROUP = 'fcp-users'    
@@ -158,3 +159,44 @@ def setup_user(user: object, password: str = None) -> bool:
     uid = pwd.getpwnam(user.username).pw_uid
     user.uid = int(uid)
     user.save()
+    
+
+def create_database(database: object) -> bool:
+    """Create database.
+    
+    Creates the MySQL database in the system.
+    
+    Args:
+        database (object): The database model object.
+        
+    Returns:
+        bool: True on success False otherwise.
+    """
+    
+    # Create the SQL database here.
+    
+    return True
+
+
+def delete_user_data(user: object) -> None:
+    """Delete user data.
+    
+    Delete user directories, websites, and databases before a user model is deleted.
+    
+    Args:
+        user (object): User model object.
+    """
+    
+    # Delete webites
+    for website in user.websites.all():
+        website.delete()
+        
+    # Delete databases
+    for db in user.databases.all():
+        db.delete()
+    
+    # Delete user paths
+    filesystem.delete_user_dirs(user)
+    
+    # Delete system user
+    run_cmd(f'/usr/sbin/userdel {user.username}')

@@ -120,13 +120,15 @@ export default {
             fd.append('max_storage', _this.max_storage);
             fd.append('is_active', _this.is_active);
             axios.post('/ssh-users/', fd).then((res) => {
-                _this.getUsers();
                 toastr.success('SSH user has been created successfully.');
                 _this.$store.commit('setBusy', false);
                 _this.$router.push({name: 'users'});
             }).catch((err) => {
                 _this.$store.commit('setBusy', false);
-                _this.errors = err.response.data;
+                if(err.response) {
+                    _this.errors = err.response.data;
+                }
+                toastr.error('SSH user cannot be created.');
              });
         }
     }
