@@ -11,4 +11,9 @@ class Command(BaseCommand):
         
         for website in websites:
             fcp = FastcpSsl()
-            fcp.get_ssl(website)
+            activated = fcp.get_ssl(website)
+            
+            if activated:
+                self.stdout.write(self.style.SUCCESS(f'SSL certificate activated for website {website}'))
+            else:
+                self.stdout.write(self.style.ERROR(f'SSL certificate cannot be activated for {website}'))
