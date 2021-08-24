@@ -109,7 +109,7 @@ class FastcpSsl(object):
                         f.write(str(result.get('full_chain')))
                         
                     # Restart NGINX
-                    restart_services.send(services='nginx')
+                    restart_services.send(sender=None, services='nginx')
                     
                     # Update domains
                     for dom in verified_domains:
