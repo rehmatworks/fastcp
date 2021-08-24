@@ -101,7 +101,7 @@ class Website(models.Model):
     def metadata(self) -> dict:
         """Returns the meta data for the website"""
         return {
-            'path': f'{settings.FILE_MANAGER_ROOT}/{self.user.username}/apps/{self.slug}/public/',
+            'path': f'{settings.FILE_MANAGER_ROOT}/{self.user.username}/apps/{self.slug}/public',
             'user': self.user.username,
             'ip_addr': settings.SERVER_IP_ADDR
         }

@@ -2989,7 +2989,7 @@ function _defineProperty(obj, key, value) { if (key in obj) { Object.definePrope
       _this.selected = [];
       _this.selall = false;
 
-      if (!path) {
+      if (path == _this.web_root) {
         return;
       } else {
         var new_path = path.substring(0, path.lastIndexOf('/'));
@@ -3002,11 +3002,11 @@ function _defineProperty(obj, key, value) { if (key in obj) { Object.definePrope
     goHome: function goHome() {
       var path = this.$store.state.path;
 
-      if (!path) {
+      if (path == this.web_root) {
         return;
       }
 
-      this.$store.commit('setPath', _this.web_root);
+      this.$store.commit('setPath', this.web_root);
       this.getFiles();
       this.clearSelected();
     },

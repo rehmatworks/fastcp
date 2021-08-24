@@ -479,7 +479,7 @@ export default {
             let path = _this.$store.state.path;
             _this.selected = [];
             _this.selall = false;
-            if (!path) {
+            if (path == _this.web_root) {
                 return;
             } else {
                 let new_path = path.substring(0, path.lastIndexOf('/'));
@@ -489,10 +489,10 @@ export default {
         },
         goHome() {
             let path = this.$store.state.path;
-            if (!path) {
+            if (path == this.web_root) {
                 return;
             }
-            this.$store.commit('setPath', _this.web_root);
+            this.$store.commit('setPath', this.web_root);
             this.getFiles();
             this.clearSelected();
         },

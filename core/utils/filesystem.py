@@ -85,7 +85,7 @@ def get_path_info(p):
     return {
         'name': p.name,
         'file_type': 'file' if p.is_file() else 'directory',
-        'path': str(p).rstrip('/'),
+        'path': str(p),
         'size': os.path.getsize(p),
         'permissions': oct((os.stat(str(p)).st_mode))[-3:],
         'created': datetime.fromtimestamp(os.path.getctime(p)).strftime('%b %d, %Y %H:%M:%S'),
