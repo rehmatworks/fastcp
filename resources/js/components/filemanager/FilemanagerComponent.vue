@@ -460,7 +460,7 @@ export default {
             axios
                 .post('/file-manager/generate-archive/', fd)
                 .then((res) => {
-                    toastr.info('The archive for selected files is being generated.');
+                    toastr.info('The archive for selected files has been generated.');
                     _this.$store.commit('setBusy', false);
                     _this.getFiles();
                     _this.clearSelected();
