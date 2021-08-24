@@ -3451,14 +3451,6 @@ __webpack_require__.r(__webpack_exports__);
 //
 //
 //
-//
-//
-//
-//
-//
-//
-//
-//
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({
   data: function data() {
     return {
@@ -3733,7 +3725,7 @@ __webpack_require__.r(__webpack_exports__);
       var fd = new FormData();
       fd.append('is_active', _this.user.is_active);
       fd.append('max_dbs', _this.user.max_dbs);
-      fd.append('max_dbs', _this.user.max_dbs);
+      fd.append('max_sites', _this.user.max_sites);
       fd.append('max_storage', _this.user.max_storage);
       axios.patch("/ssh-users/".concat(_this.user.id, "/"), fd).then(function (res) {
         _this.$store.commit('setBusy', false);
@@ -8923,58 +8915,6 @@ var render = function() {
                 _vm.errors.password
                   ? _c("p", { staticClass: "invalid-feedback" }, [
                       _vm._v(_vm._s(_vm.errors.password[0]))
-                    ])
-                  : _vm._e()
-              ]),
-              _vm._v(" "),
-              _c("div", { staticClass: "form-group" }, [
-                _c("label", { attrs: { for: "max_sites" } }, [
-                  _vm._v("User Status")
-                ]),
-                _vm._v(" "),
-                _c(
-                  "select",
-                  {
-                    directives: [
-                      {
-                        name: "model",
-                        rawName: "v-model",
-                        value: _vm.is_active,
-                        expression: "is_active"
-                      }
-                    ],
-                    staticClass: "form-control",
-                    class: { "is-invalid": _vm.errors.is_active },
-                    on: {
-                      change: function($event) {
-                        var $$selectedVal = Array.prototype.filter
-                          .call($event.target.options, function(o) {
-                            return o.selected
-                          })
-                          .map(function(o) {
-                            var val = "_value" in o ? o._value : o.value
-                            return val
-                          })
-                        _vm.is_active = $event.target.multiple
-                          ? $$selectedVal
-                          : $$selectedVal[0]
-                      }
-                    }
-                  },
-                  [
-                    _c("option", { domProps: { value: true } }, [
-                      _vm._v("Active")
-                    ]),
-                    _vm._v(" "),
-                    _c("option", { domProps: { value: false } }, [
-                      _vm._v("Suspended")
-                    ])
-                  ]
-                ),
-                _vm._v(" "),
-                _vm.errors.is_active
-                  ? _c("p", { staticClass: "invalid-feedback" }, [
-                      _vm._v(_vm._s(_vm.errors.is_active[0]))
                     ])
                   : _vm._e()
               ]),

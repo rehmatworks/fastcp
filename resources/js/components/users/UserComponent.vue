@@ -209,7 +209,7 @@ export default {
             let fd = new FormData();
             fd.append('is_active', _this.user.is_active);
             fd.append('max_dbs', _this.user.max_dbs);
-            fd.append('max_dbs', _this.user.max_dbs);
+            fd.append('max_sites', _this.user.max_sites);
             fd.append('max_storage', _this.user.max_storage);
             axios.patch(`/ssh-users/${_this.user.id}/`, fd).then((res) => {
                 _this.$store.commit('setBusy', false);

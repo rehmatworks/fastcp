@@ -39,14 +39,6 @@
                                 <p class="invalid-feedback" v-if="errors.password">{{ errors.password[0] }}</p>
                             </div>
                             <div class="form-group">
-                                <label for="max_sites">User Status</label>
-                                <select :class="{'is-invalid': errors.is_active}" class="form-control" v-model="is_active">
-                                    <option :value="true">Active</option>
-                                    <option :value="false">Suspended</option>
-                                </select>
-                                <p class="invalid-feedback" v-if="errors.is_active">{{ errors.is_active[0] }}</p>
-                            </div>
-                            <div class="form-group">
                                 <label for="max_sites">Max. Websites</label>
                                 <input
                                     id="max_sites"

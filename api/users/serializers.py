@@ -2,6 +2,9 @@ from rest_framework import serializers
 from core.models import User
 
 
+# Disallow some system usernames
+DISALLOWED_USERNAMES = ['admin', 'superuser', 'administrator', 'www-data', 'mysql', 'ubuntu']
+
 class UserSearilizer(serializers.ModelSerializer):
     """User serializer.
     
@@ -11,11 +14,14 @@ class UserSearilizer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'date_joined', 'total_dbs', 'uid', 'is_active', 'total_sites', 'max_storage', 'storage_used', 'max_dbs', 'max_sites']
         read_only_fields = ['id', 'date_joined', 'total_dbs', 'uid', 'storage_used', 'total_sites']
-        
+    
+    
+    def validate_username(self, value):
+        """Ensure that username is valid."""
+        if value and value.lower() in DISALLOWED_USERNAMES:
+            raise serializers.ValidationError('The provided username is not allowed.')
+        return value
     
     def create(self, validated_data):
         """Create user"""
-        user = User.objects.create(
-            username=validated_data.get('username')
-        )
-        return user
+        return User.objects.create(**validated_data)
