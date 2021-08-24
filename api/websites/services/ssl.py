@@ -81,7 +81,6 @@ class FastcpSsl(object):
             
             if len(verified_domains):
                 acme = FastcpAcme(staging=True)
-                verified_domains = ['apkbucket.net']
                 
                 # Initiate an order
                 result = acme.request_ssl(domains=verified_domains, priv_key=priv_key)
