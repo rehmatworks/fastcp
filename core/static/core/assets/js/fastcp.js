@@ -2855,16 +2855,33 @@ function _defineProperty(obj, key, value) { if (key in obj) { Object.definePrope
       extract: false,
       move: false,
       copy: false
-    }, _defineProperty(_ref, "rename", false), _defineProperty(_ref, "new_name", ''), _defineProperty(_ref, "old_name", ''), _defineProperty(_ref, "edit_permissions", ''), _defineProperty(_ref, "new_permissions", ''), _ref;
+    }, _defineProperty(_ref, "rename", false), _defineProperty(_ref, "new_name", ''), _defineProperty(_ref, "old_name", ''), _defineProperty(_ref, "edit_permissions", ''), _defineProperty(_ref, "new_permissions", ''), _defineProperty(_ref, "web_root", ''), _ref;
   },
   created: function created() {
-    this.getFiles();
-    this.EventBus.$on('doSearch', this.getFiles);
+    this.getWebsite();
+    this.EventBus.$on('doSearch', this.getWebsite);
   },
   beforeDestroy: function beforeDestroy() {
-    this.EventBus.$off('doSearch', this.getFiles);
+    this.EventBus.$off('doSearch', this.getWebsite);
   },
   methods: {
+    getWebsite: function getWebsite() {
+      var _this = this;
+
+      axios.get("/websites/".concat(_this.$route.params.id, "/")).then(function (res) {
+        if (res.data && res.data.metadata.path) {
+          _this.web_root = res.data.metadata.path;
+
+          _this.$store.commit('setPath', res.data.metadata.path);
+
+          _this.getFiles();
+        } else {
+          toastr.error('Website root path cannot be obtained.');
+        }
+      })["catch"](function (err) {
+        toastr.error('Files listing cannot be obtained.');
+      });
+    },
     chooseFiles: function chooseFiles() {
       document.getElementById('fileUpload').click();
     },
@@ -2916,7 +2933,7 @@ function _defineProperty(obj, key, value) { if (key in obj) { Object.definePrope
       if (path != null) {
         path = encodeURIComponent(path);
       } else {
-        path = '';
+        return;
       }
 
       axios.get("/file-manager/files/?page=".concat(page, "&search=").concat(search, "&path=").concat(path)).then(function (res) {
@@ -2977,11 +2994,7 @@ function _defineProperty(obj, key, value) { if (key in obj) { Object.definePrope
       } else {
         var new_path = path.substring(0, path.lastIndexOf('/'));
 
-        if (_this.FM_ROOT == new_path) {
-          _this.$store.commit('setPath', '');
-        } else {
-          _this.$store.commit('setPath', new_path);
-        }
+        _this.$store.commit('setPath', new_path);
 
         _this.getFiles();
       }
@@ -2993,7 +3006,7 @@ function _defineProperty(obj, key, value) { if (key in obj) { Object.definePrope
         return;
       }
 
-      this.$store.commit('setPath', '');
+      this.$store.commit('setPath', _this.web_root);
       this.getFiles();
       this.clearSelected();
     },
@@ -4133,6 +4146,9 @@ __webpack_require__.r(__webpack_exports__);
 //
 //
 //
+//
+//
+//
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({
   props: ['pagination'],
   data: function data() {
@@ -4223,6 +4239,13 @@ var routes = [{
     title: 'Manage Website'
   }
 }, {
+  path: '/websites/:id/files',
+  name: 'filemanager',
+  component: __webpack_require__(/*! ./components/filemanager/FilemanagerComponent */ "./resources/js/components/filemanager/FilemanagerComponent.vue").default,
+  meta: {
+    title: 'Manage Website Files'
+  }
+}, {
   path: '/deploy-website',
   name: 'deploysite',
   component: __webpack_require__(/*! ./components/websites/CreateComponent */ "./resources/js/components/websites/CreateComponent.vue").default,
@@ -4249,13 +4272,6 @@ var routes = [{
   component: __webpack_require__(/*! ./components/databases/CreateComponent */ "./resources/js/components/databases/CreateComponent.vue").default,
   meta: {
     title: 'Create Database'
-  }
-}, {
-  path: '/file-manager',
-  name: 'files',
-  component: __webpack_require__(/*! ./components/filemanager/FilemanagerComponent */ "./resources/js/components/filemanager/FilemanagerComponent.vue").default,
-  meta: {
-    title: 'File Manager'
   }
 }, {
   path: '/users',
@@ -7205,7 +7221,9 @@ var render = function() {
                       "a",
                       {
                         staticClass: "border-right pr-2",
-                        class: { "text-muted": !_vm.$store.state.path },
+                        class: {
+                          "text-muted": _vm.$store.state.path == _vm.web_root
+                        },
                         attrs: { href: "javascript:void(0)" },
                         on: {
                           click: function($event) {
@@ -7223,7 +7241,9 @@ var render = function() {
                       "a",
                       {
                         staticClass: "border-right p-2",
-                        class: { "text-muted": !_vm.$store.state.path },
+                        class: {
+                          "text-muted": _vm.$store.state.path == _vm.web_root
+                        },
                         attrs: { href: "javascript:void(0)" },
                         on: {
                           click: function($event) {
@@ -9275,6 +9295,23 @@ var render = function() {
                     "td",
                     { staticClass: "text-right" },
                     [
+                      _c(
+                        "router-link",
+                        {
+                          staticClass: "btn btn-sm btn-outline-info",
+                          attrs: {
+                            to: {
+                              name: "filemanager",
+                              params: { id: website.id }
+                            }
+                          }
+                        },
+                        [
+                          _c("i", { staticClass: "fas fa-folder" }),
+                          _vm._v(" Files\n                        ")
+                        ]
+                      ),
+                      _vm._v(" "),
                       _c(
                         "router-link",
                         {

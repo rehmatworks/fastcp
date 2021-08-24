@@ -75,5 +75,5 @@ class BaseService(object):
         """
         path = str(path)
         user = self.get_owner_by_path(path)
-        if user and self.is_allowed(path):
+        if user:
             run_cmd(f'/usr/bin/chown -R {user}:{user} {path}')

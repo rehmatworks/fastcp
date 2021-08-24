@@ -24,6 +24,14 @@ export const routes = [
         }
     },
     {
+        path: '/websites/:id/files',
+        name: 'filemanager',
+        component: require('./components/filemanager/FilemanagerComponent').default,
+        meta: {
+            title: 'Manage Website Files'
+        }
+    },
+    {
         path: '/deploy-website',
         name: 'deploysite',
         component: require('./components/websites/CreateComponent').default,
@@ -53,14 +61,6 @@ export const routes = [
         component: require('./components/databases/CreateComponent').default,
         meta: {
             title: 'Create Database'
-        }
-    },
-    {
-        path: '/file-manager',
-        name: 'files',
-        component: require('./components/filemanager/FilemanagerComponent').default,
-        meta: {
-            title: 'File Manager'
         }
     },
     {

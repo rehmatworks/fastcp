@@ -63,13 +63,13 @@
                         <a
                             href="javascript:void(0)"
                             class="border-right pr-2"
-                            :class="{ 'text-muted': !$store.state.path }"
+                            :class="{ 'text-muted': $store.state.path == web_root }"
                             @click="goHome()"
                         >
                             <i class="fas fa-home"></i> Home
                         </a>
                         <a
-                            :class="{ 'text-muted': !$store.state.path }"
+                            :class="{ 'text-muted': $store.state.path == web_root }"
                             href="javascript:void(0)"
                             class="border-right p-2"
                             @click="goBack()"
@@ -356,17 +356,32 @@ export default {
             new_name: '',
             old_name: '',
             edit_permissions: '',
-            new_permissions: ''
+            new_permissions: '',
+            web_root: ''
         };
     },
     created() {
-        this.getFiles();
-        this.EventBus.$on('doSearch', this.getFiles);
+        this.getWebsite();
+        this.EventBus.$on('doSearch', this.getWebsite);
     },
     beforeDestroy() {
-        this.EventBus.$off('doSearch', this.getFiles);
+        this.EventBus.$off('doSearch', this.getWebsite);
     },
     methods: {
+        getWebsite() {
+            let _this = this;
+            axios.get(`/websites/${_this.$route.params.id}/`).then((res) => {
+                if(res.data && res.data.metadata.path) {
+                    _this.web_root = res.data.metadata.path;
+                    _this.$store.commit('setPath', res.data.metadata.path);
+                    _this.getFiles();
+                } else {
+                    toastr.error('Website root path cannot be obtained.');
+                }
+            }).catch((err) => {
+                toastr.error('Files listing cannot be obtained.');
+            });
+        },
         chooseFiles() {
             document.getElementById('fileUpload').click();
         },
@@ -415,7 +430,7 @@ export default {
             if (path != null) { 
                 path = encodeURIComponent(path);
             } else {
-                path = '';
+                return;
             }
             axios
                 .get(`/file-manager/files/?page=${page}&search=${search}&path=${path}`)
@@ -468,11 +483,7 @@ export default {
                 return;
             } else {
                 let new_path = path.substring(0, path.lastIndexOf('/'));
-                if(_this.FM_ROOT == new_path) {
-                    _this.$store.commit('setPath', '');
-                } else {
-                    _this.$store.commit('setPath', new_path);
-                }
+                _this.$store.commit('setPath', new_path);
                 _this.getFiles();
             }
         },
@@ -481,7 +492,7 @@ export default {
             if (!path) {
                 return;
             }
-            this.$store.commit('setPath', '');
+            this.$store.commit('setPath', _this.web_root);
             this.getFiles();
             this.clearSelected();
         },

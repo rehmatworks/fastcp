@@ -1,6 +1,8 @@
 from core.utils import filesystem as cpfs
 import shutil
+from distutils.dir_util import copy_tree
 from .base_service import BaseService
+import os
 
 
 class MoveDataService(BaseService):
@@ -25,7 +27,7 @@ class MoveDataService(BaseService):
         user = self.request.user
         
         errors = False
-        if dest_root and not self.is_allowed(dest_root, user):
+        if dest_root and self.is_allowed(dest_root, user):
             paths = validated_data.get('paths').split(',')
             if len(paths):
                 for p in paths:
@@ -33,7 +35,11 @@ class MoveDataService(BaseService):
                         if validated_data.get('action') == 'move':
                             shutil.move(p, dest_root)
                         else:
-                            shutil.copy2(p, dest_root)
+                            if os.path.isdir(p):
+                                dest_root = os.path.join(dest_root, os.path.basename(p))
+                                copy_tree(p, dest_root)
+                            else:
+                                shutil.copy2(p, dest_root)
                     except Exception as e:
                         errors = True
         

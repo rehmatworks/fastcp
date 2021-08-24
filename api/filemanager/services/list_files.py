@@ -35,7 +35,7 @@ class ListFileService(BaseService):
             try:
                 data = cpfs.get_path_info(p)
                 if not search or search.lower() in data.get('name').lower():
-                    if not self.is_allowed(p, user):
+                    if self.is_allowed(p, user):
                         files.append(data)
             except PermissionError:
                 pass

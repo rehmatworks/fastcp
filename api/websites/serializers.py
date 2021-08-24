@@ -30,9 +30,9 @@ class WebsiteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Website
         fields = ['id', 'label', 'user', 'metadata', 'domains', 'has_ssl', 'php']
-        read_only_fields = ['id', 'has_ssl', 'domains', 'metadata', 'domains', 'user']
+        read_only_fields = ['id', 'has_ssl', 'root_path', 'domains', 'metadata', 'domains', 'user']
         
-    
+        
     def validate_domains(self, value):
         # Validate domains
         domains = list(filter(None, [domain.strip() for domain in value.strip().split(',')]))

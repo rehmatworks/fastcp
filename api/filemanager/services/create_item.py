@@ -37,7 +37,7 @@ class CreateItemService(BaseService):
                 
                 self.fix_ownership(new_path)
                 return True
-            except:
+            except Exception as e:
                 pass
     
         return False
