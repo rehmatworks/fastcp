@@ -91,20 +91,20 @@ class FastcpSsl(object):
                     if not os.path.exists(base_dir):
                         os.makedirs(base_dir)
                     
-                    with open(os.path.join(base_dir, os.path.basename(result.get('path'))), 'w') as f:
-                        f.write(str(result.get('token')))
+                    with open(os.path.join(base_dir, os.path.basename(result.get('path'))), 'wb') as f:
+                        f.write(result.get('token'))
                 
                 # After the challange token is written, request SSL cert
                 result = acme.get_ssl()
                 
                 if result:
                     # Write private key
-                    with open(paths.get('priv_key_path'), 'w') as f:
-                        f.write(str(result.get('priv_key')))
+                    with open(paths.get('priv_key_path'), 'wb') as f:
+                        f.write(result.get('priv_key'))
                     
                     # Write cert chain
-                    with open(paths.get('cert_chain_path'), 'w') as f:
-                        f.write(str(result.get('full_chain')))
+                    with open(paths.get('cert_chain_path'), 'wb') as f:
+                        f.write(result.get('full_chain'))
                         
                     # Restart NGINX
                     restart_services.send('nginx')
