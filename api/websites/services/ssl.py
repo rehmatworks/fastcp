@@ -117,7 +117,7 @@ class FastcpSsl(object):
                 # again and again.
                 if not self.regr:
                     with open(FCP_ACCOUNT_RESOURCE_PATH, 'w') as f:
-                        f.write(acme.account.json_dumps())
+                        f.write(acme.regr.json_dumps())
                 
                 # Initiate an order
                 result = acme.request_ssl(domains=verified_domains, priv_key=priv_key)
