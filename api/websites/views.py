@@ -10,7 +10,6 @@ from django.db.models import Q
 from .services.get_php_versions import PhpVersionListService
 from core import signals
 from api.websites.services.ssl import FastcpSsl
-from core.signals import domains_updated
 from core.utils.system import ssl_expiring
 
 
@@ -73,9 +72,11 @@ class RefreshSsl(APIView):
             fcp = FastcpSsl()
             activated = fcp.get_ssl(website)
             if activated:
-                domains_updated.send(sender=website)
                 website.has_ssl = True
                 website.save()
+                
+                # Send signal so vhosts will be updated
+                signals.domains_updated.send(sender=website, only_nginx=True)
                 return Response({
                     'message': 'SSL certificates refresh request has been processed.'
                 })
