@@ -72,6 +72,8 @@ class RefreshSsl(APIView):
         activated = fcp.get_ssl(website)
         if activated:
             domains_updated.send(sender=website)
+            website.has_ssl = True
+            website.save()
         
         return Response({
             'status': 'SSL certificates refresh request has been processed.'
