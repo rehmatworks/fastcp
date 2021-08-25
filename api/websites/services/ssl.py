@@ -22,10 +22,10 @@ class FastcpSsl(object):
     This class deals with Let's Encrypt SSL certificates for domains.
     
     Attributes:
-        account (object): The ACME account serialized resource object.
-        acc_key (object): The ACME account key serialized object.
+        regr (str): The ACME account JSON string.
+        acc_key (str): The ACME account key JSON string.
     """
-    account = None
+    regr = None
     acc_key = None
     
     def __init__(self) -> None:
@@ -35,12 +35,12 @@ class FastcpSsl(object):
         
         # Load account key and account resource
         if os.path.exists(FCP_ACCOUNT_KEY_PATH):
-            with open(FCP_ACCOUNT_KEY_PATH, 'rb') as f:
-                self.acc_key = pickle.load(f)
+            with open(FCP_ACCOUNT_KEY_PATH) as f:
+                self.acc_key = f.read()
         
         if os.path.exists(FCP_ACCOUNT_RESOURCE_PATH):
-            with open(FCP_ACCOUNT_RESOURCE_PATH, 'rb') as f:
-                self.account = pickle.load(f)
+            with open(FCP_ACCOUNT_RESOURCE_PATH) as f:
+                self.regr = f.read()
             
     
     def is_resolving(self, domain: str) -> bool:
@@ -107,18 +107,18 @@ class FastcpSsl(object):
                 priv_key = None
             
             if len(verified_domains):
-                acme = FastcpAcme(staging=True, acc_key=self.acc_key, account=self.account)
+                acme = FastcpAcme(staging=True, acc_key=self.acc_key, regr=self.regr)
                 
                 # Save account key
-                # if not self.acc_key:
-                #     with open(FCP_ACCOUNT_KEY_PATH, 'wb') as f:
-                #         pickle.dump(acme.acc_key.json_dumps(), f)
+                if not self.acc_key:
+                    with open(FCP_ACCOUNT_KEY_PATH, 'w') as f:
+                        f.write(acme.acc_key.json_dumps())
                 
                 # Save account resource so we will not need to register an account
                 # again and again.
-                if not self.account:
-                    with open(FCP_ACCOUNT_RESOURCE_PATH, 'wb') as f:
-                        pickle.dump(acme.account.json_dumps(), f)
+                if not self.regr:
+                    with open(FCP_ACCOUNT_RESOURCE_PATH, 'w') as f:
+                        f.write(acme.account.json_dumps())
                 
                 # Initiate an order
                 result = acme.request_ssl(domains=verified_domains, priv_key=priv_key)

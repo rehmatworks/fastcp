@@ -28,37 +28,46 @@ class FastcpAcme(object):
     This class is responsible to generate SSL certificates using Let's Encrypt ACME API v2.0.
     """
 
-    def __init__(self, acc_key: object = None, account: object = None, staging: bool = False):
+    def __init__(self, acc_key: str = None, regr: str = None, staging: bool = False):
         """Create ACME client.
 
         This method sets the ACME client and prepares the initial configuration.
 
         Args:
-            acc_key (object): The account key object. If not provided, it will be created.
-            account (object): Existing account if already created.
+            acc_key (str): Account key as JSON string.
+            regr (str): Existing account as a JSON string if already created.
             staging (bool): Specifies either the staging directory URL should be used the production URL.
         """
         
-        # Generate account key if not provided
+        # Generate account key if not provided, otherwise load it from the
+        # provided string
         if not acc_key:
             acc_key = self._generate_acc_key()
+        else:
+            acc_key = jose.JWK.json_loads(acc_key)
 
         self.acc_key = acc_key
+        
+        # Load account if provided
+        if regr:
+            regr = messages.RegistrationResource.json_loads(regr)
+            
+        self.regr = regr        
 
         if staging:
             dir_url = STAGING_DIRECTORY_URL
         else:
             dir_url = DIRECTORY_URL
 
-        net = client.ClientNetwork(self.acc_key, account=account, user_agent=USER_AGENT)
+        net = client.ClientNetwork(self.acc_key, account=self.regr, user_agent=USER_AGENT)
         directory = messages.Directory.from_json(net.get(dir_url).json())
         self.client = client.ClientV2(directory, net=net)
         
         # Register account if not exists
-        if not account:
-            account = self._register_account()
+        if not self.regr:
+            regr = self._register_account()
 
-        self.account = account
+        self.regr = regr
 
     def _generate_acc_key(self) -> object:
         """Generate account key.
