@@ -77,9 +77,15 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.humanize',
     'rest_framework',
+    'django_cron',
     'api',
     'core'
 ]
+
+CRON_CLASSES = [
+    'core.crons.ProcessSsls'
+]
+DJANGO_CRON_DELETE_LOGS_OLDER_THAN = 1
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
