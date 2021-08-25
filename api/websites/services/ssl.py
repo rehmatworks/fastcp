@@ -101,7 +101,7 @@ class FastcpSsl(object):
                 os.makedirs(paths.get('ssl_base'))
             
             if os.path.exists(paths.get('priv_key_path')):
-                with open(paths.get('priv_key_path')) as f:
+                with open(paths.get('priv_key_path', 'rb')) as f:
                     priv_key = f.read()
             else:
                 priv_key = None
