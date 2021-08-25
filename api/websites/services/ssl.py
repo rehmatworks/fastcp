@@ -4,7 +4,7 @@ import os
 from core.utils.filesystem import get_website_paths
 from core.signals import restart_services
 from core.models import Domain
-from django.contrib import settings
+from django.conf import settings
 
 
 # Verify path
