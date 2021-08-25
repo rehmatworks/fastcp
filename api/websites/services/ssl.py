@@ -4,6 +4,7 @@ import os
 from core.utils.filesystem import get_website_paths
 from core.signals import restart_services
 from core.models import Domain
+from django.contrib import settings
 
 
 # Verify path
@@ -105,7 +106,7 @@ class FastcpSsl(object):
                 priv_key = None
             
             if len(verified_domains):
-                acme = FastcpAcme(staging=True, acc_key=self.acc_key, regr=self.regr)
+                acme = FastcpAcme(staging=settings.LETSENCRYPT_IS_STAGING, acc_key=self.acc_key, regr=self.regr)
                 
                 # Save account key
                 if not self.acc_key:

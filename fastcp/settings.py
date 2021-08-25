@@ -196,6 +196,7 @@ NGINX_BASE_DIR = os.environ.get('NGINX_BASE_DIR', '/etc/nginx')
 NGINX_VHOSTS_ROOT = os.environ.get('NGINX_VHOSTS_ROOT', '/etc/nginx/vhosts.d')
 APACHE_VHOST_ROOT = os.environ.get('APACHE_VHOST_ROOT', '/etc/apache2/vhosts.d')
 FASTCP_VERSION = os.environ.get('FASTCP_VERSION', '1.0.1')
+LETSENCRYPT_IS_STAGING = os.environ.get('LETSENCRYPT_IS_STAGING') is not None
 SERVER_IP_ADDR = os.environ.get('SERVER_IP_ADDR', 'N/A')
 FASTCP_SQL_PASSWORD = os.environ.get('FASTCP_SQL_PASSWORD')
 FASTCP_SQL_USER = os.environ.get('FASTCP_SQL_USER')
