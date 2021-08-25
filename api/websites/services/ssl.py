@@ -35,11 +35,11 @@ class FastcpSsl(object):
         # Load account key and account resource
         if os.path.exists(FCP_ACCOUNT_KEY_PATH):
             with open(FCP_ACCOUNT_KEY_PATH, 'rb') as f:
-                self.acc_key = pickle.load(f.read())
+                self.acc_key = pickle.load(f)
         
         if os.path.exists(FCP_ACCOUNT_RESOURCE_PATH):
             with open(FCP_ACCOUNT_RESOURCE_PATH, 'rb') as f:
-                self.account = pickle.load(f.read())
+                self.account = pickle.load(f)
             
     
     def is_resolving(self, domain: str) -> bool:
