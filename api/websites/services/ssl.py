@@ -111,13 +111,13 @@ class FastcpSsl(object):
                 # Save account key
                 if not self.acc_key:
                     with open(FCP_ACCOUNT_KEY_PATH, 'wb') as f:
-                        pickle.dump(acme.acc_key)
+                        pickle.dump(acme.acc_key, f)
                 
                 # Save account resource so we will not need to register an account
                 # again and again.
                 if not self.account:
                     with open(FCP_ACCOUNT_RESOURCE_PATH, 'wb') as f:
-                        pickle.dump(acme.account)
+                        pickle.dump(acme.account, f)
                 
                 # Initiate an order
                 result = acme.request_ssl(domains=verified_domains, priv_key=priv_key)
