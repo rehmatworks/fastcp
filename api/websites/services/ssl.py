@@ -85,7 +85,7 @@ class FastcpSsl(object):
         Returns:
             bool: True on success False otherwise.
         """
-        token_path = None
+        token_paths = []
         status = False
         try:
             verified_domains = []
@@ -131,6 +131,7 @@ class FastcpSsl(object):
                     
                     for result in results:
                         token_path = os.path.join(base_dir, os.path.basename(result.get('path')))
+                        token_paths.append(token_path)
                         with open(token_path, 'wb') as f:
                             f.write(result.get('token'))
                 
@@ -164,9 +165,11 @@ class FastcpSsl(object):
             raise e
             pass
         finally:
-            # Remove verification file
-            if token_path and os.path.exists(token_path):
-                os.remove(token_path)
+            # Remove verification files
+            if len(token_paths):
+                for token_path in token_paths:
+                    if token_path and os.path.exists(token_path):
+                        os.remove(token_path)
         
         return status
                 
