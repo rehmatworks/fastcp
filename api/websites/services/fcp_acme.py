@@ -9,8 +9,8 @@ from acme import crypto_util
 from acme import messages
 
 # Directory URLs
-DIRECTORY_URL = 'https://acme-staging-v02.api.letsencrypt.org/directory'
-STAGING_DIRECTORY_URL = 'https://acme-v02.api.letsencrypt.org/directory'
+STAGING_DIRECTORY_URL = 'https://acme-staging-v02.api.letsencrypt.org/directory'
+DIRECTORY_URL = 'https://acme-v02.api.letsencrypt.org/directory'
 
 # Our user agent
 USER_AGENT = 'FastCP (+https://fastcp.org)'
