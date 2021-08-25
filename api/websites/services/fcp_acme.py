@@ -172,10 +172,14 @@ class FastcpAcme(object):
         response, validation = self.challb.chall.response_and_validation(
             account_key=self.acc_key)
         self.response = response
+        
+        print(self.response)
 
         # Get challenge path
         challange_path = os.path.join(
             challenges.HTTP01.URI_ROOT_PATH, self.challb.chall.encode('token'))
+        
+        print(challange_path)
         
         # Challenge token
         challenge_token = validation.encode()

@@ -107,7 +107,7 @@ class FastcpSsl(object):
                 priv_key = None
             
             if len(verified_domains):
-                acme = FastcpAcme(acc_key=self.acc_key, regr=self.regr)
+                acme = FastcpAcme(staging=True, acc_key=self.acc_key, regr=self.regr)
                 
                 # Save account key
                 if not self.acc_key:
