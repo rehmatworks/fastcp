@@ -4,6 +4,7 @@ from django.conf import settings
 from api.websites.services.get_php_versions import PhpVersionListService
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 
+
 class FastcpUserManager(BaseUserManager):
     """FastCP User Manager.
     
