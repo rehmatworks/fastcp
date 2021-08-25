@@ -67,7 +67,7 @@ class FastcpSsl(object):
         return False
 
     
-    def get_ssl(self, website, renew: bool = False) -> bool:
+    def get_ssl(self, website) -> bool:
         """Get SSL.
         
         This method attempts to get SSL certificates for the provided domain names. An SSL
@@ -79,8 +79,6 @@ class FastcpSsl(object):
         
         Args:
             website (object): The website model object.
-            renew (bool): Is this a renew reuest or not. If it's a renewal request, we will use
-                            the existing private key.
         
         Returns:
             bool: True on success False otherwise.
@@ -92,8 +90,7 @@ class FastcpSsl(object):
             
             for dom in website.domains.all():
                 if self.is_resolving(dom.domain):
-                    if renew or not dom.ssl:
-                        verified_domains.append(dom.domain)
+                    verified_domains.append(dom.domain)
                     
             
             # Get website paths
