@@ -337,6 +337,7 @@ export default {
             _this.$store.commit('setBusy', true);
             axios.post(`/websites/${_this.$route.params.id}/refresh-ssl/`).then((res) => {
                 _this.$store.commit('setBusy', false);
+                _this.getWebsite();
                 toastr.success('SSL certificates refresh request has been processed.');
                 _this.refresh_ssl = false;
             }).catch((err) => {
