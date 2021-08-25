@@ -3,6 +3,7 @@ from django.template.defaultfilters import slugify
 from django.conf import settings
 from api.websites.services.get_php_versions import PhpVersionListService
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+import os
 
 
 class FastcpUserManager(BaseUserManager):
@@ -113,8 +114,10 @@ class Website(models.Model):
     @property
     def metadata(self) -> dict:
         """Returns the meta data for the website"""
+        base_path = os.path.join(settings.FILE_MANAGER_ROOT, self.user.username, 'apps', self.slug)
         return {
-            'path': f'{settings.FILE_MANAGER_ROOT}/{self.user.username}/apps/{self.slug}/public',
+            'path': base_path,
+            'pub_path': os.path.join(base_path, 'public'),
             'user': self.user.username,
             'ip_addr': settings.SERVER_IP_ADDR
         }
