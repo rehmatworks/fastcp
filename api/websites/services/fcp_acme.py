@@ -200,6 +200,7 @@ class FastcpAcme(object):
         """
         self.client.answer_challenge(self.challb, self.response)
         order_result = self.client.poll_and_finalize(self.acme_order)
+        print(self.acme_order.body.authorizations)
         return {
             'full_chain': order_result.fullchain_pem,
             'priv_key': self.priv_key
