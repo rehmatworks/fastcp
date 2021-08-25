@@ -139,9 +139,12 @@ class FastcpSsl(object):
                 if result:
                     # Write private key
                     with open(paths.get('priv_key_path'), 'wb') as f:
-                        priv_key = result.get('priv_key')
-                        if type(priv_key) == 'str':
-                            priv_key = priv_key.encode()
+                        try:
+                            priv_key = result.get('priv_key').encode()
+                        except AttributeError:
+                            priv_key = result.get('priv_key')
+                        
+                        # Write private key
                         f.write(priv_key)
                     
                     # Write cert chain
