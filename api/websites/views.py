@@ -85,7 +85,7 @@ class RefreshSsl(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
         else:
             return Response({
-                'message': 'This website has already valid SSLs installed.'
+                'message': 'SSL certificates have already been installed for this website.'
             })
 
 class DeleteDomainView(APIView):
