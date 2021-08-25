@@ -99,7 +99,7 @@ class FastcpSsl(object):
             if not os.path.exists(paths.get('ssl_base')):
                 os.makedirs(paths.get('ssl_base'))
             
-            if renew:
+            if os.path.exists(paths.get('priv_key_path')):
                 with open(paths.get('priv_key_path')) as f:
                     priv_key = f.read()
             else:
