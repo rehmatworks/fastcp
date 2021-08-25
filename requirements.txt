@@ -19,7 +19,9 @@ gunicorn==20.1.0
 idna==3.2
 josepy==1.8.0
 mysqlclient==2.0.3
+pexpect==4.8.0
 psutil==5.8.0
+ptyprocess==0.7.0
 pycodestyle==2.7.0
 pycparser==2.20
 pyOpenSSL==20.0.1

@@ -115,6 +115,41 @@ def rand_passwd(length: int = 20) -> str:
     alphabet = string.ascii_letters + string.digits
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 
+def change_password(username: str) -> str:
+    """Change a Unix user's password.
+    
+    This function generates a random password using rand_passwd function, sets the password for the user
+    and returns the password as a string.
+    
+    Args:
+        user (str): The Unix user's username.
+    
+    Returns:
+        str: The new password.
+    """
+    passwd = rand_passwd()
+    passwd_hash = crypt.crypt(passwd, '22')
+    run_cmd(f'/usr/sbin/usermod --password {passwd_hash} {username}')
+    
+    return passwd
+
+def change_db_password(username: str) -> str:
+    """Change a MySQL user's password.
+    
+    This function generates a random password using rand_passwd function, sets the password for the user
+    and returns the password as a string.
+    
+    Args:
+        user (str): The MySQL username.
+    
+    Returns:
+        str: The new password or None if update fails.
+    """
+    passwd = rand_passwd()
+    result = FastcpSqlService().update_password(username, passwd)
+    if result:
+        return passwd
+    return None
 
 def setup_user(user: object, password: str = None) -> bool:
     """Setup the user.

@@ -67,6 +67,20 @@ class FastcpSqlService(object):
         res_6 = self._execute_sql("FLUSH PRIVILEGES")
         return all([res_1, res_2, res_3, res_4, res_5, res_6])
 
+    def update_password(self, username: str, password: str) -> bool:
+        """Update a user's password.
+        
+        Args:
+            username (str): MySQL username.
+            password (str): New password for the user.
+            
+        Returns:
+            bool: True on success False otherwise.
+        """
+        res_1 = self._execute_sql(f"ALTER USER '{username}@'%' IDENTIFIED BY '{password}'")
+        res_2 = self._execute_sql(f"ALTER USER '{username}@'localhost' IDENTIFIED BY '{password}'")
+        return all([res_1, res_2])
+
     def drop_db(self, dbname: str) -> bool:
         """Drops the database"""
         return self._execute_sql(f"DROP DATABASE {dbname}")

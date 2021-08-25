@@ -4,7 +4,43 @@ from . import serializers
 from core.permissions import IsAdminOrOwner
 from rest_framework import permissions
 from django.db.models import Q
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from core.utils.system import change_db_password
 
+
+class ResetPasswordView(APIView):
+    """Reset SSH user password."""
+    http_method_names = ['post']
+    
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        db_id = kwargs.get('id')
+
+        if user.is_superuser:
+            db_obj = Database.objects.filter(pk=db_id).first()
+        else:
+            db_obj = user.databases.filter(pk=db_id).first()
+        
+        if not db_obj:
+            return Response({
+                'message': 'The requested database cannot be found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Update password
+        password = change_db_password(db_obj.username)
+        
+        if password:
+            # Return the new password
+            return Response({
+                'message': 'Password has been updated.',
+                'new_password': password
+            })
+        else:
+            return Response({
+                'message': 'Password cannot be updated for this user.'
+            }, status=status.HTTP_404_NOT_FOUND)
 
 class DatabaseViewSet(viewsets.ModelViewSet):
     """Database View

@@ -35,7 +35,7 @@
                                     <p class="invalid-feedback" v-if="errors.username">{{ errors.username[0] }}</p>
                                 </div>
                                 <v-select v-else :options="users" @search="getUsers" v-model="ssh_user"></v-select>
-                                <p class="text-danger" v-if="!create && errors.username">{{ errors.username }}</p>
+                                <p class="text-danger" v-if="!create && errors.user">{{ errors.user[0] }}</p>
                             </div>
                             <div class="form-group">
                                 <label for="name">Database Name</label>

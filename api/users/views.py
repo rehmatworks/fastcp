@@ -1,10 +1,39 @@
 from rest_framework.views import APIView
 from rest_framework import viewsets
+from rest_framework import status
 from rest_framework import permissions
 from core.models import User
 from rest_framework.response import Response
 from . import serializers
+from core.utils.system import change_password
 
+
+class ResetPasswordView(APIView):
+    """Reset SSH user password."""
+    http_method_names = ['post']
+    
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        user_id = kwargs.get('id')
+
+        if user.is_superuser and user_id != user.id:
+            user = User.objects.filter(pk=user_id).first()
+        
+        if not user:
+            return Response({
+                'message': 'The requested user account cannot be found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Update password
+        password = change_password(user.username)
+        
+        # Return the new password
+        return Response({
+            'message': 'Password has been updated.',
+            'new_password': password,
+            'user': user.username
+        })
+        
 
 class UsersViewSet(viewsets.ModelViewSet):
     """User View
