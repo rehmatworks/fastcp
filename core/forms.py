@@ -20,11 +20,7 @@ class LoginForm(forms.Form):
         if username and password:
             user = User.objects.filter(username=username).first()
             if user:
-                # login = do_login(username, password)
-                # To-do: Crucial!!!! Need to validate the login. Currently
-                # It just checks the username existence in Django
-                # DB to authenticate a session.
-                login = True
+                login = do_login(username, password)
                 if not login:
                     self.add_error('username', 'The provided login details are invalid.')
             else:
