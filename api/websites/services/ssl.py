@@ -92,7 +92,8 @@ class FastcpSsl(object):
             
             for dom in website.domains.all():
                 if self.is_resolving(dom.domain):
-                    verified_domains.append(dom.domain)
+                    if renew or not dom.ssl:
+                        verified_domains.append(dom.domain)
                     
             
             # Get website paths

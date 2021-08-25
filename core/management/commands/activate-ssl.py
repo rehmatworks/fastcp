@@ -23,4 +23,4 @@ class Command(BaseCommand):
                 else:
                     self.stdout.write(self.style.ERROR(f'SSL certificate cannot be activated for {website}'))
             else:
-                self.stdout.write(self.style.SUCCESS('Website {website} does not need an SSL.'))
+                self.stdout.write(self.style.SUCCESS(f'Website {website} does not need an SSL.'))
