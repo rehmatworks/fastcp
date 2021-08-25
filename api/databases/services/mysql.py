@@ -77,8 +77,8 @@ class FastcpSqlService(object):
         Returns:
             bool: True on success False otherwise.
         """
-        res_1 = self._execute_sql(f"ALTER USER '{username}@'%' IDENTIFIED BY '{password}'")
-        res_2 = self._execute_sql(f"ALTER USER '{username}@'localhost' IDENTIFIED BY '{password}'")
+        res_1 = self._execute_sql(f"ALTER USER '{username}'@'%' IDENTIFIED BY '{password}'")
+        res_2 = self._execute_sql(f"ALTER USER '{username}'@'localhost' IDENTIFIED BY '{password}'")
         return all([res_1, res_2])
 
     def drop_db(self, dbname: str) -> bool:
