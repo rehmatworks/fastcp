@@ -85,9 +85,10 @@ class FastcpSsl(object):
         Returns:
             bool: True on success False otherwise.
         """
+        token_path = None
+        status = False
         try:
             verified_domains = []
-            token_path = None
             
             for dom in website.domains.all():
                 if self.is_resolving(dom.domain):
@@ -150,13 +151,14 @@ class FastcpSsl(object):
                     # Update domains
                     for dom in verified_domains:
                         Domain.objects.filter(domain=dom).update(ssl=True)
-                
-                # Remove verification file
-                if token_path and os.path.exists(token_path):
-                    os.remove(token_path)
-                    
-                return True
+                            
+                status = True
         except Exception as e:
-            raise e
-        return False
+            pass
+        finally:
+            # Remove verification file
+            if token_path and os.path.exists(token_path):
+                os.remove(token_path)
+        
+        return status
                 
