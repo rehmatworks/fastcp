@@ -58,5 +58,4 @@ server {
     }
 
     include /etc/nginx/vhosts.d/{{ app_name }}.d/*.ssl_conf;
-    include /etc/nginx/vhosts.d/{{ app_name }}.d/*.conf;
 }
