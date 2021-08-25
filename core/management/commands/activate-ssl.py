@@ -11,7 +11,7 @@ class Command(BaseCommand):
         websites = Website.objects.all()
         
         for website in websites:
-            if website.domains.filter(ssl=False).count():
+            if website.needs_ssl():
                 fcp = FastcpSsl()
                 activated = fcp.get_ssl(website)
                 

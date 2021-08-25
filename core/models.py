@@ -117,6 +117,10 @@ class Website(models.Model):
             'user': self.user.username,
             'ip_addr': settings.SERVER_IP_ADDR
         }
+    
+    def needs_ssl(self) -> bool:
+        """Check either website needs SSL or not."""
+        return self.domains.filter(ssl=False).count() > 0
 
 class Domain(models.Model):
     """Domain model holds the domains associated to a website."""
