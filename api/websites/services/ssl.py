@@ -154,6 +154,7 @@ class FastcpSsl(object):
                             
                 status = True
         except Exception as e:
+            raise e
             pass
         finally:
             # Remove verification file
