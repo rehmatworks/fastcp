@@ -142,9 +142,6 @@ class FastcpAcme(object):
         
         return chall_list
 
-        raise Exception(
-            'The selected challenge was not offered by the CA server.')
-
     def request_ssl(self, domains: list, email: str = None, priv_key: str = None, chall_type='http') -> dict:
         """Create a new SSL certificate request.
 
@@ -179,8 +176,6 @@ class FastcpAcme(object):
             response, validation = chall.chall.response_and_validation(
                 account_key=self.acc_key)
             self.response = response
-            
-            print(self.response)
 
             # Get challenge path
             challange_path = os.path.join(
