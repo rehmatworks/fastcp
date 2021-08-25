@@ -242,7 +242,7 @@ def ssl_expiring(website: object) -> bool:
     paths = filesystem.get_website_paths(website)
     
     if os.path.exists(paths.get('cert_chain_path')):
-        with open(paths.get.get('cert_chain_path')) as f:
+        with open(paths.get('cert_chain_path')) as f:
             certdata = f.read().encode()
         
         cert = x509.load_pem_x509_certificate(certdata, default_backend())
