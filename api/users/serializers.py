@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from core.models import User
+from core.signals import create_user
 
 
 # Disallow some system usernames
@@ -24,4 +25,7 @@ class UserSearilizer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         """Create user"""
-        return User.objects.create(**validated_data)
+        request = self.context['request']
+        user = User.objects.create(**validated_data)
+        create_user.send(sender=user, password=request.POST.get('password'))
+        return user

@@ -16,6 +16,7 @@ domains_updated = django.dispatch.Signal()
 restart_services = django.dispatch.Signal()
 reload_services = django.dispatch.Signal()
 create_db = django.dispatch.Signal()
+create_user = django.dispatch.Signal()
 
 def update_php_handler(sender, **kwargs):
     """Update PHP conf.
@@ -58,15 +59,14 @@ def delete_website(sender, instance=None, **kwargs):
     fcpsys.delete_website(instance)
     
 
-@receiver(post_save, sender=User)
-def update_user(sender, instance=None, created=False, **kwargs):
+def create_user_handler(sender, **kwargs):
     """Executes when a user is created at first. We will set the user is_active to True here as well
     we will create the user data directories."""
-    if created:
-        instance.is_active = True
-        instance.save()
-        if not instance.is_superuser:
-            fcpsys.setup_user(instance)
+    sender.is_active = True
+    sender.save()
+    if not sender.is_superuser:
+        fcpsys.setup_user(sender, password=kwargs.get('password'))
+create_user.connect(create_user_handler, dispatch_uid='create-user')
     
 
 def restart_services_handler(sender=None, **kwargs):
