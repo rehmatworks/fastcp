@@ -1,5 +1,5 @@
 import crypt
-# import spwd
+import spwd
 
 
 def do_login(user, password):
