@@ -368,7 +368,9 @@ export default {
     methods: {
         getWebsite() {
             let _this = this;
+            _this.$store.commit('setBusy', true);
             axios.get(`/websites/${_this.$route.params.id}/`).then((res) => {
+                _this.$store.commit('setBusy', false);
                 if(res.data && res.data.metadata.path) {
                     _this.web_root = res.data.metadata.path;
                     _this.website_name = res.data.label;
@@ -378,6 +380,7 @@ export default {
                     toastr.error('Website root path cannot be obtained.');
                 }
             }).catch((err) => {
+                _this.$store.commit('setBusy', false);
                 toastr.error('Files listing cannot be obtained.');
             });
         },
