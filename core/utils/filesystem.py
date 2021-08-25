@@ -156,7 +156,6 @@ def get_website_paths(website: object) -> dict:
         'ngix_vhost_conf': os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}.conf'),
         'apache_vhost_dir': os.path.join(settings.APACHE_VHOST_ROOT, f'{website.slug}.d'),
         'apache_vhost_conf': os.path.join(settings.APACHE_VHOST_ROOT, f'{website.slug}.conf'),
-        'ngix_vhost_ssl_conf': os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}-ssl.conf'),
         'ssl_base': ssl_base,
         'priv_key_path': os.path.join(ssl_base, 'priv.key'),
         'cert_chain_path': os.path.join(ssl_base, 'cert.chain')
@@ -221,14 +220,10 @@ def delete_nginx_vhost(website: object) -> bool:
     website_conf_dir = website_paths.get('ngix_vhost_dir')
     try:
         shutil.rmtree(website_conf_dir)
-        ssl_vhost = website_paths.get('ngix_vhost_ssl_conf')
-        non_ssl_vhost = website_paths.get('ngix_vhost_conf')
+        vhost_path = website_paths.get('ngix_vhost_conf')
         
-        if os.path.exists(ssl_vhost):
-            os.remove(ssl_vhost)
-        
-        if os.path.exists(non_ssl_vhost):
-            os.remove(non_ssl_vhost)
+        if os.path.exists(vhost_path):
+            os.remove(vhost_path)
         signals.restart_services.send(sender=None, services='nginx')
         return True
     except:
@@ -310,12 +305,10 @@ def create_nginx_vhost(website: object, **kwargs) -> bool:
     
     # Vhost conf path
     if website.has_ssl and os.path.exists(website_paths.get('cert_chain_path')) and os.path.exists(website_paths.get('priv_key_path')):
-        website_vhost_path = website_paths.get('ngix_vhost_ssl_conf')
         nginx_vhost_tpl_path = 'system/nginx-vhost-https.txt'
         context['chain_path'] = website_paths.get('cert_chain_path')
         context['privkey_path'] = website_paths.get('priv_key_path')
     else:
-        website_vhost_path = website_paths.get('ngix_vhost_conf')
         nginx_vhost_tpl_path = 'system/nginx-vhost-http.txt'
     
     domains = ''
@@ -331,7 +324,7 @@ def create_nginx_vhost(website: object, **kwargs) -> bool:
     tpl_data = render_to_string(nginx_vhost_tpl_path, context=context)
     
     try:
-        with open(website_vhost_path, 'w') as f:
+        with open(website_paths.get('ngix_vhost_conf'), 'w') as f:
             f.write(tpl_data)
         signals.restart_services.send(sender=None, services='nginx')
         return True
