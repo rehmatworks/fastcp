@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from core.models import Website
 from api.websites.services.ssl import FastcpSsl
 from core.signals import domains_updated
-from core.utils.filesystem import ssl_expiring
+from core.utils.system import ssl_expiring
 
 
 class Command(BaseCommand):
