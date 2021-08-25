@@ -121,17 +121,18 @@ class FastcpSsl(object):
                         f.write(acme.regr.json_dumps())
                 
                 # Initiate an order
-                result = acme.request_ssl(domains=verified_domains, priv_key=priv_key)
+                results = acme.request_ssl(domains=verified_domains, priv_key=priv_key)
                 
                 # Write the challenge token to path
-                if result:
+                if results:
                     base_dir = os.path.join(ACME_VERIFY_BASE_DIR, 'acme-challenge')
                     if not os.path.exists(base_dir):
                         os.makedirs(base_dir)
                     
-                    token_path = os.path.join(base_dir, os.path.basename(result.get('path')))
-                    with open(token_path, 'wb') as f:
-                        f.write(result.get('token'))
+                    for result in results:
+                        token_path = os.path.join(base_dir, os.path.basename(result.get('path')))
+                        with open(token_path, 'wb') as f:
+                            f.write(result.get('token'))
                 
                 # After the challange token is written, request SSL cert
                 result = acme.get_ssl()

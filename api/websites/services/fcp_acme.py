@@ -129,6 +129,8 @@ class FastcpAcme(object):
 
         authz_list = orderr.authorizations
 
+        chall_list = []
+        
         for authz in authz_list:
             # Choosing challenge.
             # authz.body.challenges is a set of ChallengeBody objects.
@@ -136,7 +138,9 @@ class FastcpAcme(object):
                 # Find the supported challenge.
                 if chall_type == 'http':
                     if isinstance(i.chall, challenges.HTTP01):
-                        return i
+                        chall_list.append(i)
+        
+        return chall_list
 
         raise Exception(
             'The selected challenge was not offered by the CA server.')
@@ -168,26 +172,29 @@ class FastcpAcme(object):
         self.acme_order = self.client.new_order(csr)
 
         # Get challenge path & token
-        self.challb = self._select_chall(self.acme_order, chall_type=chall_type)
-        response, validation = self.challb.chall.response_and_validation(
-            account_key=self.acc_key)
-        self.response = response
-        
-        print(self.response)
+        self.challs_list = []
+        token_paths = []
+        for chall in self._select_chall(self.acme_order, chall_type=chall_type):
+            self.challs_list.append(chall)
+            response, validation = chall.chall.response_and_validation(
+                account_key=self.acc_key)
+            self.response = response
+            
+            print(self.response)
 
-        # Get challenge path
-        challange_path = os.path.join(
-            challenges.HTTP01.URI_ROOT_PATH, self.challb.chall.encode('token'))
+            # Get challenge path
+            challange_path = os.path.join(
+                challenges.HTTP01.URI_ROOT_PATH, chall.chall.encode('token'))
+            
+            # Challenge token
+            challenge_token = validation.encode()
+            
+            token_paths.append({
+                'path': challange_path,
+                'token': challenge_token
+            })
         
-        print(challange_path)
-        
-        # Challenge token
-        challenge_token = validation.encode()
-        
-        return {
-            'path': challange_path,
-            'token': challenge_token
-        }
+        return token_paths
         
     def get_ssl(self):
         """Get SSL certificate files.
@@ -198,8 +205,8 @@ class FastcpAcme(object):
         Returns:
             dict: Dict containing SSL certificates and the private key.
         """
-        self.client.answer_challenge(self.challb, self.response)
-        print(self.acme_order.body.authorizations)
+        for chall in self.challs_list:
+            self.client.answer_challenge(chall, self.response)
         order_result = self.client.poll_and_finalize(self.acme_order)
         return {
             'full_chain': order_result.fullchain_pem,
