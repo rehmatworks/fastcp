@@ -2,6 +2,7 @@ from django.core.management.base import BaseCommand
 from core.models import Website
 from api.websites.services.ssl import FastcpSsl
 from core.signals import domains_updated
+from core.utils.filesystem import ssl_expiring
 
 
 class Command(BaseCommand):
@@ -11,7 +12,7 @@ class Command(BaseCommand):
         websites = Website.objects.all()
         
         for website in websites:
-            if website.needs_ssl():
+            if website.needs_ssl() or ssl_expiring(website):
                 fcp = FastcpSsl()
                 activated = fcp.get_ssl(website)
 

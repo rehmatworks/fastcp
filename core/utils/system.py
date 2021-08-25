@@ -1,15 +1,13 @@
-import secrets
-import string
-import os
-import crypt
-import pwd
+import secrets, string, os, crypt, pwd
+from datetime import datetime
 from django.template.loader import render_to_string
 from api.databases.services.mysql import FastcpSqlService
 from core.utils import filesystem
 from subprocess import (
     STDOUT, check_call, CalledProcessError, Popen, PIPE, DEVNULL
 )
-import shutil
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 
 
 # Constants
@@ -226,3 +224,40 @@ def delete_user_data(user: object) -> None:
 
     # Delete system user
     run_cmd(f'/usr/sbin/userdel {user.username}')
+
+
+def ssl_expiring(website: object) -> bool:
+    """Check if SSL is expiring.
+    
+    If an SSL has expired or if it is going to expire <= 7 days, this function will return True. FastCP uses this
+    function to determine either an SSL certificate should be requested for a website or not.
+    
+    Args:
+        website (object): Website model object.
+        
+    Returns:
+        bool: Returns True if it's expiring, and returns False if expiry is not near or if SSL cert file was not found.
+    """
+    
+    paths = filesystem.get_website_paths(website)
+    
+    if os.path.exists(paths.get('cert_chain_path')):
+        with open(paths.get.get('cert_chain_path')) as f:
+            certdata = f.read().encode()
+        
+        cert = x509.load_pem_x509_certificate(certdata, default_backend())
+        expiry = cert.not_valid_after
+        curr_time = datetime.now()
+        
+        # If expired
+        if expiry <= curr_time:
+            return True
+        
+        # Time delta
+        delta = expiry - curr_time
+        
+        # If <= 7 days left
+        if delta.days <= 7:
+            return True
+    
+    return False
