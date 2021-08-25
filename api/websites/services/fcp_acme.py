@@ -28,15 +28,18 @@ class FastcpAcme(object):
     This class is responsible to generate SSL certificates using Let's Encrypt ACME API v2.0.
     """
 
-    def __init__(self, acc_key: object = None, staging: bool = False):
+    def __init__(self, acc_key: object = None, account: object = None, staging: bool = False):
         """Create ACME client.
 
         This method sets the ACME client and prepares the initial configuration.
 
         Args:
             acc_key (object): The account key object. If not provided, it will be created.
+            account (object): Existing account if already created.
             staging (bool): Specifies either the staging directory URL should be used the production URL.
         """
+        
+        # Generate account key if not provided
         if not acc_key:
             acc_key = self._generate_acc_key()
 
@@ -47,9 +50,15 @@ class FastcpAcme(object):
         else:
             dir_url = DIRECTORY_URL
 
-        net = client.ClientNetwork(self.acc_key, user_agent=USER_AGENT)
+        net = client.ClientNetwork(self.acc_key, account=account, user_agent=USER_AGENT)
         directory = messages.Directory.from_json(net.get(dir_url).json())
         self.client = client.ClientV2(directory, net=net)
+        
+        # Register account if not exists
+        if not account:
+            account = self._register_account()
+
+        self.account = account
 
     def _generate_acc_key(self) -> object:
         """Generate account key.
@@ -73,7 +82,7 @@ class FastcpAcme(object):
         if email:
             email = (email)
               
-        self.client.new_account(
+        return self.client.new_account(
             messages.NewRegistration.from_data(email=None, terms_of_service_agreed=True))
 
     def _generate_csr(self, domains: list, priv_key: str = None) -> tuple:
@@ -141,8 +150,6 @@ class FastcpAcme(object):
         Returns:
             dict: Containing the challenge HTTP path and the auth token.
         """
-        # Register account
-        self._register_account(email=email)
         
         # Create a CSR and priv key
         priv_key, csr = self._generate_csr(domains, priv_key=priv_key)

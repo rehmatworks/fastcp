@@ -1,6 +1,6 @@
 from .fcp_acme import FastcpAcme
 import requests
-import os
+import os, pickle
 from core.utils.filesystem import get_website_paths
 from core.signals import restart_services
 from core.models import Domain
@@ -10,12 +10,37 @@ from core.models import Domain
 FCP_VERIFY_PATH = '/.well-known/fastcp-verify.txt'
 FCP_VERIFY_STR = 'fastcp' # This should be written to the verify file above by the installer
 ACME_VERIFY_BASE_DIR = '/var/fastcp/well-known'
+FCP_ACME_CONFIG_DIR = '/var/fastcp/.config'
+FCP_ACCOUNT_KEY_PATH = os.path.join(FCP_ACME_CONFIG_DIR, 'account_key')
+FCP_ACCOUNT_RESOURCE_PATH = os.path.join(FCP_ACME_CONFIG_DIR, 'account_resource')
+
 
 class FastcpSsl(object):
     """FastCP SSL.
     
     This class deals with Let's Encrypt SSL certificates for domains.
+    
+    Attributes:
+        account (object): The ACME account serialized resource object.
+        acc_key (object): The ACME account key serialized object.
     """
+    account = None
+    acc_key = None
+    
+    def __init__(self) -> None:
+        # Create if config dir not exists
+        if not os.path.exists(FCP_ACME_CONFIG_DIR):
+            os.makedirs(FCP_ACME_CONFIG_DIR)
+        
+        # Load account key and account resource
+        if os.path.exists(FCP_ACCOUNT_KEY_PATH):
+            with open(FCP_ACCOUNT_KEY_PATH, 'rb') as f:
+                self.acc_key = pickle.load(f.read())
+        
+        if os.path.exists(FCP_ACCOUNT_RESOURCE_PATH):
+            with open(FCP_ACCOUNT_RESOURCE_PATH, 'rb') as f:
+                self.account = pickle.load(f.read())
+            
     
     def is_resolving(self, domain: str) -> bool:
         """Check resolving or not.
@@ -81,7 +106,18 @@ class FastcpSsl(object):
                 priv_key = None
             
             if len(verified_domains):
-                acme = FastcpAcme(staging=True)
+                acme = FastcpAcme(staging=True, acc_key=self.acc_key, account=self.account)
+                
+                # Save account key
+                if not self.acc_key:
+                    with open(FCP_ACCOUNT_KEY_PATH, 'wb') as f:
+                        pickle.dump(acme.acc_key)
+                
+                # Save account resource so we will not need to register an account
+                # again and again.
+                if not self.account:
+                    with open(FCP_ACCOUNT_RESOURCE_PATH, 'wb') as f:
+                        pickle.dump(acme.account)
                 
                 # Initiate an order
                 result = acme.request_ssl(domains=verified_domains, priv_key=priv_key)
