@@ -21,6 +21,6 @@ class Command(BaseCommand):
                     website.save()
                     domains_updated.send(sender=website)
                 else:
-                    self.stdout.write(self.style.ERROR(f'SSL certificate cannot be activated for {website}'))
+                    self.stdout.write(self.style.ERROR(f'SSL certificate cannot be activated for some or all domains for {website}'))
             else:
                 self.stdout.write(self.style.SUCCESS(f'Website {website} does not need an SSL.'))
