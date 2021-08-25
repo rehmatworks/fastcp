@@ -200,10 +200,13 @@ class FastcpAcme(object):
         Returns:
             dict: Dict containing SSL certificates and the private key.
         """
-        for chall in self.challs_list:
-            self.client.answer_challenge(chall, self.response)
-        order_result = self.client.poll_and_finalize(self.acme_order)
-        return {
-            'full_chain': order_result.fullchain_pem,
-            'priv_key': self.priv_key
-        }
+        try:
+            for chall in self.challs_list:
+                self.client.answer_challenge(chall, self.response)
+            order_result = self.client.poll_and_finalize(self.acme_order)
+            return {
+                'full_chain': order_result.fullchain_pem,
+                'priv_key': self.priv_key
+            }
+        except:
+            return False
