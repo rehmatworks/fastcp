@@ -76,10 +76,17 @@ class RefreshSsl(APIView):
                 domains_updated.send(sender=website)
                 website.has_ssl = True
                 website.save()
-        
-        return Response({
-            'status': 'SSL certificates refresh request has been processed.'
-        })
+                return Response({
+                    'message': 'SSL certificates refresh request has been processed.'
+                })
+            else:
+                return Response({
+                    'message': 'SSL cannot be activated for some or all domains.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({
+                'message': 'This website has already valid SSLs installed.'
+            })
 
 class DeleteDomainView(APIView):
     """Delete a domain from a website."""

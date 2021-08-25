@@ -338,11 +338,15 @@ export default {
             axios.post(`/websites/${_this.$route.params.id}/refresh-ssl/`).then((res) => {
                 _this.$store.commit('setBusy', false);
                 _this.getWebsite();
-                toastr.success('SSL certificates refresh request has been processed.');
+                toastr.success(res.data.message);
                 _this.refresh_ssl = false;
             }).catch((err) => {
                 _this.$store.commit('setBusy', false);
-                toastr.error('SSL certificates cannot be refreshed.');
+                if(err.response && err.response.data.message) {
+                    toastr.error(err.response.data.message);
+                } else {
+                    toastr.error('SSL certificates cannot be refreshed.');
+                }
             });
         }
     },
