@@ -102,6 +102,9 @@ def delete_website(website: object):
 
     # Delete Apache vhost files
     filesystem.delete_apache_vhost(website)
+    
+    # Delete SSL certs
+    filesystem.delete_ssl_certs(website)
 
 
 def rand_passwd(length: int = 20) -> str:

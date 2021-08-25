@@ -229,6 +229,19 @@ def delete_nginx_vhost(website: object) -> bool:
     except:
         return False
 
+
+def delete_ssl_certs(website: object) -> None:
+    """Delete SSL certs.
+    
+    Delete SSL certificates of a website if exist.
+    
+    Args:
+        website (object): Website model object.
+    """
+    website_paths = get_website_paths(website)
+    if os.path.exists(website_paths.get('ssl_base')):
+        shutil.rmtree(website_paths.get('ssl_base'))
+
 def create_apache_vhost(website: object, **kwargs) -> bool:
     """Create Apache vhost file.
     
