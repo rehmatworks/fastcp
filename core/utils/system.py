@@ -229,7 +229,7 @@ def delete_user_data(user: object) -> None:
 def ssl_expiring(website: object) -> bool:
     """Check if SSL is expiring.
     
-    If an SSL has expired or if it is going to expire <= 7 days, this function will return True. FastCP uses this
+    If an SSL has expired or if it is going to expire <= 30 days, this function will return True. FastCP uses this
     function to determine either an SSL certificate should be requested for a website or not.
     
     Args:
@@ -257,7 +257,7 @@ def ssl_expiring(website: object) -> bool:
         delta = expiry - curr_time
         
         # If <= 7 days left
-        if delta.days <= 7:
+        if delta.days <= 30:
             return True
     
     return False
