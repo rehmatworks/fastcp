@@ -283,7 +283,7 @@ def create_apache_vhost(website: object, **kwargs) -> bool:
     except:
         return False
 
-def create_nginx_vhost(website: object, protocol: str='http', **kwargs) -> bool:
+def create_nginx_vhost(website: object, **kwargs) -> bool:
     """Create NGINX vhost file.
     
     This function generates NGINX vhost file. The default protocol is HTTP. If the vhost needs to be created for
@@ -300,12 +300,23 @@ def create_nginx_vhost(website: object, protocol: str='http', **kwargs) -> bool:
     user_paths = get_user_paths(website.user)
     create_if_missing(website_paths.get('ngix_vhost_dir'))
     
+    # Template rendering context
+    context = {
+        'app_name': website.slug,
+        'log_path': user_paths.get('logs_path'),
+        'webroot': website_paths.get('web_root'),
+        'socket_path': website_paths.get('socket_path')
+    }
+    
     # Vhost conf path
-    is_ssl = protocol == 'https' and kwargs.get('ssl_cert') and kwargs.get('ssl_key')
-    if is_ssl:
+    if website.has_ssl and os.path.exists(website_paths.get('cert_chain_path')) and os.path.exists(website_paths.get('priv_key_path')):
         website_vhost_path = website_paths.get('ngix_vhost_ssl_conf')
+        nginx_vhost_tpl_path = 'system/nginx-vhost-https.txt'
+        context['chain_path'] = website_paths.get('cert_chain_path')
+        context['privkey_path'] = website_paths.get('priv_key_path')
     else:
         website_vhost_path = website_paths.get('ngix_vhost_conf')
+        nginx_vhost_tpl_path = 'system/nginx-vhost-http.txt'
     
     domains = ''
     i = 0
@@ -315,20 +326,9 @@ def create_nginx_vhost(website: object, protocol: str='http', **kwargs) -> bool:
         domains += domain.domain
         i += 1
     
-    context = {
-        'domains': domains,
-        'app_name': website.slug,
-        'log_path': user_paths.get('logs_path'),
-        'webroot': website_paths.get('web_root'),
-        'socket_path': website_paths.get('socket_path')
-    }
+    context['domains'] = domains
     
-    if is_ssl:
-        context['ssl_cert'] = kwargs.get('ssl_cert')
-        context['ssl_key'] = kwargs.get('ssl_key')
-        tpl_data = render_to_string('system/nginx-vhost-https.txt', context=context)
-    else:
-        tpl_data = render_to_string('system/nginx-vhost-http.txt', context=context)
+    tpl_data = render_to_string(nginx_vhost_tpl_path, context=context)
     
     try:
         with open(website_vhost_path, 'w') as f:
