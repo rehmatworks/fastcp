@@ -142,7 +142,7 @@ class FastcpAcme(object):
         
         return chall_list
 
-    def request_ssl(self, domains: list, email: str = None, priv_key: str = None, chall_type='http') -> dict:
+    def request_ssl(self, domains: list, priv_key: str = None, chall_type='http') -> dict:
         """Create a new SSL certificate request.
 
         This creates a new order for an SSL certificate for the provided domains. This method doesn't
