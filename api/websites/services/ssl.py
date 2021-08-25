@@ -1,7 +1,6 @@
 from .fcp_acme import FastcpAcme
 import requests
 import os
-import dill as pickle
 from core.utils.filesystem import get_website_paths
 from core.signals import restart_services
 from core.models import Domain
