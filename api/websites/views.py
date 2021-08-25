@@ -9,6 +9,8 @@ from rest_framework import permissions
 from django.db.models import Q
 from .services.get_php_versions import PhpVersionListService
 from core import signals
+from api.websites.services.ssl import FastcpSsl
+from core.signals import domains_updated
 
 
 class DomainAddView(APIView):
@@ -46,6 +48,33 @@ class DomainAddView(APIView):
         
         return Response({
             'message': 'The domain has been deleted successfully.'
+        })
+
+class RefreshSsl(APIView):
+    """Refreshes the SSL certificates for a website."""
+    http_method_names = ['post']
+    
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        website_id = kwargs.get('id')
+        if user.is_superuser:
+            website = Website.objects.filter(id=website_id).first()
+        else:
+            website = Website.objects.filter(user=user, id=website_id).first()
+        
+        if not website:
+            return Response({
+                'message': f'Target website with ID {website_id} was not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Refresh SSL
+        fcp = FastcpSsl()
+        activated = fcp.get_ssl(website)
+        if activated:
+            domains_updated.send(sender=website)
+        
+        return Response({
+            'status': 'SSL certificates refresh request has been processed.'
         })
 
 class DeleteDomainView(APIView):

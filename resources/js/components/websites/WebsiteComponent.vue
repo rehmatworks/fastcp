@@ -100,11 +100,31 @@
                             <button @click="add_dom=false" class="btn btn-success">Cancel</button>
                         </div>
                     </div>
+                    <div v-if="refresh_ssl" class="card mb-3">
+                        <div class="card-header">
+                            Refresh SSL Certificates
+                        </div>
+                        <div class="card-body">
+                            <p>FastCP automatically obtains SSL certificates and automatically renews them for domains that point to this server. When a new domain is added, it may take up to 1 hour before an SSL certificate is obtained.</p>
+                            <p>But if you are in a hurry and need to activate SSL certificates right away, you can request a refresh below. If SSL can't be activated, ensure that the domains are resolving to this server's IP.</p>
+                        </div>
+                        <div class="card-footer">
+                            <button @click="refreshSslCerts()" class="btn btn-warning">
+                                Refresh SSL
+                            </button>
+                            <button class="btn btn-primary" @click="refresh_ssl=false">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
                     <div class="card">
                         <div class="card-header text-light bg-primary">
                             Domains ({{ website.domains.length }})
                             <button @click="add_dom=!add_dom" class="btn btn-primary float-right">
                                 <i class="fas fa-plus"></i> Add
+                            </button>
+                            <button @click="refresh_ssl=!refresh_ssl" class="btn btn-primary float-right">
+                                <i class="fas fa-lock"></i> Refresh SSL
                             </button>
                         </div>
                         <div class="card-body">
@@ -195,6 +215,7 @@ export default {
             del_dom: false,
             new_domain: '',
             add_dom: false,
+            refresh_ssl: false,
             errors: {}
         };
     },
@@ -309,6 +330,18 @@ export default {
                 } else {
                     toastr.error('Domain cannot be deleted.');
                 }
+            });
+        },
+        refreshSslCerts() {
+            let _this = this;
+            _this.$store.commit('setBusy', true);
+            axios.post(`/websites/${_this.$route.params.id}/refresh-ssl/`).then((res) => {
+                _this.$store.commit('setBusy', false);
+                toastr.success('SSL certificates refresh request has been processed.');
+                _this.refresh_ssl = false;
+            }).catch((err) => {
+                _this.$store.commit('setBusy', false);
+                toastr.error('SSL certificates cannot be refreshed.');
             });
         }
     },
