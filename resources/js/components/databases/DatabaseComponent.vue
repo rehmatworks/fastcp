@@ -143,7 +143,7 @@ export default {
                 })
                 .catch((err) => {
                     _this.$store.commit('setBusy', false);
-                    toastr.error('SSH/SFTP password cannot be updated.');
+                    toastr.error('MySQL password cannot be updated.');
                 });
         },
         getDatabase() {
