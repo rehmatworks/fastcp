@@ -13,7 +13,7 @@
                             General Details
                         </div>
                         <div class="card-body">
-                            <p v-if="new_password">New password is <small class="text-info font-weight-bold">{{ new_password }}</small> and it is show to you this single time. <a @click="new_password=false" class="text-danger text-decoration-none" style="font-size:14px;" href="javascript:void(0)"><i class="fas fa-times-circle"></i> Hide</a></p>
+                            <p v-if="new_password">New password is <small class="text-info font-weight-bold">{{ new_password }}</small> and it is shown to you this single time. <a @click="new_password=false" class="text-danger text-decoration-none" style="font-size:14px;" href="javascript:void(0)"><i class="fas fa-times-circle"></i> Hide</a></p>
                             <div class="responsive-table">
                                 <table class="table table-borderless table-striped">
                                     <tbody>
