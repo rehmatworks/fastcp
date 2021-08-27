@@ -57,7 +57,13 @@ class ListFileService(BaseService):
             except EmptyPage:
                 previous_page = None
             
+            try:
+                segments = enumerate([path for path in str(path).split('/') if len(path.strip()) > 0])
+            except:
+                segments = []
+            
             data = {
+                'segments': segments,
                 'links': {
                     'next': next_page,
                     'previous': previous_page
