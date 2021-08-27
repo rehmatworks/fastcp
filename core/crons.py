@@ -12,7 +12,7 @@ class ProcessSsls(CronJobBase):
         schedule (object): The schedule of this CRON class. It will execute every X minutes.
         code (str): A unique string to distinguish this CRON class among others.
     """
-    schedule = Schedule(run_every_mins=30)
+    schedule = Schedule(run_every_mins=10)
     code = 'fastcp.proces_certs'
     
     def do(self):
