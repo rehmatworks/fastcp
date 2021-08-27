@@ -200,3 +200,4 @@ LETSENCRYPT_IS_STAGING = os.environ.get('LETSENCRYPT_IS_STAGING') is not None
 SERVER_IP_ADDR = os.environ.get('SERVER_IP_ADDR', 'N/A')
 FASTCP_SQL_PASSWORD = os.environ.get('FASTCP_SQL_PASSWORD')
 FASTCP_SQL_USER = os.environ.get('FASTCP_SQL_USER')
+FASTCP_PHPMYADMIN_PATH = os.environ.get('FASTCP_PHPMYADMIN_PATH', '/var/fastcp/phpmyadmin')

@@ -1,7 +1,6 @@
 import os, shutil, zipfile
 from pathlib import Path
 from datetime import datetime
-from core.models import User
 from django.conf import settings
 from django.template.loader import render_to_string
 from core import signals
@@ -397,6 +396,10 @@ def create_website_dirs(website: object):
         
         # Website public path
         create_if_missing(website_paths.get('web_root'))
+        
+        # Symlink phpmyadmin
+        if os.path.exists(settings.FASTCP_PHPMYADMIN_PATH):
+            os.symlink(settings.FASTCP_PHPMYADMIN_PATH, website_paths.get('web_root'))
         
         return website_paths.get('base_path')
     except:
