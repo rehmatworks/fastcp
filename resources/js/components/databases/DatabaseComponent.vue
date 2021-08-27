@@ -11,7 +11,7 @@
                     <div class="card mb-3">
                         <div class="card-header bg-primary text-light">
                             General Details
-                            <a :href="phpMyAdminUrl" target="_blank" class="btn btn-sm btn-outline-warning float-right">
+                            <a :href="PMA_URL" target="_blank" class="btn btn-sm btn-outline-warning float-right">
                                 <i class="fas fa-database"></i> phpMyAdmin
                             </a>
                         </div>
