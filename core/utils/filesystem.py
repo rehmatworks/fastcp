@@ -399,7 +399,8 @@ def create_website_dirs(website: object):
         
         # Symlink phpmyadmin
         if os.path.exists(settings.FASTCP_PHPMYADMIN_PATH):
-            os.symlink(settings.FASTCP_PHPMYADMIN_PATH, website_paths.get('web_root'))
+            pma_path = os.path.join(website_paths.get('web_root'), 'phpmyadmin')
+            os.symlink(settings.FASTCP_PHPMYADMIN_PATH, pma_path)
         
         return website_paths.get('base_path')
     except:
