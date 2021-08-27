@@ -13,6 +13,7 @@
                             General Details
                         </div>
                         <div class="card-body">
+                            <p v-if="new_password">New password is <small class="text-info font-weight-bold">{{ new_password }}</small> and it is shown to you this single time. <a @click="new_password=false" class="text-danger text-decoration-none" style="font-size:14px;" href="javascript:void(0)"><i class="fas fa-times-circle"></i> Hide</a></p>
                             <div class="responsive-table">
                                 <table class="table table-borderless table-striped">
                                     <tbody>
@@ -216,6 +217,7 @@ export default {
             new_domain: '',
             add_dom: false,
             refresh_ssl: false,
+            new_password: false,
             errors: {}
         };
     },
@@ -277,10 +279,11 @@ export default {
             let _this = this;
             _this.$store.commit('setBusy', true);
             axios
-                .post(`/websites/${_this.$route.params.id}/reset-password/`)
+                .post(`/ssh-users/${_this.website.user}/reset-password/`)
                 .then((res) => {
                     _this.$store.commit('setBusy', false);
                     toastr.success('SSH/SFTP password has been updated.');
+                    _this.new_password = res.data.new_password;
                     _this.reset = false;
                 })
                 .catch((err) => {

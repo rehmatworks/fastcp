@@ -7,15 +7,18 @@
                 </div>
             </div>
             <div v-if="database" class="row">
+                <div v-if="pma" class="col-md-8">
+                    <div class="alert alert-info">
+                        <p>To access phpMyAdmin, navigate to <strong>phpmyadmin</strong> path on any of your domains hosted on this server, and then use this database's username and password to sign in and manage the database.</p>
+                        <p>You are free to use any domain to access phpMyAdmin as long as it is added to a site on this server. For example, if one of your websites has a domain name <strong>example.com</strong>, you can use <strong>https://example.com/phpmyadmin</strong> to access phpMyAdmin.</p>
+                    </div>
+                </div>
                 <div class="col-md-8">
                     <div class="card mb-3">
                         <div class="card-header bg-primary text-light">
                             General Details
-                            <button class="btn btn-sm btn-primary float-right">
-                                <i class="fas fa-upload"></i> Upload
-                            </button>
-                            <button class="btn btn-sm btn-primary float-right">
-                                <i class="fas fa-download"></i> Download
+                            <button @click="pma=!pma" class="btn btn-sm btn-outline-warning float-right">
+                                <i class="fas fa-database"></i> phpMyAdmin
                             </button>
                         </div>
                         <div class="card-body">
@@ -122,7 +125,8 @@ export default {
             new_domain: '',
             new_password: false,
             add_dom: false,
-            errors: {}
+            errors: {},
+            pma: false
         };
     },
     created() {

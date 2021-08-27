@@ -41,7 +41,7 @@ class ListFileService(BaseService):
                 except PermissionError:
                     pass
             
-            paginator = Paginator(files, 15)
+            paginator = Paginator(files, 30)
             try:
                 page = paginator.page(validated_data.get('page'))
             except EmptyPage:
