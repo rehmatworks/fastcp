@@ -56,7 +56,8 @@ Vue.mixin({
     data() {
         return {
             EventBus: EventBus,
-            FM_ROOT: FM_ROOT
+            FM_ROOT: FM_ROOT,
+            PMA_URL: PMA_URL
         }
     },
     methods: {

@@ -7,19 +7,13 @@
                 </div>
             </div>
             <div v-if="database" class="row">
-                <div v-if="pma" class="col-md-8">
-                    <div class="alert alert-info">
-                        <p>To access phpMyAdmin, navigate to <strong>phpmyadmin</strong> path on any of your domains hosted on this server, and then use this database's username and password to sign in and manage the database.</p>
-                        <p>You are free to use any domain to access phpMyAdmin as long as it is added to a site on this server. For example, if one of your websites has a domain name <strong>example.com</strong>, you can use <strong>https://example.com/phpmyadmin</strong> to access phpMyAdmin.</p>
-                    </div>
-                </div>
                 <div class="col-md-8">
                     <div class="card mb-3">
                         <div class="card-header bg-primary text-light">
                             General Details
-                            <button @click="pma=!pma" class="btn btn-sm btn-outline-warning float-right">
+                            <a :href="phpMyAdminUrl" target="_blank" class="btn btn-sm btn-outline-warning float-right">
                                 <i class="fas fa-database"></i> phpMyAdmin
-                            </button>
+                            </a>
                         </div>
                         <div class="card-body">
                             <p v-if="new_password">New password is <small class="text-info font-weight-bold">{{ new_password }}</small> and it is shown to you this single time. <a @click="new_password=false" class="text-danger text-decoration-none" style="font-size:14px;" href="javascript:void(0)"><i class="fas fa-times-circle"></i> Hide</a></p>
@@ -125,8 +119,7 @@ export default {
             new_domain: '',
             new_password: false,
             add_dom: false,
-            errors: {},
-            pma: false
+            errors: {}
         };
     },
     created() {

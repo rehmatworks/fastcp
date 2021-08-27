@@ -17,5 +17,6 @@ def general_settings(request):
         'FASTCP_SITE_NAME': settings.FASTCP_SITE_NAME,
         'FASTCP_SITE_URL': settings.FASTCP_SITE_URL,
         'FASTCP_FM_ROOT': settings.FILE_MANAGER_ROOT,
-        'FASTCP_VERSION': settings.FASTCP_VERSION
+        'FASTCP_VERSION': settings.FASTCP_VERSION,
+        'PMA_URL': f'https://{settings.SERVER_IP_ADDR}/phpmyadmin'
     }
