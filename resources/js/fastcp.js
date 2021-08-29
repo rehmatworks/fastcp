@@ -18,6 +18,9 @@ Vue.filter('floatformat', function(num) {
 
 Vue.component('v-select', VueSelect.VueSelect);
 
+// Global components
+Vue.component('usercreate-component', require('./components/generic/CreateuserComponent').default);
+
 Vue.filter('prettyBytes', function (num) {
     if (typeof num !== 'number' || isNaN(num)) {
         throw new TypeError('Expected a number');

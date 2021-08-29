@@ -26,14 +26,7 @@
                                         </a>
                                     </small>
                                 </label>
-                                <div v-if="create" class="input-group">
-                                    <input :class="{'is-invalid': errors.username}" v-model="ssh_user" placeholder="Username" type="text" class="form-control">
-                                    <input type="text" :class="{'is-invalid': errors.password}" placeholder="Password" class="form-control" v-model="user_pass">
-                                    <div class="input-group-append">
-                                        <button @click="createUser()" :class="{'btn-outline-secondary': !errors.username, 'btn-outline-danger': errors.username}" class="btn" type="button">Create</button>
-                                    </div>
-                                    <p class="invalid-feedback" v-if="errors.username">{{ errors.username[0] }}</p>
-                                </div>
+                                <usercreate-component v-if="create"/>
                                 <v-select v-else :options="users" @search="getUsers" v-model="ssh_user"></v-select>
                                 <p class="text-danger" v-if="!create && errors.user">{{ errors.user[0] }}</p>
                             </div>
@@ -84,7 +77,7 @@
     </div>
 </template>
 <script>
-export default {
+export default{
     data() {
         return {
             name: '',
@@ -93,7 +86,6 @@ export default {
             errors: {},
             create: false,
             ssh_user: '',
-            user_pass: '',
             users: []
         }
     },
@@ -102,8 +94,14 @@ export default {
         if(this.$store.state.user && this.$store.state.user.is_root) {
             this.getUsers();
         }
+        this.EventBus.$on('userCreated', this.handleUserCreated);
     },
     methods: {
+        handleUserCreated(username) {
+            this.create = false;
+            this.ssh_user = username;
+            this.getUsers();
+        },
         getUsers(search='', loading=false) {
             let _this = this;
             _this.errors = {};
@@ -146,24 +144,7 @@ export default {
                 _this.$store.commit('setBusy', false);
                 _this.errors = err.response.data;
             });
-        },
-        createUser() {
-            let _this = this;
-            _this.$store.commit('setBusy', true);
-            let fd = new FormData();
-            fd.append('username', _this.ssh_user);
-            fd.append('password', _this.user_pass);
-            axios.post('/ssh-users/', fd).then((res) => {
-                _this.getUsers();
-                toastr.success('SSH user has been created successfully.');
-                _this.$store.commit('setBusy', false);
-                _this.create = false;
-                _this.ssh_user = res.data.username;
-            }).catch((err) => {
-                _this.$store.commit('setBusy', false);
-                _this.errors = err.response.data;
-             });
-        },
+        }
     },
     watch: {
         create(newval, oldval) {
