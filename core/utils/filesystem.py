@@ -260,18 +260,18 @@ def create_apache_vhost(website: object, **kwargs) -> bool:
     website_vhost_path = website_paths.get('apache_vhost_conf')
     
     main_domain = None
-    server_alias = []
+    server_aliases = []
     i = 0
     for domain in website.domains.all():
         if i  == 0:
             main_domain = domain.domain
         else:
-            server_alias.append(domain.domain)
+            server_aliases.append(domain.domain)
         i += 1
     
     context = {
         'domain': main_domain,
-        'server_alias': server_alias,
+        'server_aliases': server_aliases,
         'app_name': website.slug,
         'log_root': user_paths.get('logs_path'),
         'ssh_user': website.user.username,
