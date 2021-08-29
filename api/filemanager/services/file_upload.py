@@ -56,7 +56,7 @@ class FileUploadService(BaseService):
                 # Check status code
                 if res.status_code == 200:
                     with open(dest_path, 'wb') as f:
-                        for chunk in res.iter_content(chunk_size=1024):
+                        for chunk in res.iter_content(chunk_size=(1024*1024)):
                             f.write(chunk)
                 
                     return True
