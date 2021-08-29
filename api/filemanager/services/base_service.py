@@ -61,7 +61,7 @@ class BaseService(object):
         """
         path = str(path)
         if self.is_owner(path, user):
-            return path.startswith(settings.FILE_MANAGER_ROOT) and len(path.split('/')) >= 7
+            return path.startswith(settings.FILE_MANAGER_ROOT) and len(path.split('/')) >= 6
         return False
         
     
