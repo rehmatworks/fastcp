@@ -39,6 +39,28 @@ class UploadFileView(APIView):
                 'error': 'File cannot be uploaded to the specified location.'
             }, status=status.HTTP_400_BAD_REQUEST)
 
+class RemoteUpload(APIView):
+    """Remote Upload.
+    
+    This view allows the users to fetch files from remote URLs. The remote URLs must host a public file.
+    """
+    http_method_names = ['post']
+    
+    def post(self, request, *args, **kwargss):
+        """Handle file upload"""
+        s = serializers.RemoteUploadSerializer(data=request.data)
+        if not s.is_valid():
+            return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        
+        if FileUploadService(request).remote_upload(s.validated_data):
+            return Response({
+                'message': 'File has been successfully fetched.'
+            })
+        else:
+            return Response({
+                'error': 'File cannot be fetched to the specified location.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
 
 class MoveItemsView(APIView):
     """Move Items.

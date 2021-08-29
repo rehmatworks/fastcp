@@ -12,4 +12,5 @@ urlpatterns = [
     path('move-items/', views.MoveItemsView().as_view(), name='move_items'),
     path('rename-item/', views.RenameItem().as_view(), name='rename_item'),
     path('update-permissions/', views.UpdatePermissions().as_view(), name='update_permissions'),
+    path('remote-fetch/', views.RemoteUpload().as_view(), name='remote_fetch'),
 ]

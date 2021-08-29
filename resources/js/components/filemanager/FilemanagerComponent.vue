@@ -62,6 +62,20 @@
                             Cancel
                         </button>
                     </p>
+                    <p v-else-if="remote_upl">
+                        <input style="max-width:inherit;width:80%;" v-model="remote_url" type="url" placeholder="Enter a remote public URL to download any file over your server network." />
+                        <button
+                            @click="fetchRemote()"
+                            class="btn btn-info btn-sm"
+                            :disabled="!remote_url"
+                        >
+                            Fetch
+                        </button>
+                        <button @click="remote_upl = false" class="btn btn-warning btn-sm">
+                            Cancel
+                        </button>
+                        <small class="text-danger d-block mt-0" v-if="errors.remote_url">{{ errors.remote_url[0] }}</small>
+                    </p>
                     <p class="border mb-1 mt-1 file-toolbar rounded">
                         <nav class="navbar navbar-expand-lg navbar-light bg-light">
                             <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNavAltMarkup" aria-controls="navbarNavAltMarkup" aria-expanded="false" aria-label="Toggle navigation">
@@ -91,6 +105,13 @@
                                         class="nav-item nav-link"
                                     >
                                         <i class="fas fa-upload"></i> Upload
+                                    </a>
+                                    <a
+                                        @click="remote_upl=!remote_upl"
+                                        href="javascript:void(0)"
+                                        class="nav-item nav-link"
+                                    >
+                                        <i class="fas fa-globe"></i> Remote Fetch
                                     </a>
                                     <a
                                         @click="create = true"
@@ -338,11 +359,14 @@ export default {
             files: false,
             edit: false,
             edit_content: '',
+            remote_upl: '',
+            remote_url: '',
             bad_file: false,
             saving: false,
             rename: false,
             selected: [],
             move_selected: [],
+            errors: {},
             selall: false,
             del: false,
             create: false,
@@ -716,6 +740,27 @@ export default {
                 toastr.success('Permissions have been successfully updated.');
             }).catch((err) => {
                 toastr.error('Permissions cannot be updated for this item.');
+            });
+        },
+        fetchRemote() {
+            let _this = this;
+            _this.errors = {};
+            let fd = new FormData();
+            fd.append('path', _this.$store.state.path);
+            fd.append('remote_url', _this.remote_url);
+            _this.$store.commit('setBusy', true);
+            axios.post('/file-manager/remote-fetch/', fd).then((res) => {
+                _this.$store.commit('setBusy', false);
+                _this.remote_url = '';
+                _this.remote_upl = false;
+                toastr.success('Remote file has been successfully downloaded.');
+                _this.getFiles();
+            }).catch((err) => {
+                toastr.error('Remote file cannot be downloaded.');
+                if(err.response && err.response.data) {
+                    _this.errors = err.response.data;
+                }
+                _this.$store.commit('setBusy', false);
             });
         }
     },
