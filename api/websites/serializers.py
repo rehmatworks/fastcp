@@ -1,9 +1,10 @@
 from rest_framework import serializers
-from core.models import Website, Domain
+from core.models import Website, Domain, Database
 import validators
 from core import signals
 from core.models import User
 from core.utils import system
+from django.db.models import Q
 
 
 class ChangePhpVersionSerializer(serializers.ModelSerializer):
@@ -98,8 +99,14 @@ class WebsiteSerializer(serializers.ModelSerializer):
         if is_wp:
             website.is_wp = True
             website.save()
-            dbname = f'web{website.pk}wpdb'
-            dbuser = f'web{website.pk}wpuser'
+            i = 1
+            while True: 
+                dbname = f'web{website.pk}{i}wpdb'
+                dbuser = f'web{website.pk}{i}wpuser'
+                if Database.objects.filter(Q(name=dbname) | Q(username=dbuser)).count() == 0:
+                    break
+                i += 1
+                
             dbobj = ssh_user.databases.create(
                 name=dbname,
                 username=dbuser
