@@ -101,8 +101,8 @@ class WebsiteSerializer(serializers.ModelSerializer):
             website.save()
             i = 1
             while True: 
-                dbname = f'wp_{website.pk}{i}'
-                dbuser = f'wp_{website.pk}{i}'
+                dbname = f'wp_db{i}'
+                dbuser = f'wp_user{i}'
                 if Database.objects.filter(Q(name=dbname) | Q(username=dbuser)).count() == 0:
                     break
                 i += 1
