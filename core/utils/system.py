@@ -153,6 +153,10 @@ def setup_wordpress(website: object, **kwargs) -> None:
             content = content.replace('username_here', dbuser)
             # Set DB password
             content = content.replace('password_here', dbpassword)
+            # Set unique keys
+            for _ in range(1, 8+1):
+                content = content.replace('put your unique phrase here', rand_passwd(60), 1)
+            
             f2.write(content)
     fix_ownership(website)
 
