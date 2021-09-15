@@ -107,6 +107,16 @@ class WebsiteSerializer(serializers.ModelSerializer):
         validated_data['user'] = ssh_user
         website = Website.objects.create(**validated_data)
         
+        # Create domains
+        for domain in domains:
+            website.domains.create(
+                domain=domain
+            )
+        
+        # Send domains updated signal so vhost file
+        # will be created.
+        signals.domains_updated.send(sender=website)
+        
         if is_wp:
             website.is_wp = True
             website.save()
@@ -127,14 +137,5 @@ class WebsiteSerializer(serializers.ModelSerializer):
                 'dbpassword': dbpassword
             }
             signals.install_wp.send(sender=website, **wp_data)
-        
-        # Create domains
-        for domain in domains:
-            website.domains.create(
-                domain=domain
-            )
-        
-        # Send domains updated signal so vhost file
-        # will be created.
-        signals.domains_updated.send(sender=website)
+            
         return website
