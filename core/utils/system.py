@@ -8,6 +8,7 @@ from subprocess import (
 )
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+import requests
 
 
 # Constants
@@ -106,21 +107,6 @@ def delete_website(website: object):
     # Delete SSL certs
     filesystem.delete_ssl_certs(website)
 
-def wpcli_cmd(website: object, cmd: str):
-    """Run a WP-CLI command.
-
-    Args:
-        website (object): The website model.
-        cmd (str): The WP-CLI command
-    """
-    # Website paths
-    web_paths = filesystem.get_website_paths(website)
-    web_root = web_paths.get('web_root')
-    user = website.user.username
-    
-    cmd = f'/usr/local/bin/wp {cmd} --allow-root --path={web_root}'
-    os.system(cmd)
-
     
 def setup_wordpress(website: object, **kwargs) -> None:
     """Setup WordPress.
@@ -131,22 +117,43 @@ def setup_wordpress(website: object, **kwargs) -> None:
     Args:
         website (object): Website model object.
     """
-    # Download wp
-    wpcli_cmd(website, f'core download')
+    paths = filesystem.website_paths(website)
+    base_path = paths.get('base_path')
+    pub_path = paths.get('web_root')
     
-    # Config wp
+    # Delete public directory
+    filesystem.delete_dir(pub_path)
+    
+    # Download wordpress
+    wp_archive_path = os.path.join(base_path, 'latest.zip')
+    with requests.get('https://wordpress.org/latest.zip') as res:
+        with open(wp_archive_path, 'wb') as f:
+            f.write(res.content)
+    
+    # Extract ZIP
+    filesystem.extract_zip(base_path, wp_archive_path)
+    
+    # Rename to public
+    os.rename(os.path.join(base_path, 'wordpress'), pub_path)
+    
+    # Delete WP zip
+    os.remove(wp_archive_path)
+    
+    
+    # Populate wp-config
     dbname = kwargs.get('dbname')
     dbpassword = kwargs.get('dbpassword')
     dbuser = kwargs.get('dbuser')
-    wpcli_cmd(website, f'core config --dbname="{dbname}" --dbuser="{dbuser}" --dbpass="{dbpassword}"')
-    
-    # Install WP
-    domain = website.domains.first()
-    siteurl = f'http://{domain.domain}'
-    username = kwargs.get('username')
-    email = kwargs.get('email')
-    password = kwargs.get('password')
-    wpcli_cmd(website, f'core install --url="{siteurl}" --title="My WordPress Blog" --admin_user="{username}" --admin_password="{password}" --admin_email="{email}"')
+    with open(os.path.join(pub_path, 'wp-config-sample.php')) as f:
+        content = f.read()
+        with open(os.path.join(pub_path, 'wp-config.php'), 'w') as f2:
+            # Set DB name
+            content = content.replace('database_name_here', dbname)
+            # Set DB username
+            content = content.replace('username_here', dbuser)
+            # Set DB password
+            content = content.replace('password_here', dbpassword)
+            f2.write(content)
     fix_ownership(website)
 
 

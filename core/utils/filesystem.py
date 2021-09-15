@@ -401,11 +401,19 @@ def create_website_dirs(website: object):
     except:
         return False
 
+def delete_dir(path: str) -> bool:
+    """Delete a directory."""
+    try:
+        shutil.rmtree(path)
+        return True
+    except:
+        return False
+
 def delete_website_dirs(website: object) -> bool:
     """Deletes website directories."""
     website_paths = get_website_paths(website)
     try:
-        shutil.rmtree(website_paths.get('base_path'))
+        delete_dir(website_paths.get('base_path'))
         return True
     except:
         return False
