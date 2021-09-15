@@ -56,21 +56,6 @@
                                     <option value="wordpress">WordPress Website</option>
                                 </select>
                             </div>
-                            <div v-if="website_type=='wordpress'" class="form-group">
-                                <label for="wpuser">WordPress Admin Username</label>
-                                <input type="text" :class="{'is-invalid': errors.wpuser}" class="form-control" v-model="wpuser" placeholder="Provide a username for WordPress admin user.">
-                                <p class="invalid-feedback" v-if="errors.wpuser">{{ errors.wpuser[0] }}</p>
-                            </div>
-                            <div v-if="website_type=='wordpress'" class="form-group">
-                                <label for="email">WordPress Admin Email</label>
-                                <input type="text" :class="{'is-invalid': errors.email}" class="form-control" v-model="email" placeholder="Provide an email address for WordPress admin user.">
-                                <p class="invalid-feedback" v-if="errors.email">{{ errors.email[0] }}</p>
-                            </div>
-                            <div v-if="website_type=='wordpress'" class="form-group">
-                                <label for="password">WordPress Admin Password</label>
-                                <input type="text" :class="{'is-invalid': errors.password}" class="form-control" v-model="password" placeholder="Provide a password for WordPress admin user.">
-                                <p class="invalid-feedback" v-if="errors.password">{{ errors.password[0] }}</p>
-                            </div>
                             <div class="form-group">
                                 <label for="domains">Domains</label>
                                 <input
@@ -169,11 +154,8 @@ export default {
             fd.append('label', _this.label);
             fd.append('php', _this.php);
             fd.append('ssh_user', _this.ssh_user);
-            fd.append('wpuser', _this.wpuser);
             fd.append('domains', _this.domains);
             fd.append('website_type', _this.website_type);
-            fd.append('email', _this.email);
-            fd.append('password', _this.password);
             axios.post('/websites/', fd).then((res) => {
                 _this.$store.commit('setBusy', false);
                 toastr.success('Website has been added successfully.');

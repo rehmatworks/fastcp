@@ -50,34 +50,12 @@ class WebsiteSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError({'domains': [f'{domain} already exists in the database.']})
         
         return domains
-    
-    def validate_wp_creds(self, request):
-        """Validate WP credentials.
-        
-        If WordPress needs to be installed on a website, we will first ensure that the required
-        fields like email and password are provided.
-
-        Args:
-            request (object): The HTTP request object.
-        """
-        if not validators.email(request.POST.get('email')):
-            raise serializers.ValidationError({'email': ['A valid email address is required.']})
-        
-        if not request.POST.get('password'):
-            raise serializers.ValidationError({'password': ['A password for WordPress admin login should be provided.']})
-        
-        if not request.POST.get('wpuser'):
-            raise serializers.ValidationError({'wpuser': ['A username for WordPress admin login should be provided.']})
-        
-        return True
 
     def create(self, validated_data):
         request = self.context['request']
         domains = request.POST.get('domains')
         domains = self.validate_domains(domains)
         is_wp = request.POST.get('website_type') == 'wordpress'
-        if is_wp:
-            self.validate_wp_creds(request)
             
         user = request.user
         if not user.is_superuser:
@@ -129,9 +107,6 @@ class WebsiteSerializer(serializers.ModelSerializer):
             dbpassword = system.rand_passwd()
             signals.create_db.send(sender=dbobj, password=dbpassword)
             wp_data = {
-                'username': request.POST.get('wpuser'),
-                'email': request.POST.get('email'),
-                'password': request.POST.get('password'),
                 'dbname': dbname,
                 'dbuser': dbuser,
                 'dbpassword': dbpassword
