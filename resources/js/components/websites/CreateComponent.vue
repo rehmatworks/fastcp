@@ -55,6 +55,9 @@
                                     <option value="blank">Blank PHP Website</option>
                                     <option value="wordpress">WordPress Website</option>
                                 </select>
+                                <p v-if="website_type=='wordpress'" class="text-info">
+                                    Once the website is deployed, visit the primary domain to complete the WordPress installation.
+                                </p>
                             </div>
                             <div class="form-group">
                                 <label for="domains">Domains</label>
