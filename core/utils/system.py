@@ -119,7 +119,7 @@ def wpcli_cmd(website: object, cmd: str):
     user = website.user.username
     
     cmd = f'/usr/local/bin/wp {cmd} --allow-root --path={web_root}'
-    run_cmd(cmd)
+    os.system(cmd)
 
     
 def setup_wordpress(website: object, **kwargs) -> None:
