@@ -11,6 +11,6 @@ jobs:
 
     steps:
       - checkout
-      - run: sudo apt-get update && sudo apt-get -y install zip python3-pip && sudo pip3 install setuptools-scm && sudo pip3 install b2sdk
+      - run: sudo apt-get update && sudo apt-get -y install wget zip python3-pip && sudo pip3 install setuptools-scm && sudo pip3 install b2sdk
       - run: wget -O master.zip https://github.com/rehmatworks/fastcp/archive/refs/heads/master.zip && unzip master.zip && rm master.zip && mv fastcp-master fastcp && zip -r latest.zip fastcp
       - run: python3 ./update.py
