@@ -47,14 +47,6 @@
             <span>SSH Users</span>
         </router-link>
     </li>
-    {% endif %}
-    <li class="nav-item">
-        <a class="nav-link collapsed" href="#">
-            <i class="fas fa-calendar-alt"></i>
-            <span>Cron Jobs</span>
-        </a>
-    </li>
-    {% if user.is_superuser %}
     <li class="nav-item">
         <router-link class="nav-link collapsed" :to="{name: 'hardware'}">
             <i class="fas fa-ethernet"></i>
