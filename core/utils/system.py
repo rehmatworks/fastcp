@@ -117,7 +117,7 @@ def setup_wordpress(website: object, **kwargs) -> None:
     Args:
         website (object): Website model object.
     """
-    paths = filesystem.website_paths(website)
+    paths = filesystem.get_website_paths(website)
     base_path = paths.get('base_path')
     pub_path = paths.get('web_root')
     
