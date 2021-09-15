@@ -118,8 +118,8 @@ def wpcli_cmd(website: object, cmd: str):
     web_root = web_paths.get('web_root')
     user = website.user.username
     
-    cmd = f'sudo -u {user} -i -- /usr/local/bin/wp {cmd} --path={web_root}'
-    os.system(cmd)
+    cmd = f'/usr/local/bin/wp {cmd} --allow-root --path={web_root}'
+    run_cmd(cmd)
 
     
 def setup_wordpress(website: object, **kwargs) -> None:
@@ -147,6 +147,7 @@ def setup_wordpress(website: object, **kwargs) -> None:
     email = kwargs.get('email')
     password = kwargs.get('password')
     wpcli_cmd(website, f'core install --url="{siteurl}" --title="My WordPress Blog" --admin_user="{username}" --admin_password="{password}" --admin_email="{email}"')
+    fix_ownership(website)
 
 
 def rand_passwd(length: int = 20) -> str:
