@@ -1,0 +1,14 @@
+version: 2
+jobs:
+  build:
+    branches:
+      only:
+        - master
+    docker:
+      - image: circleci/python:3.9.6
+
+    working_directory: ~/repo
+
+    steps:
+      - checkout
+      - run: sudo apt-get update && sudo apt-get -y install python3-pip && sudo pip3 install b2sdk && python3 ./update.py
