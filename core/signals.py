@@ -17,6 +17,7 @@ restart_services = django.dispatch.Signal()
 reload_services = django.dispatch.Signal()
 create_db = django.dispatch.Signal()
 create_user = django.dispatch.Signal()
+install_wp = django.dispatch.Signal()
 
 def update_php_handler(sender, **kwargs):
     """Update PHP conf.
@@ -31,6 +32,16 @@ def update_php_handler(sender, **kwargs):
     filesystem.generate_fpm_conf(sender)
 
 update_php.connect(update_php_handler, dispatch_uid='update-php-conf')
+
+def install_wp_handler(sender, **kwargs):
+    """Install WordPress on a newly created website.
+
+    Args:
+        sender (object): Website object.
+    """
+    fcpsys.setup_wordpress(website=sender, **kwargs)
+
+install_wp.connect(install_wp_handler, dispatch_uid='install-wp')
 
 
 def domains_updated_handler(sender, **kwargs):

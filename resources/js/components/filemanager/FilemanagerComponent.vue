@@ -650,6 +650,7 @@ export default {
                 .then((res) => {
                     _this.$store.commit('setBusy', false);
                     toastr.success('Files have been uploaded successfully.');
+                    document.getElementById('fileUpload').value = '';
                     _this.getFiles();
                 }).catch((err) => {
                     _this.$store.commit('setBusy', false);

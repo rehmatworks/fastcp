@@ -92,6 +92,7 @@ class Website(models.Model):
     has_ssl = models.BooleanField(default=False)
     slug = models.SlugField(max_length=50, unique=True, null=True, blank=True)
     php = models.CharField(choices=PHP_CHOICES, max_length=20)
+    is_wp = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
     
     def save(self, *args, **kwargs):

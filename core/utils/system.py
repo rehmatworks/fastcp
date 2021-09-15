@@ -106,6 +106,48 @@ def delete_website(website: object):
     # Delete SSL certs
     filesystem.delete_ssl_certs(website)
 
+def wpcli_cmd(website: object, cmd: str):
+    """Run a WP-CLI command.
+
+    Args:
+        website (object): The website model.
+        cmd (str): The WP-CLI command
+    """
+    # Website paths
+    web_paths = filesystem.get_website_paths(website)
+    web_root = web_paths.get('web_root')
+    user = website.user.username
+    
+    cmd = f'sudo -u {user} -i -- /usr/local/bin/wp {cmd} --path={web_root}'
+    os.system(cmd)
+
+    
+def setup_wordpress(website: object, **kwargs) -> None:
+    """Setup WordPress.
+    
+    By default, a blank PHP website is created, but if needed, this function
+    installs WordPress in the root directory of the newly created wbsite.
+
+    Args:
+        website (object): Website model object.
+    """
+    # Download wp
+    wpcli_cmd(website, f'core download')
+    
+    # Config wp
+    dbname = kwargs.get('dbname')
+    dbpassword = kwargs.get('dbpassword')
+    dbuser = kwargs.get('dbuser')
+    wpcli_cmd(website, f'core config --dbname="{dbname}" --dbuser="{dbuser}" --dbpass="{dbpassword}"')
+    
+    # Install WP
+    domain = website.domains.first()
+    siteurl = f'http://{domain.domain}'
+    username = kwargs.get('username')
+    email = kwargs.get('email')
+    password = kwargs.get('password')
+    wpcli_cmd(website, f'core install --url="{siteurl}" --title="My WordPress Blog" --admin_user="{username}" --admin_password="{password}" --admin_email="{email}"')
+
 
 def rand_passwd(length: int = 20) -> str:
     """Generate a random password.
