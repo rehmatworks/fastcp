@@ -1,7 +1,7 @@
 ![fastcp-control-panel](https://fastcp.org/images/prototype.png "FastCP Control Panel")
 
 # FastCP
-FastCP is an open source control panel for Ubuntu servers. You can use FastCP to deploy and manage multiple PHP / WordPress websites on a single server. ServerPilot's simplicity and powerful features are the inspiration behind FastCP's development.
+FastCP is an open source control panel for Ubuntu servers. You can use FastCP to deploy and manage multiple PHP / WordPress websites on a single server. ServerPilot's simplicity and powerful features are the inspiration behind FastCP's development. Moreover, I have developed this control panel as the final project of one of my EDX online courses.
 
 ## Features
 * Host multiple websites on a single server
