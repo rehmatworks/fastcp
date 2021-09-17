@@ -420,6 +420,7 @@ def delete_website_dirs(website: object) -> bool:
     website_paths = get_website_paths(website)
     try:
         delete_dir(website_paths.get('base_path'))
+        delete_dir(website_paths.get('tmp_path'))
         return True
     except:
         return False
@@ -442,6 +443,9 @@ def generate_fpm_conf(website: object) -> bool:
     default_conf = os.path.join(paths.get('fpm_root'), 'www.conf')
     if os.path.exists(default_conf):
         os.remove(default_conf)
+    
+    # Create temp dir if missing
+    create_if_missing(paths.get('tmp_path'))
     
     context = {
         'app_name': website.slug,
