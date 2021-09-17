@@ -124,7 +124,8 @@ def get_user_paths(user: object) -> dict:
         'base_path': user_path,
         'apps_path': os.path.join(user_path, 'apps'),
         'run_path': os.path.join(user_path, 'run'),
-        'logs_path': os.path.join(user_path, 'logs')
+        'logs_path': os.path.join(user_path, 'logs'),
+        'tmp_path': os.path.join(user_path, 'tmp'),
     }
 
 
@@ -144,11 +145,13 @@ def get_website_paths(website: object) -> dict:
     web_base = os.path.join(user_paths.get('apps_path'), website.slug)
     fpm_root = os.path.join(settings.PHP_INSTALL_PATH, website.php, 'fpm', 'pool.d')
     ssl_base = os.path.join(settings.NGINX_BASE_DIR, 'ssl', website.slug)
+    tmp_path = os.path.join(user_paths.get('tmp_path'), website.slug)
     
     return {
         'fpm_root': fpm_root,
         'fpm_path': os.path.join(fpm_root, f'{website.slug}.conf'),
         'base_path': web_base,
+        'tmp_path': tmp_path,
         'web_root': os.path.join(web_base, 'public'),
         'socket_path': os.path.join(user_paths.get('run_path'), f'{website.slug}.sock'),
         'ngix_vhost_dir': os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}.d'),
@@ -396,6 +399,9 @@ def create_website_dirs(website: object):
         
         # Website public path
         create_if_missing(website_paths.get('web_root'))
+        
+        # Website temp path
+        create_if_missing(website_paths.get('tmp_path'))
         
         return website_paths.get('base_path')
     except:

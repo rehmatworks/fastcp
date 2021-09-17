@@ -16,3 +16,11 @@ listen.group = {{ listen_group }}
 listen.mode = 660
 pm = ondemand
 pm.max_children = 20
+
+env[TMPDIR] = /srv/users/{{ ssh_user }}/tmp/{{ app_name }}
+env[TEMP] = /srv/users/{{ ssh_user }}/tmp/{{ app_name }}
+env[TMP] = /srv/users/{{ ssh_user }}/tmp/{{ app_name }}
+
+php_value[doc_root] = /srv/users/{{ ssh_user }}/apps/{{ app_name }}/public
+php_value[upload_tmp_dir] = /srv/users/{{ ssh_user }}/tmp/{{ app_name }}
+php_value[session.save_path] = /srv/users/{{ ssh_user }}/tmp/{{ app_name }}
