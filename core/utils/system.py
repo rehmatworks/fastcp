@@ -80,11 +80,11 @@ def setup_website(website: object):
     # Create initial directories
     filesystem.create_website_dirs(website)
 
-    # Fix permissions
-    fix_ownership(website)
-
     # Create FPM pool conf
     filesystem.generate_fpm_conf(website)
+    
+    # Fix permissions
+    fix_ownership(website)
 
 
 def delete_website(website: object):
