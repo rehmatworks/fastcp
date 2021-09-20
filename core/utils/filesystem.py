@@ -372,6 +372,9 @@ def create_user_dirs(user: object) -> bool:
         
         # Apps root path
         create_if_missing(user_paths.get('apps_path'))
+        
+        # Create temp path
+        create_if_missing(user_paths.get('tmp_path'))
         return True
     except:
         return False

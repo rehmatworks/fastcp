@@ -62,9 +62,11 @@ def fix_ownership(website: object):
     # Website paths
     web_paths = filesystem.get_website_paths(website)
     base_path = web_paths.get('base_path')
+    tmp_path = web_paths.get('tmp_path')
 
     # Fix permissions
     run_cmd(f'/usr/bin/chown -R {ssh_user}:{ssh_user} {base_path}')
+    run_cmd(f'/usr/bin/chown -R {ssh_user}:{ssh_user} {tmp_path}')
 
 
 def setup_website(website: object):
@@ -224,6 +226,7 @@ def setup_user(user: object, password: str = None) -> bool:
     user_paths = filesystem.get_user_paths(user)
     user_home = user_paths.get('base_path')
     run_path = user_paths.get('run_path')
+    tmp_path = user_paths.get('tmp_path')
     logs_path = user_paths.get('logs_path')
     user_pass = crypt.crypt(password, '22')
 
@@ -238,6 +241,7 @@ def setup_user(user: object, password: str = None) -> bool:
 
     # Fix permissions
     run_cmd(f'/usr/bin/chown -R {user.username}:{user.username} {user_home}')
+    run_cmd(f'/usr/bin/chown -R {user.username}:{user.username} {tmp_path}')
     run_cmd(f'/usr/bin/setfacl -m g:{FASTCP_SYS_GROUP}:--- {user_home}')
     run_cmd(f'/usr/bin/chown -R root:{user.username} {logs_path}')
     run_cmd(f'/usr/bin/setfacl -m u:{user.username}:r-x {logs_path}')
