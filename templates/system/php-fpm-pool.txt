@@ -16,7 +16,7 @@ env[TEMP] = /srv/users/{{ ssh_user }}/tmp/{{ app_name }}
 env[TMP] = /srv/users/{{ ssh_user }}/tmp/{{ app_name }}
 
 php_value[doc_root] = /srv/users/{{ ssh_user }}/apps/{{ app_name }}/public
-php_value[upload_tmp_dir] = /srv/users/{{ ssh_user }}/tmp/{{ app_name }}
+php_value[sys_temp_dir] = /srv/users/{{ ssh_user }}/tmp/{{ app_name }}
 php_value[upload_tmp_dir] = /srv/users/{{ ssh_user }}/tmp/{{ app_name }}
 php_value[opcache.lockfile_path] = /srv/users/{{ ssh_user }}/tmp/{{ app_name }}
 php_value[session.save_path] = /srv/users/{{ ssh_user }}/tmp/{{ app_name }}
