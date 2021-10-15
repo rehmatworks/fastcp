@@ -1,7 +1,7 @@
 name: Bug Report
 description: File a bug report
-title: "[Bug]: "
-labels: ["bug"]
+title: "[Issue]: "
+labels: ["Bug"]
 body:
   - type: textarea
     id: what-happened
@@ -15,6 +15,15 @@ body:
     attributes:
       label: Version
       description: Which version of FastCP is it?
+    validations:
+      required: true
+  - type: dropdown
+    id: system
+    attributes:
+      label: Is it an error in the frontend (web) or in the backend (system)?
+      options:
+        - Backend (System)
+        - Frontedn (Web)
     validations:
       required: true
   - type: dropdown
@@ -37,6 +46,12 @@ body:
         - Chrome
         - Safari
         - Microsoft Edge
+  - type: textarea
+    id: systeminformation
+    attributes:
+      label: Please run the following commands to give us some informations
+      description: 'echo "Kernel:" $(uname -r) && echo "Python: " $(python3 --version) && echo "PIP: " $(pip3 --version) && apache2 -v && nginx -v'
+      render: shell
   - type: textarea
     id: logs
     attributes:
