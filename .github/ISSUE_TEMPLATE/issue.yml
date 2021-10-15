@@ -1,7 +1,7 @@
 name: Bug Report
 description: File a bug report
 title: "[Issue]: "
-labels: ["Bug"]
+labels: ["bug"]
 body:
   - type: textarea
     id: what-happened
@@ -49,7 +49,7 @@ body:
   - type: textarea
     id: systeminformation
     attributes:
-      label: Please run the following commands to give us some informations
+      label: Systeminformation (run the command under this line)
       description: 'echo "Kernel:" $(uname -r) && echo "Python: " $(python3 --version) && echo "PIP: " $(pip3 --version) && apache2 -v && nginx -v'
       render: shell
   - type: textarea
