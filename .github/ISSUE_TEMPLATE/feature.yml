@@ -14,8 +14,8 @@ body:
     attributes:
       label: Do this feature need third party software like redis for example?
       options:
-        - Yes
-        - No
+        - 'Yes'
+        - 'No'
     validations:
       required: true
   - type: dropdown
