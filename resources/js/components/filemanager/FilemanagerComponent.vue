@@ -1,4 +1,5 @@
 <template>
+    <!-- Main template starts below. -->
     <div v-if="files" class="row">
         <div class="col-12 mb-2">
             <div class="row">
@@ -53,231 +54,133 @@
                         </select>
                         <button
                             @click="createItem()"
-                            class="btn btn-info btn-sm"
-                            :disabled="!itemname"
                         >
                             Create
                         </button>
-                        <button @click="create = false" class="btn btn-warning btn-sm">
-                            Cancel
-                        </button>
                     </p>
-                    <p v-else-if="remote_upl">
-                        <input style="max-width:inherit;width:80%;" v-model="remote_url" type="url" placeholder="Enter a remote public URL to download any file over your server network." />
-                        <button
-                            @click="fetchRemote()"
-                            class="btn btn-info btn-sm"
-                            :disabled="!remote_url"
-                        >
-                            Fetch
-                        </button>
-                        <button @click="remote_upl = false" class="btn btn-warning btn-sm">
-                            Cancel
-                        </button>
-                        <small class="text-danger d-block mt-0" v-if="errors.remote_url">{{ errors.remote_url[0] }}</small>
-                    </p>
-                    <p class="border mb-1 mt-1 file-toolbar rounded">
-                        <nav class="navbar navbar-expand-lg navbar-light bg-light">
-                            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNavAltMarkup" aria-controls="navbarNavAltMarkup" aria-expanded="false" aria-label="Toggle navigation">
-                                <span class="navbar-toggler-icon"></span>
-                            </button>
-                            <div class="collapse navbar-collapse" id="navbarNavAltMarkup">
-                                <div class="navbar-nav">
-                                    <a
-                                        href="javascript:void(0)"
-                                        class="nav-item nav-link"
-                                        :class="{ 'disabled': $store.state.path == web_root }"
-                                        @click="goHome()"
-                                    >
-                                        <i class="fas fa-home"></i> Home
-                                    </a>
-                                    <a
-                                        :class="{ 'disabled': $store.state.path == web_root }"
-                                        href="javascript:void(0)"
-                                        class="nav-item nav-link"
-                                        @click="goBack()"
-                                    >
-                                        <i class="fas fa-arrow-left"></i> Back
-                                    </a>
-                                    <a
-                                        @click="chooseFiles()"
-                                        href="javascript:void(0)"
-                                        class="nav-item nav-link"
-                                    >
-                                        <i class="fas fa-upload"></i> Upload
-                                    </a>
-                                    <a
-                                        @click="remote_upl=!remote_upl"
-                                        href="javascript:void(0)"
-                                        class="nav-item nav-link"
-                                    >
-                                        <i class="fas fa-globe"></i> Remote Fetch
-                                    </a>
-                                    <a
-                                        @click="create = true"
-                                        href="javascript:void(0)"
-                                        class="nav-item nav-link"
-                                    >
-                                        <i class="fas fa-plus"></i> Create
-                                    </a>
-                                    <a @click="getFiles()" href="javascript:void(0)" class="nav-item nav-link">
-                                        <i class="fas fa-redo"></i> Refresh
-                                    </a>
-                                    <a
-                                        @click="
-                                            if (selected.length > 0) {
-                                                move = true;
-                                                copy = false;
-                                                move_selected = selected;
-                                                selall = false;
-                                                selected = [];
-                                            }
-                                        "
-                                        href="javascript:void(0)"
-                                        :class="{ 'disabled': selected.length == 0 }"
-                                        class="nav-item nav-link"
-                                    >
-                                        <i class="fas fa-arrows-alt"></i> Move
-                                    </a>
-                                    <a
-                                        @click="
-                                            if (selected.length > 0) {
-                                                copy = true;
-                                                move = false;
-                                                move_selected = selected;
-                                                selall = false;
-                                                selected = [];
-                                            }
-                                        "
-                                        href="javascript:void(0)"
-                                        :class="{ 'disabled': selected.length == 0 }"
-                                        class="nav-item nav-link"
-                                    >
-                                        <i class="fas fa-copy"></i> Copy
-                                    </a>
-                                    <a
-                                        @click="prepareRename()"
-                                        href="javascript:void(0)"
-                                        :class="{ 'disabled': selected.length != 1 }"
-                                        class="nav-item nav-link"
-                                    >
-                                        <i class="fas fa-retweet"></i> Rename
-                                    </a>
-                                    <a
-                                        @click="compressFiles()"
-                                        :class="{ 'disabled': selected.length == 0 }"
-                                        href="javascript:void(0)"
-                                        class="nav-item nav-link"
-                                    >
-                                        <i class="fas fa-archive"></i> Compress
-                                    </a>
-                                    <a
-                                        @click="
-                                            if (selected.length > 0) {
-                                                extract = true;
-                                            }
-                                        "
-                                        :class="{ 'disabled': !isZip(selected) }"
-                                        href="javascript:void(0)"
-                                        class="nav-item nav-link"
-                                    >
-                                        <i class="fas fa-file-archive"></i> Extract
-                                    </a>
-                                    <a
-                                        @click="
-                                            if (selected.length > 0) {
-                                                del = true;
-                                            }
-                                        "
-                                        :class="{ 'disabled': selected.length == 0 }"
-                                        href="javascript:void(0)"
-                                        class="nav-item nav-link"
-                                    >
-                                        <i class="fas fa-trash"></i> Delete
-                                    </a>
-                                </div>
-                            </div>
-                        </nav>
-                    </p>
-                </div>
-            </div>
-        </div>
-        <div class="col-12">
-            <div class="table-responsive">
-                <table v-if="files.count > 0" class="table table-striped">
-                    <thead class="bg-primary text-white">
-                        <tr>
-                            <th v-if="!move_selected.length" style="width: 2%">
-                                <input v-model="selall" type="checkbox" />
-                            </th>
-                            <th style="width: 25%">File name</th>
-                            <th style="width: 10%">Size</th>
-                            <th style="width: 25%">Permissions</th>
-                            <th colspan="2">Modified</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="file in files.results" :key="file.path">
-                            <td v-if="!move_selected.length">
-                                <input
-                                    @click="selectItem(file.path)"
-                                    :checked="selected.includes(file.path)"
-                                    type="checkbox"
-                                />
-                            </td>
-                            <td>
-                                <span v-if="rename == file.path">
-                                    <input type="text" v-model="new_name" />
-                                    <button @click="renameItem()" class="btn btn-warning btn-sm">Save</button>
-                                    <button class="btn btn-sm btn-primary" @click="rename=false,selected=[]">Cancel</button>
-                                </span>
-                                <span @click="browseFile(file)" v-else>
-                                    <i
-                                        v-if="file.file_type == 'directory'"
-                                        class="fas text-warning fa-folder"
-                                    ></i
-                                    ><i v-else class="fas fa-file"></i> {{ file.name }}
-                                </span>
-                            </td>
-                            <td>{{ file.size | prettyBytes }}</td>
-                            <td>
-                                <span v-if="edit_permissions==file.path">
-                                    <input type="text" v-model="new_permissions" />
-                                    <button @click="updatePermissions()" class="btn btn-warning btn-sm">Save</button>
-                                    <button class="btn btn-sm btn-primary" @click="edit_permissions=false,new_permissions=''">Cancel</button>
-                                </span>
-                                <span @click="edit_permissions=file.path,new_permissions=file.permissions" v-else>
-                                    {{ file.permissions }}
-                                </span>
-                            </td>
-                            <td>{{ file.modified }}</td>
-                            <td class="text-right">
-                                <button
-                                    v-if="file.file_type == 'file'"
-                                    class="btn btn-sm btn-outline-info"
-                                    @click="editFile(file)"
-                                    data-toggle="modal"
-                                    data-target="#fileEditModal"
-                                >
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <a
-                                    v-if="file.file_type == 'file'"
-                                    class="btn btn-sm btn-outline-primary"
-                                    :href="'/dashboard/download-file/?path=' + encodeURIComponent(file.path)"
-                                    target="_blank"
-                                    rel="nofollow noopener"
-                                >
-                                    <i class="fas fa-download"></i>
-                                </a>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-                <div
-                    v-else
-                    class="text-muted mb-3 border border-muted rounded p-5 text-center"
-                >
+                    <div class="table-responsive">
+                        <!-- Toolbar Actions -->
+                        <div class="mb-2 d-flex flex-wrap gap-2">
+                            <a @click="getFiles()" href="javascript:void(0)" class="nav-item nav-link">
+                                <i class="fas fa-redo"></i> Refresh
+                            </a>
+                            <a
+                                @click="if (selected.length > 0) { move = true; copy = false; move_selected = selected; selall = false; selected = []; }"
+                                href="javascript:void(0)"
+                                :class="{ 'disabled': selected.length == 0 }"
+                                class="nav-item nav-link"
+                            >
+                                <i class="fas fa-arrows-alt"></i> Move
+                            </a>
+                            <a
+                                @click="if (selected.length > 0) { copy = true; move = false; move_selected = selected; selall = false; selected = []; }"
+                                href="javascript:void(0)"
+                                :class="{ 'disabled': selected.length == 0 }"
+                                class="nav-item nav-link"
+                            >
+                                <i class="fas fa-copy"></i> Copy
+                            </a>
+                            <a
+                                @click="prepareRename()"
+                                href="javascript:void(0)"
+                                :class="{ 'disabled': selected.length != 1 }"
+                                class="nav-item nav-link"
+                            >
+                                <i class="fas fa-retweet"></i> Rename
+                            </a>
+                            <a
+                                @click="compressFiles()"
+                                :class="{ 'disabled': selected.length == 0 }"
+                                href="javascript:void(0)"
+                                class="nav-item nav-link"
+                            >
+                                <i class="fas fa-archive"></i> Compress
+                            </a>
+                            <a
+                                @click="if (selected.length > 0) { extract = true; }"
+                                :class="{ 'disabled': !isZip(selected) }"
+                                href="javascript:void(0)"
+                                class="nav-item nav-link"
+                            >
+                                <i class="fas fa-file-archive"></i> Extract
+                            </a>
+                            <a
+                                @click="if (selected.length > 0) { del = true; }"
+                                :class="{ 'disabled': selected.length == 0 }"
+                                href="javascript:void(0)"
+                                class="nav-item nav-link"
+                            >
+                                <i class="fas fa-trash"></i> Delete
+                            </a>
+                        </div>
+                        <!-- File Table -->
+                        <table v-if="files.count > 0" class="table table-striped">
+                            <thead class="bg-primary text-white">
+                                <tr>
+                                    <th v-if="!move_selected.length" style="width: 2%"></th>
+                                    <th>Name</th>
+                                    <th>Size</th>
+                                    <th>Permissions</th>
+                                    <th>Modified</th>
+                                    <th class="text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="file in files.results" :key="file.path">
+                                    <td>
+                                        <input
+                                            @click="selectItem(file.path)"
+                                            :checked="selected.includes(file.path)"
+                                            type="checkbox"
+                                        />
+                                    </td>
+                                    <td>
+                                        <span v-if="rename == file.path">
+                                            <input type="text" v-model="new_name" />
+                                            <button @click="renameItem()" class="btn btn-warning btn-sm">Save</button>
+                                            <button class="btn btn-sm btn-primary" @click="rename=false,selected=[]">Cancel</button>
+                                        </span>
+                                        <span v-else @click="browseFile(file)">
+                                            <i v-if="file.file_type == 'directory'" class="fas text-warning fa-folder"></i>
+                                            <i v-else class="fas fa-file"></i> {{ file.name }}
+                                        </span>
+                                    </td>
+                                    <td>{{ file.size | prettyBytes }}</td>
+                                    <td>
+                                        <span v-if="edit_permissions==file.path">
+                                            <input type="text" v-model="new_permissions" />
+                                            <button @click="updatePermissions()" class="btn btn-warning btn-sm">Save</button>
+                                            <button class="btn btn-sm btn-primary" @click="edit_permissions=false,new_permissions=''">Cancel</button>
+                                        </span>
+                                        <span v-else @click="edit_permissions=file.path,new_permissions=file.permissions">
+                                            {{ file.permissions }}
+                                        </span>
+                                    </td>
+                                    <td>{{ file.modified }}</td>
+                                    <td class="text-right">
+                                        <button
+                                            v-if="file.file_type == 'file'"
+                                            class="btn btn-sm btn-outline-info"
+                                            @click="editFile(file)"
+                                            data-toggle="modal"
+                                            data-target="#fileEditModal"
+                                        >
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <a
+                                            v-if="file.file_type == 'file'"
+                                            class="btn btn-sm btn-outline-primary"
+                                            :href="'/dashboard/download-file/?path=' + encodeURIComponent(file.path)"
+                                            target="_blank"
+                                            rel="nofollow noopener"
+                                        >
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                <div v-if="files.count === 0" class="text-muted mb-3 border border-muted rounded p-5 text-center">
                     No files or directories found here.
                     <a class="text-decoration-none" @click="create=true" href="javascript:void(0)">
                         Create 
@@ -350,7 +253,9 @@
             type="file"
             hidden
         />
-    </div>
+                </div>
+            </div>
+        </div>
 </template>
 <script>
 export default {

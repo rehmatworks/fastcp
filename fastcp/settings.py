@@ -25,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('FASTCP_APP_SECRET', 'django-insecure-swm^3n$0#i^x3uuh3hy&_h(%ud$a6qfo6#tnukvxmyem7j3x8=')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('IS_DEBUG') is not None
+DEBUG = True
 
 LOGGING = {
     'version': 1,

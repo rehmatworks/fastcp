@@ -1,85 +1,36 @@
 require('./bootstrap');
-import Vue from 'vue';
+import { createApp } from 'vue';
+
+import { createRouter, createWebHistory } from 'vue-router';
+import Loading from 'vue-loading-overlay';
+import 'vue-loading-overlay/dist/css/index.css';
+// import VueSelect from 'vue-select'; // Uncomment if using vue-select
 
 window.axios.defaults.baseURL = '/api/';
 
-export const EventBus = new Vue();
-
-import VueRouter from 'vue-router';
-Vue.use(VueRouter);
-
-import Loading from 'vue-loading-overlay';
-import 'vue-loading-overlay/dist/vue-loading.css';
-Vue.component('loading', Loading);
-
-Vue.filter('floatformat', function(num) {
-    return parseFloat(num).toFixed(2);
-});
-
-Vue.component('v-select', VueSelect.VueSelect);
-
-// Global components
-Vue.component('usercreate-component', require('./components/generic/CreateuserComponent').default);
-
-Vue.filter('prettyBytes', function (num) {
-    if (typeof num !== 'number' || isNaN(num)) {
-        throw new TypeError('Expected a number');
-    }
-
-    var exponent;
-    var unit;
-    var neg = num < 0;
-    var units = ['B', 'kB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-
-    if (neg) {
-        num = -num;
-    }
-
-    if (num < 1) {
-        return (neg ? '-' : '') + num + ' B';
-    }
-
-    exponent = Math.min(Math.floor(Math.log(num) / Math.log(1024)), units.length - 1);
-    num = (num / Math.pow(1024, exponent)).toFixed(2) * 1;
-    unit = units[exponent];
-
-    return (neg ? '-' : '') + num + ' ' + unit;
-});
-
 import { routes } from './routes';
-const router = new VueRouter({
-    mode: 'history',
-    routes: routes,
-    base: '/dashboard/'
+const router = createRouter({
+    history: createWebHistory('/dashboard/'),
+    routes: routes
 });
 
 import { store } from './store';
 
-Vue.mixin({
+const app = createApp({
     data() {
         return {
-            EventBus: EventBus,
-            FM_ROOT: FM_ROOT,
-            PMA_URL: PMA_URL
-        }
+            FM_ROOT: typeof FM_ROOT !== 'undefined' ? FM_ROOT : '',
+            PMA_URL: typeof PMA_URL !== 'undefined' ? PMA_URL : ''
+        };
+    },
+    mounted() {
+        this.$store.commit('setUser');
     },
     methods: {
         genRandPassword(pwLen=15) {
             var pwdChars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
             return Array(pwLen).fill(pwdChars).map(function(x) { return x[Math.floor(Math.random() * x.length)] }).join('');
-        }
-    }
-});
-
-
-const app = new Vue({
-    el: '#wrapper',
-    router: router,
-    store: store,
-    mounted() {
-        this.$store.commit('setUser');
-    },
-    methods: {
+        },
         signOut() {
             let _this = this;
             axios.defaults.baseURL = '/dashboard/';
@@ -90,3 +41,35 @@ const app = new Vue({
         }
     }
 });
+
+app.use(router);
+app.use(store);
+app.component('loading', Loading);
+// app.component('v-select', VueSelect.VueSelect); // Uncomment if using vue-select
+app.component('usercreate-component', require('./components/generic/CreateuserComponent').default);
+app.config.globalProperties.$filters = {
+    floatformat(num) {
+        return parseFloat(num).toFixed(2);
+    },
+    prettyBytes(num) {
+        if (typeof num !== 'number' || isNaN(num)) {
+            throw new TypeError('Expected a number');
+        }
+        var exponent;
+        var unit;
+        var neg = num < 0;
+        var units = ['B', 'kB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+        if (neg) {
+            num = -num;
+        }
+        if (num < 1) {
+            return (neg ? '-' : '') + num + ' B';
+        }
+        exponent = Math.min(Math.floor(Math.log(num) / Math.log(1024)), units.length - 1);
+        num = (num / Math.pow(1024, exponent)).toFixed(2) * 1;
+        unit = units[exponent];
+        return (neg ? '-' : '') + num + ' ' + unit;
+    }
+};
+
+app.mount('#wrapper');

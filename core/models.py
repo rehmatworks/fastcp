@@ -40,8 +40,6 @@ class User(AbstractUser):
     We are not relying on password of the user stored in the database nor we need their email. Authentication
     relies on the validation of the unix passwords.
     """
-    password = None
-    email = None
     uid = models.IntegerField(null=True, blank=True)
     username = models.CharField(max_length=30, unique=True)
     

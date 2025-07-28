@@ -1,11 +1,8 @@
 require('./bootstrap');
 
-import Vue from 'vue';
+import { createStore } from 'vuex';
 
-import Vuex from 'vuex';
-Vue.use(Vuex);
-
-export const store = new Vuex.Store({
+export const store = createStore({
     state: {
         user: JSON.parse(localStorage.getItem('user')),
         busy: false,
