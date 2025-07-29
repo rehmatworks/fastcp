@@ -1,7 +1,12 @@
-from django.urls import path
-from . import views
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import FTPUserViewSet
 
-app_name='ftp'
-urlpatterns=[
-    path('reset-password/', views.ResetPasswordView.as_view(), name='reset_password'),
+app_name = 'ftp'
+
+router = DefaultRouter()
+router.register(r'users', FTPUserViewSet, basename='ftpuser')
+
+urlpatterns = [
+    path('', include(router.urls)),
 ]

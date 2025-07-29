@@ -47,10 +47,23 @@ class User(AbstractUser):
     username = models.CharField(max_length=30, unique=True)
     
     # FastCP resource limits
-    max_dbs = models.IntegerField(default=10) # Max number of databases a user can create
-    max_sites = models.IntegerField(default=10) # Max number of websites a user can create
-    storage_used = models.FloatField(default=0) # Used storage in Bytes (1024 bytes == 1kb)
-    max_storage = models.FloatField(default=1024) # Max storage in Bytes a user can consume (1024 bytes == 1kb)
+    max_dbs = models.IntegerField(default=10)  # Max number of databases a user can create
+    max_sites = models.IntegerField(default=10)  # Max number of websites a user can create
+    storage_used = models.FloatField(default=0)  # Used storage in Bytes (1024 bytes == 1kb)
+    max_storage = models.FloatField(default=1024)  # Max storage in Bytes a user can consume (1024 bytes == 1kb)
+    max_ftp_users = models.IntegerField(default=5)  # Max number of FTP users
+    
+    # Security settings
+    password_last_changed = models.DateTimeField(null=True, blank=True)
+    password_expiry_days = models.IntegerField(default=90)  # Password expires after 90 days
+    failed_login_attempts = models.IntegerField(default=0)
+    is_locked = models.BooleanField(default=False)
+    last_failed_login = models.DateTimeField(null=True, blank=True)
+    
+    # Audit fields
+    last_activity = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='created_users')
+    notes = models.TextField(null=True, blank=True)
     
     # More customizations
     REQUIRED_FIELDS = []
@@ -82,10 +95,50 @@ class Notification(models.Model):
 
 php_versions = PhpVersionListService().get_php_versions()
 
-PHP_CHOICES = ()
-for v in php_versions:
-    PHP_CHOICES += ((v, f'PHP {v}'),)
+# Define supported PHP versions
+SUPPORTED_PHP_VERSIONS = ['8.3', '8.2', '8.1', '8.0', '7.4']
+
+# Filter PHP versions to only include supported ones
+php_versions = [v for v in php_versions if v in SUPPORTED_PHP_VERSIONS]
+
+PHP_CHOICES = tuple((v, f'PHP {v}') for v in php_versions)
     
+class FTPUser(models.Model):
+    """FTP User model to store FTP user accounts."""
+    user = models.ForeignKey(User, related_name='ftp_users', on_delete=models.CASCADE)
+    username = models.CharField(max_length=32, unique=True)
+    password = models.CharField(max_length=128)
+    home_dir = models.CharField(max_length=255)
+    website = models.ForeignKey('Website', related_name='website_ftp_users', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Access control
+    is_active = models.BooleanField(default=True)
+    permissions = models.CharField(max_length=3, default='rw-')  # r=read, w=write, d=delete
+    upload_bandwidth_limit = models.IntegerField(default=0)  # 0 = unlimited, otherwise in KB/s
+    download_bandwidth_limit = models.IntegerField(default=0)  # 0 = unlimited, otherwise in KB/s
+    
+    # Security
+    last_login = models.DateTimeField(null=True, blank=True)
+    last_ip = models.GenericIPAddressField(null=True, blank=True)
+    failed_login_attempts = models.IntegerField(default=0)
+    is_locked = models.BooleanField(default=False)
+    
+    # Quotas
+    disk_quota = models.BigIntegerField(default=0)  # 0 = unlimited, otherwise in bytes
+    disk_usage = models.BigIntegerField(default=0)  # In bytes
+
+    def save(self, *args, **kwargs):
+        """Create the FTP user in the Pure-FTPd password database."""
+        # Ensure home directory exists
+        if not os.path.exists(self.home_dir):
+            os.makedirs(self.home_dir, mode=0o755, exist_ok=True)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.username
+
 class Website(models.Model):
     """Website model holds the websites owned by users."""
     user = models.ForeignKey(User, related_name='websites', on_delete=models.CASCADE)
@@ -94,7 +147,20 @@ class Website(models.Model):
     slug = models.SlugField(max_length=50, unique=True, null=True, blank=True)
     php = models.CharField(choices=PHP_CHOICES, max_length=20)
     is_wp = models.BooleanField(default=False)
+    
+    # Timestamps
     created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+    
+    # Storage and monitoring
+    disk_usage = models.BigIntegerField(default=0)  # In bytes
+    is_suspended = models.BooleanField(default=False)
+    suspension_reason = models.TextField(null=True, blank=True)
+    
+    # Backup settings
+    backup_enabled = models.BooleanField(default=True)
+    backup_retention_days = models.IntegerField(default=30)
+    last_backup = models.DateTimeField(null=True, blank=True)
     
     def save(self, *args, **kwargs):
         """Always generate a slug on save."""

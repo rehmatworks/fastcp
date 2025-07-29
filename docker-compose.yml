@@ -34,7 +34,7 @@ services:
     volumes:
       - mariadb_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "$$MARIADB_USER", "--password=$$MARIADB_PASSWORD"]
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "fastcpuser", "--password=fastcppass"]
       interval: 10s
       timeout: 5s
       retries: 5

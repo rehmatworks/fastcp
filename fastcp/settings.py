@@ -95,6 +95,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'core.middleware.BlockUnwantedExtensionsMiddleware',
 ]
 
 if DEBUG:
@@ -103,6 +104,21 @@ if DEBUG:
     ]
 else:
     MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
+
+# Security Settings
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
+SECURE_SSL_REDIRECT = not DEBUG
+SECURE_HSTS_SECONDS = 31536000  # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+
+# Disable suffix URLs (like .php) in admin
+APPEND_SLASH = True
+ADMIN_FORCE_HTTPS = True  # Force HTTPS for admin pages
 
 ROOT_URLCONF = 'fastcp.urls'
 
@@ -141,7 +157,7 @@ DATABASES = {
         'OPTIONS': {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
             'charset': 'utf8mb4',
-            'ssl': False
+            'ssl': {'ca': None}
         }
     }
 }
