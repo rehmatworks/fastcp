@@ -16,32 +16,58 @@ services:
       MYSQL_DATABASE: fastcp
       MYSQL_USER: fastcpuser
       MYSQL_PASSWORD: fastcppass
-      MYSQL_HOST: db
+      MYSQL_HOST: mariadb
     depends_on:
-      - db
+      - mariadb
 
-  db:
-    image: mysql:8.2
-    container_name: fastcp-db
+  mariadb:
+    image: mariadb:11.2
+    container_name: fastcp-mariadb
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: rootpass
-      MYSQL_DATABASE: fastcp
-      MYSQL_USER: fastcpuser
-      MYSQL_PASSWORD: fastcppass
-      MYSQL_DEFAULT_AUTHENTICATION_PLUGIN: caching_sha2_password
+      MARIADB_ROOT_PASSWORD: rootpass
+      MARIADB_DATABASE: fastcp
+      MARIADB_USER: fastcpuser
+      MARIADB_PASSWORD: fastcppass
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
-      - mysql_data:/var/lib/mysql
-    command: --default-authentication-plugin=caching_sha2_password
+      - mariadb_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "$$MYSQL_USER", "--password=$$MYSQL_PASSWORD"]
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "$$MARIADB_USER", "--password=$$MARIADB_PASSWORD"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
 
+  phpmyadmin:
+    image: phpmyadmin:5.2.1
+    container_name: fastcp-phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: mariadb
+
+  ftp:
+    image: stilliard/pure-ftpd:latest
+    container_name: fastcp-ftp
+    restart: unless-stopped
+    ports:
+      - "21:21"
+      - "30000-30009:30000-30009"
+    volumes:
+      - ./ftp/data:/home/ftpuser
+      - ./ftp/passwd:/etc/pure-ftpd/passwd
+    environment:
+      PUBLICHOST: localhost
+      FTP_USER_NAME: ftpuser
+      FTP_USER_PASS: ftppass
+      FTP_USER_HOME: /home/ftpuser
+      ADDED_FLAGS: "-l puredb:/etc/pure-ftpd/pureftpd.pdb -E -j -R -P localhost"
+    depends_on:
+      - mariadb
+
 volumes:
-  mysql_data:
-    name: fastcp-mysql-data
+  mariadb_data:
+    name: fastcp-mariadb-data

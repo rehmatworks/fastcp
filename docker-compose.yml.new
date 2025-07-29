@@ -1,0 +1,32 @@
+version: '3.8'
+name: fastcp
+
+services:
+  web:
+    image: python:3.12
+    container_name: fastcp-web
+    command: python manage.py runserver 0.0.0.0:8000
+    working_dir: /app
+    restart: unless-stopped
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+
+  db:
+    image: mysql:8.2
+    container_name: fastcp-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: fastcp
+      MYSQL_USER: fastcpuser
+      MYSQL_PASSWORD: fastcppass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:
+    name: fastcp-mysql-data

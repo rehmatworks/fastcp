@@ -8,5 +8,6 @@ urlpatterns=[
     path('databases/', include('api.databases.urls', namespace='databases')),
     path('account/', include('api.account.urls', namespace='account')),
     path('stats/', include('api.stats.urls', namespace='stats')),
-    path('file-manager/', include('api.filemanager.urls', namespace='filemanager'))
+    path('file-manager/', include('api.filemanager.urls', namespace='filemanager')),
+    path('ftp/', include('api.ftp.urls', namespace='ftp'))
 ]

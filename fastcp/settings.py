@@ -136,10 +136,11 @@ DATABASES = {
         'NAME': os.environ.get('MYSQL_DATABASE', 'fastcp'),
         'USER': os.environ.get('MYSQL_USER', 'fastcpuser'),
         'PASSWORD': os.environ.get('MYSQL_PASSWORD', 'fastcppass'),
-        'HOST': os.environ.get('MYSQL_HOST', 'db'),
+        'HOST': os.environ.get('MYSQL_HOST', 'mariadb'),
         'PORT': os.environ.get('MYSQL_PORT', '3306'),
         'OPTIONS': {
-            'auth_plugin': 'caching_sha2_password',
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+            'charset': 'utf8mb4',
             'ssl': False
         }
     }

@@ -2,14 +2,13 @@
 
 FROM python:3.12-slim
 
-# Install system dependencies for MySQL, PostgreSQL, PHP, and Python packages
+# Install system dependencies for MariaDB, PostgreSQL, PHP, and Python packages
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         gcc \
         python3-dev \
         libffi-dev \
         libpq-dev \
-        default-libmysqlclient-dev \
         pkg-config \
         php-fpm \
         php-cli \
