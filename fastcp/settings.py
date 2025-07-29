@@ -132,8 +132,16 @@ WSGI_APPLICATION = 'fastcp.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': os.environ.get('MYSQL_DATABASE', 'fastcp'),
+        'USER': os.environ.get('MYSQL_USER', 'fastcpuser'),
+        'PASSWORD': os.environ.get('MYSQL_PASSWORD', 'fastcppass'),
+        'HOST': os.environ.get('MYSQL_HOST', 'db'),
+        'PORT': os.environ.get('MYSQL_PORT', '3306'),
+        'OPTIONS': {
+            'auth_plugin': 'caching_sha2_password',
+            'ssl': False
+        }
     }
 }
 
@@ -179,6 +187,9 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'core.storage.WhiteNoiseStaticFilesStorage'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field

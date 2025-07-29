@@ -21,24 +21,27 @@ class FastcpUserManager(BaseUserManager):
         user.save()
         return user
     
-    def create_superuser(self, username, **kwargs):
+    def create_superuser(self, username, password=None, **kwargs):
         """Create superuser.
         
         We are overriding this method because the original method requires the email address. But we aren't
         going to have a field for user email.
         """
-        return self._create_user(
+        user = self._create_user(
             username=username,
             is_staff=True,
             is_superuser=True,
             is_active=True
         )
+        if password:
+            user.set_password(password)
+            user.save()
+        return user
 
 class User(AbstractUser):
     """User model.
     
-    We are not relying on password of the user stored in the database nor we need their email. Authentication
-    relies on the validation of the unix passwords.
+    User model that supports both database and unix password authentication.
     """
     uid = models.IntegerField(null=True, blank=True)
     username = models.CharField(max_length=30, unique=True)

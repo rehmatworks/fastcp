@@ -1,0 +1,47 @@
+version: "3.8"
+name: fastcp
+
+services:
+  web:
+    image: python:3.12
+    container_name: fastcp-web
+    command: bash -c "pip install -r requirements.txt && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    working_dir: /app
+    restart: unless-stopped
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      MYSQL_DATABASE: fastcp
+      MYSQL_USER: fastcpuser
+      MYSQL_PASSWORD: fastcppass
+      MYSQL_HOST: db
+    depends_on:
+      - db
+
+  db:
+    image: mysql:8.2
+    container_name: fastcp-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: fastcp
+      MYSQL_USER: fastcpuser
+      MYSQL_PASSWORD: fastcppass
+      MYSQL_DEFAULT_AUTHENTICATION_PLUGIN: caching_sha2_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: --default-authentication-plugin=caching_sha2_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "$$MYSQL_USER", "--password=$$MYSQL_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  mysql_data:
+    name: fastcp-mysql-data
