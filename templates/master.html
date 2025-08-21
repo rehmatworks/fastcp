@@ -166,7 +166,9 @@
                     <loading color="#3b5998" loader="dots" :active.sync="$store.state.busy" :is-full-page="true">
                     </loading>
                     <transition name="fade">
-                        <router-view></router-view>
+                        <router-view v-slot="{ Component }">
+                            <component :is="Component" />
+                        </router-view>
                     </transition>
                 </div>
                 <!-- /.container-fluid -->
@@ -210,6 +212,25 @@
         let PMA_URL = "{{ PMA_URL }}";
     </script>
     <script src="https://unpkg.com/vue-select@latest"></script>
+    <script>
+        // Provide a fallback EventBus for older Vue 2-style components
+        (function(){
+            try {
+                if (!window.EventBus) {
+                    // Vue might not be available yet in ESM builds; create minimal emitter
+                    function Bus() { this._events = Object.create(null); }
+                    Bus.prototype.$on = function(ev, fn){ (this._events[ev]||(this._events[ev]=[])).push(fn); };
+                    Bus.prototype.$off = function(ev, fn){ if(!ev) { this._events = Object.create(null); return; } var l = this._events[ev]; if(!l) return; if(!fn) { this._events[ev]=null; return; } for(var i=l.length-1;i>=0;i--){ if(l[i]===fn||l[i].fn===fn) l.splice(i,1); } };
+                    Bus.prototype.$emit = function(ev){ var l=this._events[ev]; if(!l) return; var args=Array.prototype.slice.call(arguments,1); for(var i=0;i<l.length;i++){ try{ l[i].apply(null,args); }catch(e){} } };
+                    window.EventBus = new Bus();
+                }
+                // Silence Vue esm-bundler feature flag warning by defining the flag if missing
+                if (typeof window.__VUE_PROD_HYDRATION_MISMATCH_DETAILS__ === 'undefined') {
+                    window.__VUE_PROD_HYDRATION_MISMATCH_DETAILS__ = false;
+                }
+            } catch (e) { /* noop */ }
+        })();
+    </script>
     <script src="{% static 'core/assets/js/fastcp.js' %}?{% now 'U' %}"></script>
     {% block scripts %}{% endblock %}
 </body>

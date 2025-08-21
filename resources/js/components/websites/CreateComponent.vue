@@ -104,7 +104,10 @@ export default {
         if(this.$store.state.user && this.$store.state.user.is_root) {
             this.getUsers();
         }
-        this.EventBus.$on('userCreated', this.handleUserCreated);
+        const bus = (this.EventBus || window.EventBus);
+        if (bus && bus.$on) {
+            bus.$on('userCreated', this.handleUserCreated);
+        }
     },
     methods: {
         handleUserCreated(username) {

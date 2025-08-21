@@ -291,10 +291,16 @@ export default {
     },
     created() {
         this.getWebsite();
-        this.EventBus.$on('doSearch', this.getFiles);
+        const bus = (this.EventBus || window.EventBus);
+        if (bus && bus.$on) {
+            bus.$on('doSearch', this.getFiles);
+        }
     },
     beforeDestroy() {
-        this.EventBus.$off('doSearch', this.getFiles);
+        const bus = (this.EventBus || window.EventBus);
+        if (bus && bus.$off) {
+            bus.$off('doSearch', this.getFiles);
+        }
     },
     methods: {
         browseSegment(idx) {

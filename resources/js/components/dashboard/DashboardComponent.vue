@@ -168,14 +168,16 @@ export default defineComponent({
     },
     created() {
         // TODO: Replace EventBus with mitt or provide/inject for Vue 3
-        if (this.EventBus) {
-            this.EventBus.$on('doSearch', this.browseWebsites);
+        const bus = (this.EventBus || window.EventBus);
+        if (bus && bus.$on) {
+            bus.$on('doSearch', this.browseWebsites);
         }
     },
     beforeUnmount() {
         // Vue 3: beforeUnmount replaces beforeDestroy
-        if (this.EventBus) {
-            this.EventBus.$off('doSearch', this.browseWebsites);
+        const bus = (this.EventBus || window.EventBus);
+        if (bus && bus.$off) {
+            bus.$off('doSearch', this.browseWebsites);
         }
     },
     methods: {

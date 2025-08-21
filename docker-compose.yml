@@ -58,12 +58,14 @@ services:
       - "30000-30009:30000-30009"
     volumes:
       - ./ftp/data:/home/ftpuser
-      - ./ftp/passwd:/etc/pure-ftpd/passwd
+      - fastcp_ftp_passwd:/etc/pure-ftpd/passwd
     environment:
       PUBLICHOST: localhost
       FTP_USER_NAME: ftpuser
       FTP_USER_PASS: ftppass
       FTP_USER_HOME: /home/ftpuser
+      FTP_USER_UID: "1000"
+      FTP_USER_GID: "1000"
       ADDED_FLAGS: "-l puredb:/etc/pure-ftpd/pureftpd.pdb -E -j -R -P localhost"
     depends_on:
       - mariadb
@@ -71,3 +73,5 @@ services:
 volumes:
   mariadb_data:
     name: fastcp-mariadb-data
+  fastcp_ftp_passwd:
+    name: fastcp-ftp-passwd

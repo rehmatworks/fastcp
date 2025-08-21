@@ -52,7 +52,10 @@ export default {
             axios.post('/ssh-users/', fd).then((res) => {
                 toastr.success('SSH user has been created successfully.');
                 _this.$store.commit('setBusy', false);
-                _this.EventBus.$emit('userCreated', res.data.username);
+                const bus = (_this.EventBus || window.EventBus);
+                if (bus && bus.$emit) {
+                    bus.$emit('userCreated', res.data.username);
+                }
             }).catch((err) => {
                 _this.$store.commit('setBusy', false);
                 _this.errors = err.response.data;

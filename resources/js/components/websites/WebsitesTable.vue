@@ -65,12 +65,16 @@ export default {
     },
     created() {
         this.getWebsites();
-        if (this.$route.name == 'websites') {
-            this.EventBus.$on('doSearch', this.getWebsites);
+        const bus = (this.EventBus || window.EventBus);
+        if (this.$route.name == 'websites' && bus && bus.$on) {
+            bus.$on('doSearch', this.getWebsites);
         }
     },
     beforeDestroy() {
-        this.EventBus.$off('doSearch', this.getWebsites);
+        const bus = (this.EventBus || window.EventBus);
+        if (bus && bus.$off) {
+            bus.$off('doSearch', this.getWebsites);
+        }
     },
     methods: {
         getWebsites(page=1) {
