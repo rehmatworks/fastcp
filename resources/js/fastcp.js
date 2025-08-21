@@ -1,5 +1,6 @@
 require('./bootstrap');
 import { createApp } from 'vue';
+import genRandPassword from './utils/password';
 
 import { createRouter, createWebHistory } from 'vue-router';
 import Loading from 'vue-loading-overlay';
@@ -28,8 +29,7 @@ const app = createApp({
     },
     methods: {
         genRandPassword(pwLen=15) {
-            var pwdChars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-            return Array(pwLen).fill(pwdChars).map(function(x) { return x[Math.floor(Math.random() * x.length)] }).join('');
+            return genRandPassword(pwLen);
         },
         signOut() {
             let _this = this;

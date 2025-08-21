@@ -3,9 +3,9 @@ name: fastcp
 
 services:
   web:
-    image: python:3.12
+    build: .
+    image: fastcp-web:local
     container_name: fastcp-web
-    command: bash -c "pip install -r requirements.txt && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
     working_dir: /app
     restart: unless-stopped
     volumes:
@@ -19,6 +19,12 @@ services:
       MYSQL_HOST: mariadb
     depends_on:
       - mariadb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
 
   mariadb:
     image: mariadb:11.2
@@ -34,7 +40,7 @@ services:
     volumes:
       - mariadb_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "fastcpuser", "--password=fastcppass"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "fastcpuser", "-pfastcppass"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -66,6 +72,12 @@ services:
       ADDED_FLAGS: "-l puredb:/etc/pure-ftpd/pureftpd.pdb -E -j -R -P localhost"
     depends_on:
       - mariadb
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f pure-ftpd || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
 volumes:
   mariadb_data:
