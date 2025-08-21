@@ -90,7 +90,11 @@ export default{
         }
     },
     created() {
-        this.password = this.genRandPassword();
+        const gen = this.genRandPassword || function(pwLen = 15) {
+            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+            return Array(pwLen).fill(chars).map(c => c[Math.floor(Math.random() * c.length)]).join('');
+        };
+        this.password = gen();
         if(this.$store.state.user && this.$store.state.user.is_root) {
             this.getUsers();
         }
@@ -158,7 +162,11 @@ export default{
     watch: {
         create(newval, oldval) {
             if(newval) {
-                this.user_pass = this.genRandPassword();
+                const gen = this.genRandPassword || function(pwLen = 15) {
+                    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+                    return Array(pwLen).fill(chars).map(c => c[Math.floor(Math.random() * c.length)]).join('');
+                };
+                this.user_pass = gen();
                 this.ssh_user = '';
             }
             this.errors = {};

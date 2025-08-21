@@ -40,7 +40,11 @@ export default {
         }
     },
     created() {
-        this.user_pass = this.genRandPassword();
+        const gen = this.genRandPassword || function(pwLen = 15) {
+            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+            return Array(pwLen).fill(chars).map(c => c[Math.floor(Math.random() * c.length)]).join('');
+        };
+        this.user_pass = gen();
     },
     methods: {
         createUser() {
