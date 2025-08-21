@@ -1,6 +1,3 @@
-version: "3.8"
-name: fastcp
-
 services:
   web:
     build: .
@@ -20,11 +17,11 @@ services:
     depends_on:
       - mariadb
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health/" ]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz" ]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 15s
+      start_period: 30s
 
   mariadb:
     image: mariadb:11.2
@@ -40,18 +37,18 @@ services:
     volumes:
       - mariadb_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "fastcpuser", "-pfastcppass"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      test: ["CMD-SHELL", "ss -ltn | grep -q ':3306 ' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 6
+      start_period: 60s
 
   phpmyadmin:
     image: phpmyadmin:5.2.1
     container_name: fastcp-phpmyadmin
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "8081:80"
     environment:
       PMA_HOST: mariadb
 
@@ -67,20 +64,20 @@ services:
       - fastcp_ftp_passwd:/etc/pure-ftpd/passwd
     environment:
       PUBLICHOST: localhost
-  # FTP_USER_* vars removed to avoid interactive user creation at startup.
-  # User was provisioned into the passwd file/pdb already.
       ADDED_FLAGS: "-l puredb:/etc/pure-ftpd/pureftpd.pdb -E -j -R -P localhost"
     depends_on:
       - mariadb
     healthcheck:
-      test: ["CMD-SHELL", "pgrep -f pure-ftpd || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
+      test: ["CMD-SHELL", "test -s /run/pure-ftpd.pid || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
 
 volumes:
   mariadb_data:
     name: fastcp-mariadb-data
   fastcp_ftp_passwd:
-    name: fastcp-ftp-passwd
+    external:
+      name: fastcp-ftp-passwd
+ 

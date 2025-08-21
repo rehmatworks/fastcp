@@ -82,6 +82,8 @@
     </div>
 </template>
 <script>
+import genRandPassword from '../../utils/password';
+
 export default {
     data() {
         return {
@@ -175,7 +177,8 @@ export default {
     watch: {
         create(newval, oldval) {
             if(newval) {
-                this.user_pass = this.genRandPassword();
+                const gen = this.genRandPassword || genRandPassword;
+                this.user_pass = gen();
                 this.ssh_user = '';
             }
             this.errors = {};

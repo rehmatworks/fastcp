@@ -115,15 +115,30 @@ export default {
     },
     methods: {
         resetPassword() {
-            // TODO: Implement password reset
+            // Find the current user's FTP user (from API) and call the detail reset_password action
             this.$store.commit('setBusy', true);
-            axios
-                .post('/api/ftp/reset-password/')
+
+            // Get the list of FTP users for current account
+            axios.get('/ftp/users/')
+                .then((listRes) => {
+                    const users = listRes.data || [];
+                    if (!users.length) {
+                        this.$store.commit('setBusy', false);
+                        toastr.error('No FTP user found to reset.');
+                        return;
+                    }
+
+                    // Use the first FTP user by default (adapt if you have multiple and a selection UI)
+                    const user = users[0];
+                    return axios.post(`/ftp/users/${user.id}/reset-password/`);
+                })
                 .then((res) => {
+                    if (res && res.data) {
+                        this.ftpPass = res.data.password;
+                        this.showPassword = true;
+                        toastr.success('Password has been reset successfully.');
+                    }
                     this.$store.commit('setBusy', false);
-                    this.ftpPass = res.data.password;
-                    this.showPassword = true;
-                    toastr.success('Password has been reset successfully.');
                 })
                 .catch((err) => {
                     this.$store.commit('setBusy', false);

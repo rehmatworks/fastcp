@@ -31,6 +31,8 @@
     </div>
 </template>
 <script>
+import genRandPassword from '../../utils/password';
+
 export default {
     data() {
         return {
@@ -40,10 +42,7 @@ export default {
         }
     },
     created() {
-        const gen = this.genRandPassword || function(pwLen = 15) {
-            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-            return Array(pwLen).fill(chars).map(c => c[Math.floor(Math.random() * c.length)]).join('');
-        };
+        const gen = this.genRandPassword || genRandPassword;
         this.user_pass = gen();
     },
     methods: {
