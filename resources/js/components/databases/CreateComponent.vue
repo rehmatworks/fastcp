@@ -94,7 +94,16 @@ export default{
         if(this.$store.state.user && this.$store.state.user.is_root) {
             this.getUsers();
         }
-        this.EventBus.$on('userCreated', this.handleUserCreated);
+        const bus = (this.EventBus || window.EventBus);
+        if (bus && typeof bus.$on === 'function') {
+            bus.$on('userCreated', this.handleUserCreated);
+        }
+    },
+    beforeDestroy() {
+        const bus = (this.EventBus || window.EventBus);
+        if (bus && typeof bus.$off === 'function') {
+            bus.$off('userCreated', this.handleUserCreated);
+        }
     },
     methods: {
         handleUserCreated(username) {

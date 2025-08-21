@@ -61,11 +61,8 @@ services:
       - fastcp_ftp_passwd:/etc/pure-ftpd/passwd
     environment:
       PUBLICHOST: localhost
-      FTP_USER_NAME: ftpuser
-      FTP_USER_PASS: ftppass
-      FTP_USER_HOME: /home/ftpuser
-      FTP_USER_UID: "1000"
-      FTP_USER_GID: "1000"
+  # FTP_USER_* vars removed to avoid interactive user creation at startup.
+  # User was provisioned into the passwd file/pdb already.
       ADDED_FLAGS: "-l puredb:/etc/pure-ftpd/pureftpd.pdb -E -j -R -P localhost"
     depends_on:
       - mariadb
