@@ -5,8 +5,8 @@
             <div class="row">
                 <div class="col-12">
                     <h4>File Manager ({{ files.count }})</h4>
-                    <p v-if="files.segments.length" class="d-block">
-                        Browsing: ~/apps<a v-for="segment in files.segments" v-if="segment[0] > 3" class="text-info" :key="segment[0]" @click="browseSegment(segment[0])" href="javascript:void(0)">/{{ segment[1] }}</a>
+                    <p v-if="files.segments && files.segments.length" class="d-block">
+                        Browsing: ~/apps<a v-for="(segment, sIdx) in files.segments" v-if="segment && Array.isArray(segment) && segment[0] > 3" class="text-info" :key="sIdx" @click="browseSegment(segment[0])" href="javascript:void(0)">/{{ segment[1] }}</a>
                     </p>
                     <p v-if="(move || copy) && move_selected.length > 0" class="border p-1 file-toolbar rounded">
                         You are going to <span v-if="move">move</span><span v-else>copy</span> {{ move_selected.length }} <span v-if="move_selected.length == 1">item</span><span v-else>items</span>. Now go to the destination directory and click confirm.
@@ -304,12 +304,15 @@ export default {
     },
     methods: {
         browseSegment(idx) {
-            if(idx < 4) {
+            if (!this.files || !this.files.segments || !Array.isArray(this.files.segments)) {
+                return;
+            }
+            if (typeof idx !== 'number' || idx < 4) {
                 return;
             }
             var path = '';
-            for(var i = 0; i < this.files.segments.length; i++) {
-                if(i <= idx) {
+            for (var i = 0; i < this.files.segments.length; i++) {
+                if (i <= idx && this.files.segments[i] && this.files.segments[i][1]) {
                     path += `/${this.files.segments[i][1]}`;
                 }
             }
