@@ -51,7 +51,7 @@
                                 <p class="invalid-feedback" v-if="errors.max_sites">{{ errors.max_sites[0] }}</p>
                             </div>
                             <div class="form-group">
-                                <label for="max_sites">Max. Databases</label>
+                                <label for="max_dbs">Max. Databases</label>
                                 <input
                                     id="max_dbs"
                                     type="text"
@@ -63,9 +63,9 @@
                                 <p class="invalid-feedback" v-if="errors.max_dbs">{{ errors.max_dbs[0] }}</p>
                             </div>
                             <div class="form-group">
-                                <label for="max_sites">Max. Storage</label>
+                                <label for="max_storage">Max. Storage</label>
                                 <input
-                                    id="max_dbs"
+                                    id="max_storage"
                                     type="text"
                                     class="form-control"
                                     :class="{'is-invalid': errors.max_storage}"
@@ -85,6 +85,8 @@
     </div>
 </template>
 <script>
+import genRandPassword from '../../utils/password';
+
 export default {
     data() {
         return {
@@ -98,7 +100,8 @@ export default {
         }
     },
     created() {
-        this.password = this.genRandPassword();
+        const gen = this.genRandPassword || genRandPassword;
+        this.password = gen();
     },
     methods: {
         createUser() {

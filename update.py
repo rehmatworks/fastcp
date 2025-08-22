@@ -1,6 +1,5 @@
-from b2sdk.v2 import *
+from b2sdk.v2 import InMemoryAccountInfo, B2Api
 import os
-import requests
 
 # When master branch is updated, this scripts pushes the latest ZIP package to
 # CDN.

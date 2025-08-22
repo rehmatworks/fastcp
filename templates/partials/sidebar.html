@@ -40,6 +40,12 @@
             <span>Databases</span>
         </router-link>
     </li>
+    <li class="nav-item">
+        <router-link class="nav-link collapsed" :to="{name: 'ftp'}">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <span>FTP Manager</span>
+        </router-link>
+    </li>
     {% if user.is_superuser %}
     <li class="nav-item">
         <router-link class="nav-link collapsed" :to="{name: 'users'}">

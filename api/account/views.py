@@ -5,10 +5,11 @@ from rest_framework import status
 
 class AccountView(APIView):
     """Account View
-    
+
     Returns the account details of an authenticated user.
     """
     http_method_names = ['get']
+
     def get(self, request, *args, **kw):
         user = request.user
         result = {

@@ -165,9 +165,11 @@
                 <div class="container-fluid">
                     <loading color="#3b5998" loader="dots" :active.sync="$store.state.busy" :is-full-page="true">
                     </loading>
-                    <transition name="fade">
-                        <router-view></router-view>
-                    </transition>
+                    <router-view v-slot="{ Component }">
+                        <transition name="fade">
+                            <component :is="Component" />
+                        </transition>
+                    </router-view>
                 </div>
                 <!-- /.container-fluid -->
 
@@ -210,6 +212,14 @@
         let PMA_URL = "{{ PMA_URL }}";
     </script>
     <script src="https://unpkg.com/vue-select@latest"></script>
+    <script>
+        // Define Vue hydration flag if missing.
+        try {
+            if (typeof window.__VUE_PROD_HYDRATION_MISMATCH_DETAILS__ === 'undefined') {
+                window.__VUE_PROD_HYDRATION_MISMATCH_DETAILS__ = false;
+            }
+        } catch (e) { /* noop */ }
+    </script>
     <script src="{% static 'core/assets/js/fastcp.js' %}?{% now 'U' %}"></script>
     {% block scripts %}{% endblock %}
 </body>

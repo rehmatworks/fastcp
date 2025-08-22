@@ -31,3 +31,42 @@ To update FastCP to latest version, execute this command as root user:
 ```bash
 cd ~/ && sudo fastcp-updater
 ```
+
+## Docker Setup
+
+You can run FastCP locally or in production using Docker and Docker Compose. This setup supports PostgreSQL, MySQL, or SQLite (default).
+
+### 1. Copy and configure environment variables
+
+Copy the example environment file and edit as needed:
+
+```bash
+cp .env.example .env
+# Edit .env to set your DB engine and credentials
+```
+
+### 2. Build and start the containers
+
+```bash
+docker-compose up --build
+```
+
+- By default, PostgreSQL is used. To use MySQL, uncomment the MySQL service in `docker-compose.yml` and set `DJANGO_DB_ENGINE=mysql` in your `.env`.
+- For SQLite, set `DJANGO_DB_ENGINE=sqlite` and comment out DB services.
+
+### 3. Run migrations and create a superuser
+
+In a new terminal:
+
+```bash
+docker-compose exec web python manage.py migrate
+docker-compose exec web python manage.py createsuperuser
+```
+
+### 4. Collect static files (for production)
+
+```bash
+docker-compose exec web python manage.py collectstatic
+```
+
+---

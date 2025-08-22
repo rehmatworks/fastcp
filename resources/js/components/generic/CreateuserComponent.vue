@@ -31,6 +31,9 @@
     </div>
 </template>
 <script>
+import genRandPassword from '../../utils/password';
+import EventBus from '../../event-bus';
+
 export default {
     data() {
         return {
@@ -40,7 +43,8 @@ export default {
         }
     },
     created() {
-        this.user_pass = this.genRandPassword();
+        const gen = this.genRandPassword || genRandPassword;
+        this.user_pass = gen();
     },
     methods: {
         createUser() {
@@ -52,7 +56,9 @@ export default {
             axios.post('/ssh-users/', fd).then((res) => {
                 toastr.success('SSH user has been created successfully.');
                 _this.$store.commit('setBusy', false);
-                _this.EventBus.$emit('userCreated', res.data.username);
+                if (EventBus && EventBus.$emit) {
+                    EventBus.$emit('userCreated', res.data.username);
+                }
             }).catch((err) => {
                 _this.$store.commit('setBusy', false);
                 _this.errors = err.response.data;

@@ -1,4 +1,6 @@
-import os, shutil, zipfile
+import os
+import shutil
+import zipfile
 from pathlib import Path
 from datetime import datetime
 from django.conf import settings
@@ -109,13 +111,13 @@ def get_user_path(user, exact=False):
 
 def get_user_paths(user: object) -> dict:
     """Get user paths.
-    
+
     This should not be confused with get_user_path (singular) and this function returns a dict containing
     all paths associated to a user that FastCP needs.
-    
+
     Args:
         user (object): User model object.
-        
+
     Returns:
         dict: A dictionary containing user paths.
     """
@@ -131,13 +133,13 @@ def get_user_paths(user: object) -> dict:
 
 def get_website_paths(website: object) -> dict:
     """Get website paths.
-    
+
     This function returns the common paths for a website. Generating the paths in a single
     place makes things easier when it comes to modify a location of any installation.
-    
+
     Args:
         website (object): Website model object.
-    
+
     Returns:
         dict: Returns a dictionary that contains the path strings.
     """
@@ -146,7 +148,7 @@ def get_website_paths(website: object) -> dict:
     fpm_root = os.path.join(settings.PHP_INSTALL_PATH, website.php, 'fpm', 'pool.d')
     ssl_base = os.path.join(settings.NGINX_BASE_DIR, 'ssl', website.slug)
     tmp_path = os.path.join(user_paths.get('tmp_path'), website.slug)
-    
+
     return {
         'fpm_root': fpm_root,
         'fpm_path': os.path.join(fpm_root, f'{website.slug}.conf'),
@@ -154,8 +156,12 @@ def get_website_paths(website: object) -> dict:
         'tmp_path': tmp_path,
         'web_root': os.path.join(web_base, 'public'),
         'socket_path': os.path.join(user_paths.get('run_path'), f'{website.slug}.sock'),
-        'ngix_vhost_dir': os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}.d'),
-        'ngix_vhost_conf': os.path.join(settings.NGINX_VHOSTS_ROOT, f'{website.slug}.conf'),
+        'ngix_vhost_dir': os.path.join(
+            settings.NGINX_VHOSTS_ROOT, f'{website.slug}.d'
+        ),
+        'ngix_vhost_conf': os.path.join(
+            settings.NGINX_VHOSTS_ROOT, f'{website.slug}.conf'
+        ),
         'apache_vhost_dir': os.path.join(settings.APACHE_VHOST_ROOT, f'{website.slug}.d'),
         'apache_vhost_conf': os.path.join(settings.APACHE_VHOST_ROOT, f'{website.slug}.conf'),
         'ssl_base': ssl_base,
@@ -163,14 +169,15 @@ def get_website_paths(website: object) -> dict:
         'cert_chain_path': os.path.join(ssl_base, 'cert.chain')
     }
 
+
 def create_if_missing(path: str) -> bool:
     """Create a path if missing.
-    
+
     This function crates a path if it's missing.
-    
+
     Args:
         path (str): The path string.
-        
+
     Returns:
         bool: True if created, False if not.
     """
@@ -178,18 +185,21 @@ def create_if_missing(path: str) -> bool:
         try:
             os.makedirs(path)
             return True
-        except:
-            pass
+        except Exception:
+            # Intentionally ignore filesystem creation errors here; caller
+            # will handle the absence of the directory.
+            return False
     return False
+
 
 def delete_apache_vhost(website: object) -> bool:
     """Delete Apache vhosts file.
-    
+
     This function deletes the Apache vhost files for the provided website.
-    
+
     Args:
         website (object): Website model object.
-    
+
     Returns:
         bool: True on success False otherwise.
     """
@@ -198,23 +208,24 @@ def delete_apache_vhost(website: object) -> bool:
     try:
         shutil.rmtree(website_conf_dir)
         vhost_file = website_paths.get('apache_vhost_conf')
-        
+
         if os.path.exists(vhost_file):
             os.remove(vhost_file)
-            
+
         signals.restart_services.send(sender=None, services='apache2')
         return True
-    except:
+    except Exception:
         return False
+
 
 def delete_nginx_vhost(website: object) -> bool:
     """Delete NGINX vhosts file.
-    
+
     This function deletes the NGINX vhost files for the provided website.
-    
+
     Args:
         website (object): Website model object.
-    
+
     Returns:
         bool: True on success False otherwise.
     """
@@ -223,20 +234,20 @@ def delete_nginx_vhost(website: object) -> bool:
     try:
         shutil.rmtree(website_conf_dir)
         vhost_path = website_paths.get('ngix_vhost_conf')
-        
+
         if os.path.exists(vhost_path):
             os.remove(vhost_path)
         signals.restart_services.send(sender=None, services='nginx')
         return True
-    except:
+    except Exception:
         return False
 
 
 def delete_ssl_certs(website: object) -> None:
     """Delete SSL certs.
-    
+
     Delete SSL certificates of a website if exist.
-    
+
     Args:
         website (object): Website model object.
     """
@@ -244,34 +255,35 @@ def delete_ssl_certs(website: object) -> None:
     if os.path.exists(website_paths.get('ssl_base')):
         shutil.rmtree(website_paths.get('ssl_base'))
 
+
 def create_apache_vhost(website: object, **kwargs) -> bool:
     """Create Apache vhost file.
-    
+
     This function generates Apache vhost file.
-    
+
     Args:
         website (object): Website model object.
-    
+
     Returns:
         bool: True on success and False otherwise.
     """
     website_paths = get_website_paths(website)
     user_paths = get_user_paths(website.user)
     create_if_missing(website_paths.get('apache_vhost_dir'))
-    
+
     # Vhost conf path
     website_vhost_path = website_paths.get('apache_vhost_conf')
-    
+
     main_domain = None
     server_aliases = []
     i = 0
     for domain in website.domains.all():
-        if i  == 0:
+        if i == 0:
             main_domain = domain.domain
         else:
             server_aliases.append(domain.domain)
         i += 1
-    
+
     context = {
         'domain': main_domain,
         'server_aliases': server_aliases,
@@ -282,34 +294,35 @@ def create_apache_vhost(website: object, **kwargs) -> bool:
         'web_root': website_paths.get('web_root'),
         'socket_path': website_paths.get('socket_path')
     }
-    
+
     tpl_data = render_to_string('system/apache-vhost.txt', context=context)
-    
+
     try:
         with open(website_vhost_path, 'w') as f:
             f.write(tpl_data)
         signals.restart_services.send(sender=None, services='apache2')
         return True
-    except:
+    except Exception:
         return False
+
 
 def create_nginx_vhost(website: object, **kwargs) -> bool:
     """Create NGINX vhost file.
-    
+
     This function generates NGINX vhost file. The default protocol is HTTP. If the vhost needs to be created for
     the HTTPs protocol, ssl_cert and ssl_key should be passed in args.
-    
+
     Args:
         website (object): Website model object.
         protocol (str): It should be either http or https.
-    
+
     Returns:
         bool: True on success and False otherwise.
     """
     website_paths = get_website_paths(website)
     user_paths = get_user_paths(website.user)
     create_if_missing(website_paths.get('ngix_vhost_dir'))
-    
+
     # Template rendering context
     context = {
         'app_name': website.slug,
@@ -317,15 +330,19 @@ def create_nginx_vhost(website: object, **kwargs) -> bool:
         'webroot': website_paths.get('web_root'),
         'socket_path': website_paths.get('socket_path')
     }
-    
+
     # Vhost conf path
-    if website.has_ssl and os.path.exists(website_paths.get('cert_chain_path')) and os.path.exists(website_paths.get('priv_key_path')):
+    if (
+        website.has_ssl
+        and os.path.exists(website_paths.get('cert_chain_path'))
+        and os.path.exists(website_paths.get('priv_key_path'))
+    ):
         nginx_vhost_tpl_path = 'system/nginx-vhost-https.txt'
         context['chain_path'] = website_paths.get('cert_chain_path')
         context['privkey_path'] = website_paths.get('priv_key_path')
     else:
         nginx_vhost_tpl_path = 'system/nginx-vhost-http.txt'
-    
+
     domains = ''
     i = 0
     for domain in website.domains.all():
@@ -333,90 +350,93 @@ def create_nginx_vhost(website: object, **kwargs) -> bool:
             domains += ' '
         domains += domain.domain
         i += 1
-    
+
     context['domains'] = domains
-    
+
     tpl_data = render_to_string(nginx_vhost_tpl_path, context=context)
-    
+
     try:
         with open(website_paths.get('ngix_vhost_conf'), 'w') as f:
             f.write(tpl_data)
         signals.restart_services.send(sender=None, services='nginx')
         return True
-    except:
+    except Exception:
         return False
- 
- 
+
+
 def create_user_dirs(user: object) -> bool:
     """Create user directories.
-    
+
     Creates the user data directories.
-    
+
     Args:
         user (object): User model object.
-        
+
     Returns:
         bool: Returns True on success and Falase otherwise
-    """     
-    user_paths = get_user_paths(user)  
-    
+    """
+    user_paths = get_user_paths(user)
+
     try:
         # Create user dir if not exists
         create_if_missing(user_paths.get('base_path'))
-        
+
         # Sockets path
         create_if_missing(user_paths.get('run_path'))
-        
+
         # Logs path
         create_if_missing(user_paths.get('logs_path'))
-        
+
         # Apps root path
         create_if_missing(user_paths.get('apps_path'))
-        
+
         # Create temp path
         create_if_missing(user_paths.get('tmp_path'))
         return True
-    except:
+    except Exception:
         return False
+
 
 def create_website_dirs(website: object):
     """Create website directories.
-    
+
     This function creates the website directories. If the SSH user doesn't have the directories yet,
     they are created as well.
-    
+
     Args:
         website (object): The website model object.
-        
+
     Returns:
         Website path string on success False otherwise.
     """
     try:
-       
+
         # Create user dirs if missing
-        create_user_dirs(website.user) 
-        
+        create_user_dirs(website.user)
+
         # Website path
         website_paths = get_website_paths(website)
         create_if_missing(website_paths.get('base_path'))
-        
+
         # Website public path
         create_if_missing(website_paths.get('web_root'))
-        
+
         # Website temp path
         create_if_missing(website_paths.get('tmp_path'))
-        
+
         return website_paths.get('base_path')
-    except:
+    except Exception:
         return False
+
 
 def delete_dir(path: str) -> bool:
     """Delete a directory."""
     try:
         shutil.rmtree(path)
         return True
-    except:
+    except Exception:
         return False
+
 
 def delete_website_dirs(website: object) -> bool:
     """Deletes website directories."""
@@ -425,9 +445,9 @@ def delete_website_dirs(website: object) -> bool:
         delete_dir(website_paths.get('base_path'))
         delete_dir(website_paths.get('tmp_path'))
         return True
-    except:
+    except Exception:
         return False
-    
+
 
 def generate_fpm_conf(website: object) -> bool:
     """Generate FPM pool conf.
@@ -436,20 +456,20 @@ def generate_fpm_conf(website: object) -> bool:
 
     Args:
         website (object): Website model object.
-        
+
     Returns:
         bool: True on success False otherwise.
     """
     paths = get_website_paths(website)
-    
+
     # Delete if default fpm pool exists
     default_conf = os.path.join(paths.get('fpm_root'), 'www.conf')
     if os.path.exists(default_conf):
         os.remove(default_conf)
-    
+
     # Create temp dir if missing
     create_if_missing(paths.get('tmp_path'))
-    
+
     context = {
         'app_name': website.slug,
         'ssh_user': website.user.username,
@@ -467,17 +487,18 @@ def generate_fpm_conf(website: object) -> bool:
             f.write(data)
         signals.restart_services.send(sender=None, services=f'php{website.php}-fpm')
         return True
-    except:
+    except Exception:
         return False
+
 
 def delete_fpm_conf(website: object) -> bool:
     """Delete FPM pool conf.
-    
+
     This function deletes the FPM pool conf for a website.
-    
+
     Args:
         website (object): Website model object.
-        
+
     Returns:
         bool: True on success Falase otherwise.
     """
@@ -487,20 +508,20 @@ def delete_fpm_conf(website: object) -> bool:
             os.remove(fpm_path)
             signals.restart_services.send(sender=None, services=f'php{website.php}-fpm')
             return True
-        except:
+        except Exception:
             pass
-    
+
     return False
 
 
 def delete_user_dirs(user: object) -> bool:
     """Delete user directories.
-    
+
     Deletes the directories of the user from the filesystem.
-    
+
     Args:
         user (object): User model object.
-        
+
     Returns:
         bool: Returns True on success and False otherwise.
     """
@@ -508,5 +529,5 @@ def delete_user_dirs(user: object) -> bool:
     try:
         shutil.rmtree(user_paths.get('base_path'))
         return True
-    except:
+    except Exception:
         return False

@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:13
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_DB: fastcp
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fastcp" --health-interval 10s
+          --health-timeout 5s --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install system deps
+        run: |
+          python -m pip install --upgrade pip
+
+      - name: Install Python deps
+        run: |
+          python -m pip install -r requirements.txt
+
+      - name: Install Node deps
+        run: |
+          npm ci
+
+      - name: Build frontend
+        env:
+          NODE_ENV: production
+        run: |
+          npm run production
+
+      - name: Collect static
+        env:
+          FASTCP_DISABLE_NETWORK: '1'
+        run: |
+          python manage.py collectstatic --noinput
+
+      - name: Run tests (no network)
+        env:
+          FASTCP_DISABLE_NETWORK: '1'
+          DATABASE_URL: 'sqlite://:memory:'
+        run: |
+          python manage.py test --settings=fastcp.test_settings --verbosity=1
+
+      - name: Lint (flake8)
+        env:
+          FASTCP_DISABLE_NETWORK: '1'
+        run: |
+          python -m pip install flake8
+          flake8 --max-line-length=120 --exclude=.venv,staticfiles,node_modules

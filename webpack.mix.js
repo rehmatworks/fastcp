@@ -4,4 +4,4 @@ mix.override((config) => {
     delete config.watchOptions;
 });
 
-mix.js('resources/js/fastcp.js', 'core/static/core/assets/js').vue({ version: 2 });
+mix.js('resources/js/fastcp.js', 'core/static/core/assets/js').vue({ version: 3 });

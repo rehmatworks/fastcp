@@ -1,0 +1,4 @@
+[flake8]
+max-line-length = 120
+exclude = .venv,venv,build,dist,*/migrations/*,node_modules,staticfiles,staticfiles.json
+extend-ignore = E203, W503, W391

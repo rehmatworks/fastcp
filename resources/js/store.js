@@ -1,20 +1,47 @@
 require('./bootstrap');
 
-import Vue from 'vue';
+import { createStore } from 'vuex';
 
-import Vuex from 'vuex';
-Vue.use(Vuex);
-
-export const store = new Vuex.Store({
+export const store = createStore({
     state: {
         user: JSON.parse(localStorage.getItem('user')),
         busy: false,
-        path: localStorage.getItem('file_path'),
+        // normalize stored path: decode up to 3 times to handle double-encoding left from older sessions
+        path: (function(){
+            try {
+                let p = localStorage.getItem('file_path');
+                if (!p) return p;
+                // decode up to 3 times or until no percent-encoding remains
+                for (let i=0;i<3;i++){
+                    if (/%[0-9A-Fa-f]{2}/.test(p)) {
+                        const d = decodeURIComponent(p);
+                        if (d === p) break;
+                        p = d;
+                    } else break;
+                }
+                return p;
+            } catch (e) { return localStorage.getItem('file_path'); }
+        })(),
     },
     mutations: {
         setPath(state, path) {
-            state.path = path;
-            localStorage.setItem('file_path', path);
+            try {
+                let p = path;
+                if (p) {
+                    for (let i=0;i<3;i++){
+                        if (/%[0-9A-Fa-f]{2}/.test(p)) {
+                            const d = decodeURIComponent(p);
+                            if (d === p) break;
+                            p = d;
+                        } else break;
+                    }
+                }
+                state.path = p;
+                localStorage.setItem('file_path', p);
+            } catch (e) {
+                state.path = path;
+                localStorage.setItem('file_path', path);
+            }
         },
         setBusy(state, status) {
             state.busy = status;
