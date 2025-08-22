@@ -32,6 +32,7 @@
 </template>
 <script>
 import genRandPassword from '../../utils/password';
+import EventBus from '../../event-bus';
 
 export default {
     data() {
@@ -55,9 +56,8 @@ export default {
             axios.post('/ssh-users/', fd).then((res) => {
                 toastr.success('SSH user has been created successfully.');
                 _this.$store.commit('setBusy', false);
-                const bus = (_this.EventBus || window.EventBus);
-                if (bus && bus.$emit) {
-                    bus.$emit('userCreated', res.data.username);
+                if (EventBus && EventBus.$emit) {
+                    EventBus.$emit('userCreated', res.data.username);
                 }
             }).catch((err) => {
                 _this.$store.commit('setBusy', false);

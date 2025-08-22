@@ -1,6 +1,7 @@
 require('./bootstrap');
 import { createApp } from 'vue';
 import genRandPassword from './utils/password';
+import EventBus from './event-bus';
 
 import { createRouter, createWebHistory } from 'vue-router';
 import Loading from 'vue-loading-overlay';
@@ -42,6 +43,11 @@ const app = createApp({
     }
 });
 
+// expose a Vue2-style EventBus for existing components
+try {
+    window.EventBus = window.EventBus || EventBus;
+} catch (e) {}
+
 app.use(router);
 app.use(store);
 app.component('loading', Loading);
@@ -71,5 +77,11 @@ app.config.globalProperties.$filters = {
         return (neg ? '-' : '') + num + ' ' + unit;
     }
 };
-
+// expose the same helpers as top-level properties so templates compiled
+// expecting direct access (e.g. `| prettyBytes` compiled to `_ctx.prettyBytes`)
+// won't trigger "accessed during render but is not defined" warnings.
+app.config.globalProperties.prettyBytes = app.config.globalProperties.$filters.prettyBytes;
+app.config.globalProperties.floatformat = app.config.globalProperties.$filters.floatformat;
+// make available to components as this.EventBus as some components reference this.EventBus
+app.config.globalProperties.EventBus = EventBus;
 app.mount('#wrapper');

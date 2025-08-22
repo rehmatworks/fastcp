@@ -151,6 +151,7 @@
 </template>
 <script>
 import { defineComponent, onMounted, onBeforeUnmount } from 'vue';
+import EventBus from '../../event-bus';
 import DatabasesTable from '../databases/DatabasesTable.vue';
 import WebsitesTable from '../websites/WebsitesTable.vue';
 
@@ -168,16 +169,14 @@ export default defineComponent({
     },
     created() {
         // TODO: Replace EventBus with mitt or provide/inject for Vue 3
-        const bus = (this.EventBus || window.EventBus);
-        if (bus && bus.$on) {
-            bus.$on('doSearch', this.browseWebsites);
+        if (EventBus && EventBus.$on) {
+            EventBus.$on('doSearch', this.browseWebsites);
         }
     },
     beforeUnmount() {
         // Vue 3: beforeUnmount replaces beforeDestroy
-        const bus = (this.EventBus || window.EventBus);
-        if (bus && bus.$off) {
-            bus.$off('doSearch', this.browseWebsites);
+        if (EventBus && EventBus.$off) {
+            EventBus.$off('doSearch', this.browseWebsites);
         }
     },
     methods: {

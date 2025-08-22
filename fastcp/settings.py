@@ -229,3 +229,5 @@ SERVER_IP_ADDR = os.environ.get('SERVER_IP_ADDR', 'N/A')
 FASTCP_SQL_PASSWORD = os.environ.get('FASTCP_SQL_PASSWORD')
 FASTCP_SQL_USER = os.environ.get('FASTCP_SQL_USER')
 FASTCP_PHPMYADMIN_PATH = os.environ.get('FASTCP_PHPMYADMIN_PATH', '/var/fastcp/phpmyadmin')
+# URL to reach phpMyAdmin in dev/prod. Can be overridden via env var FASTCP_PHPMYADMIN_URL
+FASTCP_PHPMYADMIN_URL = os.environ.get('FASTCP_PHPMYADMIN_URL', 'http://localhost:8081')

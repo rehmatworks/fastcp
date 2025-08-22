@@ -1,6 +1,7 @@
 from rest_framework import serializers
 import os
 from django.conf import settings
+from urllib.parse import unquote
 
 
 class ValidPathSerializer(serializers.Serializer):
@@ -9,9 +10,42 @@ class ValidPathSerializer(serializers.Serializer):
     # more granular validation is done in base_service
     # module
     def validate_path(self, value):
-        if value and not value.startswith(settings.FILE_MANAGER_ROOT):
-            raise serializers.ValidationError(
-                'The path you are trying to access is invalid.')
+        # URL decode incoming path values so clients that send encoded
+        # or double-encoded paths won't fail validation. Decode up to
+        # a few times to be defensive.
+        if value:
+            # Repeatedly unquote up to 3 times to handle double-encoding.
+            try:
+                for _ in range(3):
+                    if (
+                        '%25' in value
+                        or '%20' in value
+                        or '%2F' in value
+                        or '%2f' in value
+                    ):
+                        new = unquote(value)
+                        if new == value:
+                            break
+                        value = new
+                    else:
+                        break
+            except Exception:
+                # Fall back to single decode if something goes wrong
+                value = unquote(value)
+
+            # normalize any accidental whitespace and path separators
+            value = value.strip()
+            # Convert to normalized path to avoid issues like trailing slashes
+            try:
+                value = os.path.normpath(value)
+            except Exception:
+                pass
+
+            if not value.startswith(settings.FILE_MANAGER_ROOT):
+                raise serializers.ValidationError(
+                    'The path you are trying to access is invalid.'
+                )
+
         return value
 
 
@@ -32,11 +66,16 @@ class RemoteUploadSerializer(ValidPathSerializer):
         if path and remote_url:
             filename = os.path.basename(remote_url)
             dest_path = os.path.join(path, filename)
-            
+
             # Check if file exists
             if os.path.exists(dest_path):
-                raise serializers.ValidationError({
-                    'remote_url': f'The destination file {dest_path} already exists.'})
+                raise serializers.ValidationError(
+                    {
+                        'remote_url': (
+                            f'The destination file {dest_path} already exists.'
+                        )
+                    }
+                )
         return data
 
 
@@ -92,6 +131,8 @@ class FileListSerializer(ValidPathSerializer):
     search = serializers.CharField(required=False)
 
     def validate_path(self, value):
+        # Ensure we apply the base validation (which decodes the value)
+        value = super().validate_path(value)
         if value:
             if not os.path.exists(value):
                 raise serializers.ValidationError('Path does not exist.')

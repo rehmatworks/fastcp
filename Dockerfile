@@ -44,4 +44,4 @@ RUN if [ -f package.json ]; then \
 RUN chmod +x /app/entrypoint.sh
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["gunicorn", "fastcp.wsgi:application", "--bind", "0.0.0.0:8000"]
+CMD ["gunicorn", "fastcp.wsgi:application", "--bind", "0.0.0.0:8000", "--worker-class", "gthread", "--threads", "4", "--workers", "3", "--timeout", "120", "--graceful-timeout", "120", "--log-level", "info", "--capture-output"]

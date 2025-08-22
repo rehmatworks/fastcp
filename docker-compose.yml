@@ -7,6 +7,7 @@ services:
     restart: unless-stopped
     volumes:
       - .:/app
+      - ./srv_users:/srv/users
     ports:
       - "8000:8000"
     environment:
@@ -17,11 +18,11 @@ services:
     depends_on:
       - mariadb
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz" ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
+      test: ["CMD-SHELL", "curl -fsS --max-time 10 http://localhost:8000/healthz || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
 
   mariadb:
     image: mariadb:11.2
@@ -38,13 +39,14 @@ services:
       - mariadb_data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "ss -ltn | grep -q ':3306 ' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 6
-      start_period: 60s
+      interval: 60s
+      timeout: 15s
+      retries: 4
+      start_period: 120s
 
   phpmyadmin:
-    image: phpmyadmin:5.2.1
+    build: ./phpmyadmin
+    image: fastcp-phpmyadmin:local
     container_name: fastcp-phpmyadmin
     restart: unless-stopped
     ports:
@@ -69,10 +71,10 @@ services:
       - mariadb
     healthcheck:
       test: ["CMD-SHELL", "test -s /run/pure-ftpd.pid || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 6
-      start_period: 30s
+      interval: 60s
+      timeout: 10s
+      retries: 4
+      start_period: 60s
 
 volumes:
   mariadb_data:

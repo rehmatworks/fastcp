@@ -170,7 +170,7 @@
                                         <a
                                             v-if="file.file_type == 'file'"
                                             class="btn btn-sm btn-outline-primary"
-                                            :href="'/dashboard/download-file/?path=' + encodeURIComponent(file.path)"
+                                            :href="downloadUrl(file.path)"
                                             target="_blank"
                                             rel="nofollow noopener"
                                         >
@@ -296,13 +296,23 @@ export default {
             bus.$on('doSearch', this.getFiles);
         }
     },
-    beforeDestroy() {
+    beforeUnmount() {
         const bus = (this.EventBus || window.EventBus);
         if (bus && bus.$off) {
             bus.$off('doSearch', this.getFiles);
         }
     },
     methods: {
+        downloadUrl(path) {
+            // Ensure path is a string and decode any double-encoding
+            try {
+                path = decodeURIComponent(path);
+            } catch (e) {
+                // if it's not encoded, leave as-is
+            }
+            const params = new URLSearchParams({ path: path });
+            return `/dashboard/download-file/?${params.toString()}`;
+        },
         browseSegment(idx) {
             if (!this.files || !this.files.segments || !Array.isArray(this.files.segments)) {
                 return;
@@ -381,20 +391,41 @@ export default {
             let search = document.getElementById('search-input').value;
             let _this = this;
             _this.$store.commit('setBusy', true);
-            var path =_this.$store.state.path;
-            if (path != null) { 
-                path = encodeURIComponent(path);
-            } else {
+            var path = _this.$store.state.path;
+            if (path == null) {
                 return;
             }
+            // path may already be encoded on the server-side; pass raw path and let axios/url search handle encoding
             axios
-                .get(`/file-manager/files/?page=${page}&search=${search}&path=${path}`)
+                .get('/file-manager/files/', { params: { page: page, search: search, path: path } })
                 .then((res) => {
                     _this.files = res.data;
                     _this.$store.commit('setBusy', false);
                 })
                 .catch((err) => {
-                    toastr.error('Directory listing cannot be retrieved.');
+                    // Surface server validation errors (422) for easier debugging
+                    try {
+                        if (err.response && err.response.data) {
+                            console.error('File list error', err.response.status, err.response.data);
+                            // If server provided a structured error, try to show a helpful message
+                            let msg = '';
+                            if (typeof err.response.data === 'string') {
+                                msg = err.response.data;
+                            } else if (err.response.data.error) {
+                                msg = err.response.data.error;
+                            } else {
+                                // Show JSON-ified validation errors
+                                msg = JSON.stringify(err.response.data);
+                            }
+                            toastr.error(msg);
+                        } else {
+                            console.error('File list error', err);
+                            toastr.error('Directory listing cannot be retrieved.');
+                        }
+                    } catch (e) {
+                        console.error('Error handling file list failure', e);
+                        toastr.error('Directory listing cannot be retrieved.');
+                    }
                     _this.$store.commit('setBusy', false);
                 });
         },

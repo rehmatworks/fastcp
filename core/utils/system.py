@@ -1,13 +1,27 @@
-import secrets, string, os, crypt, pwd
+import secrets
+import string
+import os
+import crypt
+import pwd
 from datetime import datetime
+
 from django.template.loader import render_to_string
+
 from api.databases.services.mysql import FastcpSqlService
 from core.utils import filesystem
+
 from subprocess import (
-    STDOUT, check_call, CalledProcessError, Popen, PIPE, DEVNULL
+    STDOUT,
+    check_call,
+    CalledProcessError,
+    Popen,
+    PIPE,
+    DEVNULL,
 )
+
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+
 import requests
 
 
@@ -17,9 +31,9 @@ FASTCP_SYS_GROUP = 'fcp-users'
 
 def set_uid(uid=0) -> None:
     """Set UID.
-
-    This function sets the system uid for the user. It is used by file manager and other components where
-    permissions need to be persisted on created or updated items.
+    This function sets the system uid for the user. It is used by file
+    manager and other components where permissions need to be persisted on
+    created or updated items.
 
     Args:
         uid (int): UID of the user and group. Defaults to root.
@@ -41,11 +55,11 @@ def run_cmd(cmd: str, shell=False) -> bool:
     """
     try:
         if not shell:
-            check_call(cmd.split(' '),
-                       stdout=DEVNULL, stderr=STDOUT, timeout=300)
+            check_call(
+                cmd.split(' '), stdout=DEVNULL, stderr=STDOUT, timeout=300
+            )
         else:
-            Popen(cmd, stdin=PIPE, stdout=DEVNULL,
-                  stderr=STDOUT).wait()
+            Popen(cmd, stdin=PIPE, stdout=DEVNULL, stderr=STDOUT).wait()
         return True
     except CalledProcessError:
         return False
@@ -53,8 +67,8 @@ def run_cmd(cmd: str, shell=False) -> bool:
 
 def fix_ownership(website: object):
     """Fix ownership.
-
-    Fixes the ownership of a website base directory and sub-directoris and files recursively.
+    Fixes the ownership of a website base directory and sub-directories and
+    files recursively.
     """
     # SSH user
     ssh_user = website.user.username
@@ -82,7 +96,7 @@ def setup_website(website: object):
 
     # Create FPM pool conf
     filesystem.generate_fpm_conf(website)
-    
+
     # Fix permissions
     fix_ownership(website)
 
@@ -105,14 +119,14 @@ def delete_website(website: object):
 
     # Delete Apache vhost files
     filesystem.delete_apache_vhost(website)
-    
+
     # Delete SSL certs
     filesystem.delete_ssl_certs(website)
 
-    
+
 def setup_wordpress(website: object, **kwargs) -> None:
     """Setup WordPress.
-    
+
     By default, a blank PHP website is created, but if needed, this function
     installs WordPress in the root directory of the newly created wbsite.
 
@@ -122,26 +136,27 @@ def setup_wordpress(website: object, **kwargs) -> None:
     paths = filesystem.get_website_paths(website)
     base_path = paths.get('base_path')
     pub_path = paths.get('web_root')
-    
+
     # Delete public directory
     filesystem.delete_dir(pub_path)
-    
+
     # Download wordpress
     wp_archive_path = os.path.join(base_path, 'latest.zip')
+    # Ensure base path exists (tests may run without creating user dirs)
+    os.makedirs(base_path, exist_ok=True)
     with requests.get('https://wordpress.org/latest.zip') as res:
         with open(wp_archive_path, 'wb') as f:
             f.write(res.content)
-    
+
     # Extract ZIP
     filesystem.extract_zip(base_path, wp_archive_path)
-    
+
     # Rename to public
     os.rename(os.path.join(base_path, 'wordpress'), pub_path)
-    
+
     # Delete WP zip
     os.remove(wp_archive_path)
-    
-    
+
     # Populate wp-config
     dbname = kwargs.get('dbname')
     dbpassword = kwargs.get('dbpassword')
@@ -156,9 +171,11 @@ def setup_wordpress(website: object, **kwargs) -> None:
             # Set DB password
             content = content.replace('password_here', dbpassword)
             # Set unique keys
-            for _ in range(1, 8+1):
-                content = content.replace('put your unique phrase here', rand_passwd(60), 1)
-            
+            for _ in range(1, 8 + 1):
+                content = content.replace(
+                    'put your unique phrase here', rand_passwd(60), 1
+                )
+
             f2.write(content)
     fix_ownership(website)
 
@@ -171,33 +188,35 @@ def rand_passwd(length: int = 20) -> str:
     alphabet = string.ascii_letters + string.digits
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 
+
 def change_password(username: str) -> str:
     """Change a Unix user's password.
-    
-    This function generates a random password using rand_passwd function, sets the password for the user
-    and returns the password as a string.
-    
+
+    This function generates a random password using rand_passwd function, sets
+    the password for the user and returns the password as a string.
+
     Args:
         user (str): The Unix user's username.
-    
+
     Returns:
         str: The new password.
     """
     passwd = rand_passwd()
     passwd_hash = crypt.crypt(passwd, '22')
     run_cmd(f'/usr/sbin/usermod --password {passwd_hash} {username}')
-    
+
     return passwd
+
 
 def change_db_password(username: str) -> str:
     """Change a MySQL user's password.
-    
-    This function generates a random password using rand_passwd function, sets the password for the user
-    and returns the password as a string.
-    
+
+    This function generates a random password using rand_passwd function, sets
+    the password for the user and returns the password as a string.
+
     Args:
         user (str): The MySQL username.
-    
+
     Returns:
         str: The new password or None if update fails.
     """
@@ -206,6 +225,7 @@ def change_db_password(username: str) -> str:
     if result:
         return passwd
     return None
+
 
 def setup_user(user: object, password: str = None) -> bool:
     """Setup the user.
@@ -235,8 +255,11 @@ def setup_user(user: object, password: str = None) -> bool:
 
     # Create unix user & group
     run_cmd(f'/usr/sbin/groupadd {user.username}')
-    run_cmd(
-        f'/usr/sbin/useradd -s /bin/bash -g {user.username} -p {user_pass} -d {user_home} {user.username}')
+    useradd_cmd = (
+        f'/usr/sbin/useradd -s /bin/bash -g {user.username} '
+        f'-p {user_pass} -d {user_home} {user.username}'
+    )
+    run_cmd(useradd_cmd)
     run_cmd(f'/usr/sbin/usermod -G {FASTCP_SYS_GROUP} {user.username}')
 
     # Fix permissions
@@ -281,27 +304,31 @@ def create_database(database: object, password: str) -> bool:
     return FastcpSqlService().setup_db(
         user=database.username,
         dbname=database.name,
-        password=password
+        password=password,
     )
+
 
 def drop_db(database: object) -> None:
     """Deletes the database.
-    
+
     Drops the database as well as the associated user.
-    
+
     Args:
         database (object): Database model object.
     """
     try:
         FastcpSqlService().drop_db(database.name)
         FastcpSqlService().drop_user(database.username)
-    except:
+    except Exception:
+        # Swallow errors during cleanup
         pass
+
 
 def delete_user_data(user: object) -> None:
     """Delete user data.
 
-    Delete user directories, websites, and databases before a user model is deleted.
+    Delete user directories, websites, and databases before deleting the user
+    model.
 
     Args:
         user (object): User model object.
@@ -324,36 +351,38 @@ def delete_user_data(user: object) -> None:
 
 def ssl_expiring(website: object) -> bool:
     """Check if SSL is expiring.
-    
-    If an SSL has expired or if it is going to expire <= 30 days, this function will return True. FastCP uses this
-    function to determine either an SSL certificate should be requested for a website or not.
-    
+
+    If an SSL has expired or if it is going to expire within 30 days, this
+    function will return True. FastCP uses this function to determine whether
+    an SSL certificate should be requested for a website.
+
     Args:
         website (object): Website model object.
-        
+
     Returns:
-        bool: Returns True if it's expiring, and returns False if expiry is not near or if SSL cert file was not found.
+        bool: True if the certificate is expiring or expired, False otherwise.
     """
-    
+
     paths = filesystem.get_website_paths(website)
-    
-    if os.path.exists(paths.get('cert_chain_path')):
-        with open(paths.get('cert_chain_path')) as f:
+
+    cert_path = paths.get('cert_chain_path')
+    if cert_path and os.path.exists(cert_path):
+        with open(cert_path) as f:
             certdata = f.read().encode()
-        
+
         cert = x509.load_pem_x509_certificate(certdata, default_backend())
         expiry = cert.not_valid_after
         curr_time = datetime.now()
-        
+
         # If expired
         if expiry <= curr_time:
             return True
-        
+
         # Time delta
         delta = expiry - curr_time
-        
-        # If <= 7 days left
+
+        # If <= 30 days left
         if delta.days <= 30:
             return True
-    
+
     return False

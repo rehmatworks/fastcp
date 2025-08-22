@@ -24121,7 +24121,7 @@ axios.HttpStatusCode = HttpStatusCode$1;
 axios.default = axios;
 
 module.exports = axios;
-//# sourceMappingURL=axios.cjs.map
+//# sourceMappingURL=axios.cjs.8a80554c91d9.map
 
 
 /***/ }),
@@ -24138,17 +24138,15 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
 /* harmony import */ var vue__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! vue */ "./node_modules/vue/dist/vue.esm-bundler.js");
-/* harmony import */ var _event_bus__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../../event-bus */ "./resources/js/event-bus.js");
-/* harmony import */ var _databases_DatabasesTable_vue__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../databases/DatabasesTable.vue */ "./resources/js/components/databases/DatabasesTable.vue");
-/* harmony import */ var _websites_WebsitesTable_vue__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../websites/WebsitesTable.vue */ "./resources/js/components/websites/WebsitesTable.vue");
-
+/* harmony import */ var _databases_DatabasesTable_vue__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../databases/DatabasesTable.vue */ "./resources/js/components/databases/DatabasesTable.vue");
+/* harmony import */ var _websites_WebsitesTable_vue__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../websites/WebsitesTable.vue */ "./resources/js/components/websites/WebsitesTable.vue");
 
 
 
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ((0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({
   components: {
-    DatabasesTable: _databases_DatabasesTable_vue__WEBPACK_IMPORTED_MODULE_2__["default"],
-    WebsitesTable: _websites_WebsitesTable_vue__WEBPACK_IMPORTED_MODULE_3__["default"]
+    DatabasesTable: _databases_DatabasesTable_vue__WEBPACK_IMPORTED_MODULE_1__["default"],
+    WebsitesTable: _websites_WebsitesTable_vue__WEBPACK_IMPORTED_MODULE_2__["default"]
   },
   data: function data() {
     return {
@@ -24162,14 +24160,16 @@ __webpack_require__.r(__webpack_exports__);
   },
   created: function created() {
     // TODO: Replace EventBus with mitt or provide/inject for Vue 3
-    if (_event_bus__WEBPACK_IMPORTED_MODULE_1__["default"] && _event_bus__WEBPACK_IMPORTED_MODULE_1__["default"].$on) {
-      _event_bus__WEBPACK_IMPORTED_MODULE_1__["default"].$on('doSearch', this.browseWebsites);
+    var bus = this.EventBus || window.EventBus;
+    if (bus && bus.$on) {
+      bus.$on('doSearch', this.browseWebsites);
     }
   },
   beforeUnmount: function beforeUnmount() {
     // Vue 3: beforeUnmount replaces beforeDestroy
-    if (_event_bus__WEBPACK_IMPORTED_MODULE_1__["default"] && _event_bus__WEBPACK_IMPORTED_MODULE_1__["default"].$off) {
-      _event_bus__WEBPACK_IMPORTED_MODULE_1__["default"].$off('doSearch', this.browseWebsites);
+    var bus = this.EventBus || window.EventBus;
+    if (bus && bus.$off) {
+      bus.$off('doSearch', this.browseWebsites);
     }
   },
   methods: {
@@ -24497,7 +24497,7 @@ function _toPrimitive(t, r) { if ("object" != _typeof(t) || !t) return t; var e 
       bus.$on('doSearch', this.getFiles);
     }
   },
-  beforeUnmount: function beforeUnmount() {
+  beforeDestroy: function beforeDestroy() {
     var bus = this.EventBus || window.EventBus;
     if (bus && bus.$off) {
       bus.$off('doSearch', this.getFiles);
@@ -24590,10 +24590,11 @@ function _toPrimitive(t, r) { if ("object" != _typeof(t) || !t) return t; var e 
       var _this = this;
       _this.$store.commit('setBusy', true);
       var path = _this.$store.state.path;
-      if (path == null) {
+      if (path != null) {
+        path = encodeURIComponent(path);
+      } else {
         return;
       }
-      // path may already be encoded on the server-side; pass raw path and let axios/url search handle encoding
       axios.get('/file-manager/files/', {
         params: {
           page: page,
@@ -24604,29 +24605,7 @@ function _toPrimitive(t, r) { if ("object" != _typeof(t) || !t) return t; var e 
         _this.files = res.data;
         _this.$store.commit('setBusy', false);
       })["catch"](function (err) {
-        // Surface server validation errors (422) for easier debugging
-        try {
-          if (err.response && err.response.data) {
-            console.error('File list error', err.response.status, err.response.data);
-            // If server provided a structured error, try to show a helpful message
-            var msg = '';
-            if (typeof err.response.data === 'string') {
-              msg = err.response.data;
-            } else if (err.response.data.error) {
-              msg = err.response.data.error;
-            } else {
-              // Show JSON-ified validation errors
-              msg = JSON.stringify(err.response.data);
-            }
-            toastr.error(msg);
-          } else {
-            console.error('File list error', err);
-            toastr.error('Directory listing cannot be retrieved.');
-          }
-        } catch (e) {
-          console.error('Error handling file list failure', e);
-          toastr.error('Directory listing cannot be retrieved.');
-        }
+        toastr.error('Directory listing cannot be retrieved.');
         _this.$store.commit('setBusy', false);
       });
     },
@@ -24980,8 +24959,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
 /* harmony import */ var _utils_password__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../../utils/password */ "./resources/js/utils/password.js");
-/* harmony import */ var _event_bus__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../../event-bus */ "./resources/js/event-bus.js");
-
 
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({
   data: function data() {
@@ -25005,8 +24982,9 @@ __webpack_require__.r(__webpack_exports__);
       axios.post('/ssh-users/', fd).then(function (res) {
         toastr.success('SSH user has been created successfully.');
         _this.$store.commit('setBusy', false);
-        if (_event_bus__WEBPACK_IMPORTED_MODULE_1__["default"] && _event_bus__WEBPACK_IMPORTED_MODULE_1__["default"].$emit) {
-          _event_bus__WEBPACK_IMPORTED_MODULE_1__["default"].$emit('userCreated', res.data.username);
+        var bus = _this.EventBus || window.EventBus;
+        if (bus && bus.$emit) {
+          bus.$emit('userCreated', res.data.username);
         }
       })["catch"](function (err) {
         _this.$store.commit('setBusy', false);
@@ -25577,8 +25555,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
-/* harmony import */ var _event_bus__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../../event-bus */ "./resources/js/event-bus.js");
-
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({
   props: ['pagination'],
   data: function data() {
@@ -25588,13 +25564,15 @@ __webpack_require__.r(__webpack_exports__);
   },
   created: function created() {
     this.getWebsites();
-    if (this.$route.name == 'websites' && _event_bus__WEBPACK_IMPORTED_MODULE_0__["default"] && _event_bus__WEBPACK_IMPORTED_MODULE_0__["default"].$on) {
-      _event_bus__WEBPACK_IMPORTED_MODULE_0__["default"].$on('doSearch', this.getWebsites);
+    var bus = this.EventBus || window.EventBus;
+    if (this.$route.name == 'websites' && bus && bus.$on) {
+      bus.$on('doSearch', this.getWebsites);
     }
   },
-  beforeUnmount: function beforeUnmount() {
-    if (_event_bus__WEBPACK_IMPORTED_MODULE_0__["default"] && _event_bus__WEBPACK_IMPORTED_MODULE_0__["default"].$off) {
-      _event_bus__WEBPACK_IMPORTED_MODULE_0__["default"].$off('doSearch', this.getWebsites);
+  beforeDestroy: function beforeDestroy() {
+    var bus = this.EventBus || window.EventBus;
+    if (bus && bus.$off) {
+      bus.$off('doSearch', this.getWebsites);
     }
   },
   methods: {
@@ -38152,66 +38130,6 @@ __webpack_require__.r(__webpack_exports__);
 
 /***/ }),
 
-/***/ "./resources/js/event-bus.js":
-/*!***********************************!*\
-  !*** ./resources/js/event-bus.js ***!
-  \***********************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
-/* harmony export */ });
-// Small, zero-dependency event bus compatible with Vue2-style $on/$off/$emit
-// and also exposes on/off/emit aliases for modern usage.
-var _listeners = Object.create(null);
-function $on(event, fn) {
-  (_listeners[event] || (_listeners[event] = [])).push(fn);
-}
-function $off(event, fn) {
-  if (!event) {
-    // remove all
-    for (var k in _listeners) delete _listeners[k];
-    return;
-  }
-  var list = _listeners[event];
-  if (!list) return;
-  if (!fn) {
-    // remove all for event
-    delete _listeners[event];
-    return;
-  }
-  for (var i = list.length - 1; i >= 0; i--) {
-    if (list[i] === fn || list[i].fn === fn) list.splice(i, 1);
-  }
-}
-function $emit(event /*, ...args */) {
-  var list = _listeners[event];
-  if (!list) return;
-  var args = Array.prototype.slice.call(arguments, 1);
-  // call a copy in case listeners mutate the array
-  list.slice().forEach(function (fn) {
-    try {
-      fn.apply(null, args);
-    } catch (e) {
-      // swallow - matches previous behaviour
-    }
-  });
-}
-var bus = {
-  $on: $on,
-  $off: $off,
-  $emit: $emit,
-  // aliases
-  on: $on,
-  off: $off,
-  emit: $emit
-};
-/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (bus);
-
-/***/ }),
-
 /***/ "./resources/js/routes.js":
 /*!********************************!*\
   !*** ./resources/js/routes.js ***!
@@ -38336,44 +38254,12 @@ var store = (0,vuex__WEBPACK_IMPORTED_MODULE_0__.createStore)({
   state: {
     user: JSON.parse(localStorage.getItem('user')),
     busy: false,
-    // normalize stored path: decode up to 3 times to handle double-encoding left from older sessions
-    path: function () {
-      try {
-        var p = localStorage.getItem('file_path');
-        if (!p) return p;
-        // decode up to 3 times or until no percent-encoding remains
-        for (var i = 0; i < 3; i++) {
-          if (/%[0-9A-Fa-f]{2}/.test(p)) {
-            var d = decodeURIComponent(p);
-            if (d === p) break;
-            p = d;
-          } else break;
-        }
-        return p;
-      } catch (e) {
-        return localStorage.getItem('file_path');
-      }
-    }()
+    path: localStorage.getItem('file_path')
   },
   mutations: {
     setPath: function setPath(state, path) {
-      try {
-        var p = path;
-        if (p) {
-          for (var i = 0; i < 3; i++) {
-            if (/%[0-9A-Fa-f]{2}/.test(p)) {
-              var d = decodeURIComponent(p);
-              if (d === p) break;
-              p = d;
-            } else break;
-          }
-        }
-        state.path = p;
-        localStorage.setItem('file_path', p);
-      } catch (e) {
-        state.path = path;
-        localStorage.setItem('file_path', path);
-      }
+      state.path = path;
+      localStorage.setItem('file_path', path);
     },
     setBusy: function setBusy(state, status) {
       state.busy = status;
@@ -38512,15 +38398,13 @@ var __webpack_exports__ = {};
 __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var vue__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! vue */ "./node_modules/vue/dist/vue.esm-bundler.js");
 /* harmony import */ var _utils_password__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./utils/password */ "./resources/js/utils/password.js");
-/* harmony import */ var _event_bus__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./event-bus */ "./resources/js/event-bus.js");
-/* harmony import */ var vue_router__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! vue-router */ "./node_modules/vue-router/dist/vue-router.mjs");
-/* harmony import */ var vue_loading_overlay__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! vue-loading-overlay */ "./node_modules/vue-loading-overlay/dist/index.js");
-/* harmony import */ var vue_loading_overlay__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(vue_loading_overlay__WEBPACK_IMPORTED_MODULE_4__);
-/* harmony import */ var vue_loading_overlay_dist_css_index_css__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! vue-loading-overlay/dist/css/index.css */ "./node_modules/vue-loading-overlay/dist/css/index.css");
-/* harmony import */ var _routes__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./routes */ "./resources/js/routes.js");
-/* harmony import */ var _store__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./store */ "./resources/js/store.js");
+/* harmony import */ var vue_router__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! vue-router */ "./node_modules/vue-router/dist/vue-router.mjs");
+/* harmony import */ var vue_loading_overlay__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! vue-loading-overlay */ "./node_modules/vue-loading-overlay/dist/index.js");
+/* harmony import */ var vue_loading_overlay__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(vue_loading_overlay__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var vue_loading_overlay_dist_css_index_css__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! vue-loading-overlay/dist/css/index.css */ "./node_modules/vue-loading-overlay/dist/css/index.css");
+/* harmony import */ var _routes__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./routes */ "./resources/js/routes.js");
+/* harmony import */ var _store__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./store */ "./resources/js/store.js");
 __webpack_require__(/*! ./bootstrap */ "./resources/js/bootstrap.js");
-
 
 
 
@@ -38530,9 +38414,9 @@ __webpack_require__(/*! ./bootstrap */ "./resources/js/bootstrap.js");
 
 window.axios.defaults.baseURL = '/api/';
 
-var router = (0,vue_router__WEBPACK_IMPORTED_MODULE_3__.createRouter)({
-  history: (0,vue_router__WEBPACK_IMPORTED_MODULE_3__.createWebHistory)('/dashboard/'),
-  routes: _routes__WEBPACK_IMPORTED_MODULE_6__.routes
+var router = (0,vue_router__WEBPACK_IMPORTED_MODULE_2__.createRouter)({
+  history: (0,vue_router__WEBPACK_IMPORTED_MODULE_2__.createWebHistory)('/dashboard/'),
+  routes: _routes__WEBPACK_IMPORTED_MODULE_5__.routes
 });
 
 var app = (0,vue__WEBPACK_IMPORTED_MODULE_0__.createApp)({
@@ -38560,14 +38444,9 @@ var app = (0,vue__WEBPACK_IMPORTED_MODULE_0__.createApp)({
     }
   }
 });
-
-// expose a Vue2-style EventBus for existing components
-try {
-  window.EventBus = window.EventBus || _event_bus__WEBPACK_IMPORTED_MODULE_2__["default"];
-} catch (e) {}
 app.use(router);
-app.use(_store__WEBPACK_IMPORTED_MODULE_7__.store);
-app.component('loading', (vue_loading_overlay__WEBPACK_IMPORTED_MODULE_4___default()));
+app.use(_store__WEBPACK_IMPORTED_MODULE_6__.store);
+app.component('loading', (vue_loading_overlay__WEBPACK_IMPORTED_MODULE_3___default()));
 // app.component('v-select', VueSelect.VueSelect); // Uncomment if using vue-select
 app.component('usercreate-component', (__webpack_require__(/*! ./components/generic/CreateuserComponent */ "./resources/js/components/generic/CreateuserComponent.vue")["default"]));
 app.config.globalProperties.$filters = {
@@ -38599,8 +38478,6 @@ app.config.globalProperties.$filters = {
 // won't trigger "accessed during render but is not defined" warnings.
 app.config.globalProperties.prettyBytes = app.config.globalProperties.$filters.prettyBytes;
 app.config.globalProperties.floatformat = app.config.globalProperties.$filters.floatformat;
-// make available to components as this.EventBus as some components reference this.EventBus
-app.config.globalProperties.EventBus = _event_bus__WEBPACK_IMPORTED_MODULE_2__["default"];
 app.mount('#wrapper');
 })();
 
