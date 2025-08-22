@@ -56,6 +56,8 @@
     </div>
 </template>
 <script>
+import EventBus from '../../event-bus';
+
 export default {
     props: ['pagination'],
     data() {
@@ -65,12 +67,14 @@ export default {
     },
     created() {
         this.getWebsites();
-        if (this.$route.name == 'websites') {
-            this.EventBus.$on('doSearch', this.getWebsites);
+        if (this.$route.name == 'websites' && EventBus && EventBus.$on) {
+            EventBus.$on('doSearch', this.getWebsites);
         }
     },
-    beforeDestroy() {
-        this.EventBus.$off('doSearch', this.getWebsites);
+    beforeUnmount() {
+        if (EventBus && EventBus.$off) {
+            EventBus.$off('doSearch', this.getWebsites);
+        }
     },
     methods: {
         getWebsites(page=1) {

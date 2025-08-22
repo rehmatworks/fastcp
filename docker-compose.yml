@@ -1,0 +1,85 @@
+services:
+  web:
+    build: .
+    image: fastcp-web:local
+    container_name: fastcp-web
+    working_dir: /app
+    restart: unless-stopped
+    volumes:
+      - .:/app
+      - ./srv_users:/srv/users
+    ports:
+      - "8000:8000"
+    environment:
+      MYSQL_DATABASE: fastcp
+      MYSQL_USER: fastcpuser
+      MYSQL_PASSWORD: fastcppass
+      MYSQL_HOST: mariadb
+    depends_on:
+      - mariadb
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS --max-time 10 http://localhost:8000/healthz || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+
+  mariadb:
+    image: mariadb:11.2
+    container_name: fastcp-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: rootpass
+      MARIADB_DATABASE: fastcp
+      MARIADB_USER: fastcpuser
+      MARIADB_PASSWORD: fastcppass
+    ports:
+      - "3307:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "ss -ltn | grep -q ':3306 ' || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 4
+      start_period: 120s
+
+  phpmyadmin:
+    build: ./phpmyadmin
+    image: fastcp-phpmyadmin:local
+    container_name: fastcp-phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: mariadb
+
+  ftp:
+    image: stilliard/pure-ftpd:latest
+    container_name: fastcp-ftp
+    restart: unless-stopped
+    ports:
+      - "21:21"
+      - "30000-30009:30000-30009"
+    volumes:
+      - ./ftp/data:/home/ftpuser
+      - fastcp_ftp_passwd:/etc/pure-ftpd/passwd
+    environment:
+      PUBLICHOST: localhost
+      ADDED_FLAGS: "-l puredb:/etc/pure-ftpd/pureftpd.pdb -E -j -R -P localhost"
+    depends_on:
+      - mariadb
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /run/pure-ftpd.pid || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 4
+      start_period: 60s
+
+volumes:
+  mariadb_data:
+    name: fastcp-mariadb-data
+  fastcp_ftp_passwd:
+    external:
+      name: fastcp-ftp-passwd
+ 

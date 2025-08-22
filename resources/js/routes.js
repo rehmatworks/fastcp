@@ -94,5 +94,13 @@ export const routes = [
         meta: {
             title: 'Hardware Info'
         }
+    },
+    {
+        path: '/ftp',
+        name: 'ftp',
+        component: require('./components/ftp/FtpComponent').default,
+        meta: {
+            title: 'FTP Management'
+        }
     }
 ];

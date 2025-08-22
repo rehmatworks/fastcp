@@ -62,11 +62,17 @@ export default {
     created() {
         this.getDatabases();
         if (this.$route.name == 'databases') {
-            this.EventBus.$on('doSearch', this.getDatabases);
+            const bus = (this.EventBus || window.EventBus);
+            if (bus && typeof bus.$on === 'function') {
+                bus.$on('doSearch', this.getDatabases);
+            }
         }
     },
     beforeDestroy() {
-        this.EventBus.$off('doSearch', this.getDatabases);
+        const bus = (this.EventBus || window.EventBus);
+        if (bus && typeof bus.$off === 'function') {
+            bus.$off('doSearch', this.getDatabases);
+        }
     },
     methods: {
         getDatabases(page=1) {

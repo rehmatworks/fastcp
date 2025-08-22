@@ -14,16 +14,16 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "laravel-mix": "^6.0.27",
-    "vue-loader": "^15.9.8",
-    "vue-template-compiler": "^2.6.14"
+    "laravel-mix": "^6.0.49",
+    "vue-loader": "^17.4.2",
+    "vue-template-compiler": "^2.7.16"
   },
   "dependencies": {
-    "axios": "^0.21.1",
-    "vue": "^2.6.14",
-    "vue-loading-overlay": "^3.0.3",
-    "vue-router": "^3.5.2",
-    "vue-simple-context-menu": "^3.4.1",
-    "vuex": "^3.6.2"
+    "axios": "^1.6.7",
+    "vue": "^3.4.15",
+    "vue-loading-overlay": "^6.0.3",
+    "vue-router": "^4.2.5",
+    "vue-simple-context-menu": "^4.1.0",
+    "vuex": "^4.1.0"
   }
 }

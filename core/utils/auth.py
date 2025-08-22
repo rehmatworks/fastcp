@@ -1,5 +1,6 @@
 import crypt
 import spwd
+from django.contrib.auth import get_user_model
 
 
 def do_login(user, password):
@@ -28,5 +29,13 @@ def do_login(user, password):
         if crypt.crypt(password, enc_pwd) == enc_pwd:
             return True
     except KeyError:
-        return False
+        # Fall back to Django-stored password if system user is not present.
+        try:
+            User = get_user_model()
+            u = User.objects.get(username=user)
+            if u.check_password(password):
+                return True
+        except Exception:
+            # Could be DoesNotExist or DB not available; treat as login failure
+            return False
     return False

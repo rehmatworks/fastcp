@@ -65,13 +65,12 @@
                                         <tr>
                                             <td>PHP Version</td>
                                             <td>
-                                                <a v-if="!change_php">
+                                                <span v-if="!change_php">
                                                     <i class="fab fa-php"></i> PHP
                                                     {{ website.php }}
                                                     <a @click="change_php=true" href="javascript:void(0)" class="text-danger"
-                                                        >Change</a
-                                                    >
-                                                </a>
+                                                        >Change</a>
+                                                </span>
                                                 <select v-else v-model="website.php">
                                                     <option v-for="php in php_versions" :key="php" :value="php">PHP {{ php }}</option>
                                                 </select>

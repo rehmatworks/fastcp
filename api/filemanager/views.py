@@ -28,7 +28,10 @@ class UploadFileView(APIView):
         """Handle file upload"""
         s = serializers.FileUploadSerializer(data=request.data)
         if not s.is_valid():
-            return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response(
+                {'error': 'validation', 'details': s.errors},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
         
         if FileUploadService(request).upload_file(s.validated_data):
             return Response({
@@ -50,7 +53,10 @@ class RemoteUpload(APIView):
         """Handle file upload"""
         s = serializers.RemoteUploadSerializer(data=request.data)
         if not s.is_valid():
-            return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response(
+                {'error': 'validation', 'details': s.errors},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
         
         if FileUploadService(request).remote_upload(s.validated_data):
             return Response({
@@ -73,7 +79,10 @@ class MoveItemsView(APIView):
         """Handles moving of items."""
         s = serializers.MoveItemsSerializer(data=request.POST)
         if not s.is_valid():
-            return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response(
+                {'error': 'validation', 'details': s.errors},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
 
         if MoveDataService(request).move_data(s.validated_data):
             return Response({
@@ -98,7 +107,10 @@ class FileObjectView(APIView):
         """
         s = serializers.ReadFileSerializer(data=request.GET)
         if not s.is_valid():
-            return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response(
+                {'error': 'validation', 'details': s.errors},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
         
         content = ReadFileService(request).read_file(s.validated_data)
         if content is not None:
@@ -118,7 +130,10 @@ class FileObjectView(APIView):
         """
         s = serializers.ItemCreateSerializer(data=request.POST)
         if not s.is_valid():
-            return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response(
+                {'error': 'validation', 'details': s.errors},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
         
         if CreateItemService(request).create_item(s.validated_data):
             return Response({
@@ -136,7 +151,10 @@ class FileObjectView(APIView):
         """
         s = serializers.FileUpdateSerializer(data=request.POST)
         if not s.is_valid():
-            return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response(
+                {'error': 'validation', 'details': s.errors},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
         
         if UpdateFileService(request).update_file(s.validated_data):
             return Response({
@@ -159,7 +177,10 @@ class GenerateArchiveView(APIView):
     def post(self, request):
         s = serializers.GenerateArchiveSerializer(data=request.POST)
         if not s.is_valid():
-            return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response(
+                {'error': 'validation', 'details': s.errors},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
         
         if GenerateArchiveService(request).generate_archive(s.validated_data):
             return Response({
@@ -183,7 +204,10 @@ class ExtractArchiveView(APIView):
     def post(self, request, *args, **kwargs):
         s = serializers.ExtractArchiveSerializer(data=request.POST)
         if not s.is_valid():
-            return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response(
+                {'error': 'validation', 'details': s.errors},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
 
         if ExtractArchiveService(request).extract_archive(s.validated_data):
             return Response({
@@ -207,7 +231,7 @@ class DeleteItemsView(APIView):
     def post(self, request, *args, **kwargs):
         s = serializers.DeleteItemSerializer(data=request.POST)
         if not s.is_valid():
-            return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response({ 'error': 'validation', 'details': s.errors }, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
         
         if DeleteItemsService(request).delete_items(s.validated_data):
             return Response({
@@ -228,7 +252,7 @@ class FileListView(APIView):
     def get(self, request, *args, **kwargs):
         s = serializers.FileListSerializer(data=request.GET)
         if not s.is_valid():
-            return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response({ 'error': 'validation', 'details': s.errors }, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
         
         data = ListFileService(request).get_files_list(s.validated_data)
         if data:
@@ -248,7 +272,7 @@ class RenameItem(APIView):
     def post(self, request, *args, **kwargs):
         s = serializers.RenameFileSerializer(data=request.POST)
         if not s.is_valid():
-            return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response({ 'error': 'validation', 'details': s.errors }, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
         if RenameItemService(request).rename_item(s.validated_data):
             return Response({'status': True})
@@ -267,7 +291,7 @@ class UpdatePermissions(APIView):
     def post(self, request, *args, **kwargs):
         s = serializers.PermissionUpdateSerializer(data=request.POST)
         if not s.is_valid():
-            return Response(s.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response({ 'error': 'validation', 'details': s.errors }, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
         if UpdatePermissionService(request).update_permissions(s.validated_data):
             return Response({'status': True})

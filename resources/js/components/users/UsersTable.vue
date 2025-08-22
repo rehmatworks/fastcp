@@ -75,12 +75,16 @@ export default {
     },
     created() {
         this.getUsers();
-        if (this.$route.name == 'users') {
-            this.EventBus.$on('doSearch', this.getUsers);
+        const bus = (this.EventBus || window.EventBus);
+        if (this.$route.name == 'users' && bus && bus.$on) {
+            bus.$on('doSearch', this.getUsers);
         }
     },
     beforeDestroy() {
-        this.EventBus.$off('doSearch', this.getUsers);
+        const bus = (this.EventBus || window.EventBus);
+        if (bus && bus.$off) {
+            bus.$off('doSearch', this.getUsers);
+        }
     },
     methods: {
         getUsers(page=1) {
