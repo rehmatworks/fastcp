@@ -36,15 +36,21 @@ class DatabaseSerializer(serializers.ModelSerializer):
             ssh_user = user
         else:
             ssh_user = request.POST.get('ssh_user')
-            
+
             if ssh_user:
                 if ssh_user == 'root':
-                    raise serializers.ValidationError({'user': 'You cannot create any databases for root user.'})
+                    raise serializers.ValidationError({
+                        'user': 'You cannot create any databases for root user.'
+                    })
                 else:
                     ssh_user = User.objects.filter(username=ssh_user).first()
-            
+
             if not ssh_user:
-                raise serializers.ValidationError({'username': 'An SSH user should be selected as the owner of this website.'})
+                raise serializers.ValidationError({
+                    'username': (
+                        'An SSH user should be selected as the owner of this website.'
+                    )
+                })
 
         # Ensure that user doesn't go beyond their quota
         if ssh_user.databases.count() >= ssh_user.max_dbs:

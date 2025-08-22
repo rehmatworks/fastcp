@@ -10,8 +10,12 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         websites = Website.objects.all()
-        
-        self.stdout.write(self.style.WARNING(f'Attempting to get/renew SSL certificates for {websites.count()} websites.'))
+
+        self.stdout.write(
+            self.style.WARNING(
+                f'Attempting to get/renew SSL certificates for {websites.count()} websites.'
+            )
+        )
         for website in websites:
             if website.needs_ssl() or ssl_expiring(website):
                 try:

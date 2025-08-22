@@ -5,13 +5,13 @@ from django.contrib.auth import get_user_model
 
 def do_login(user, password):
     """Tries to authenticate an SSH user.
-    
+
     We are validating SSH login details to authenticate the sessions.
-    
+
     Args:
         user (str): The SSH user's username.
         password (str): The SSH user's plain text password.
-        
+
     Returns:
         bool: Returns True on success and False on failure.
     """

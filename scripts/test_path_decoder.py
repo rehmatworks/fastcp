@@ -5,9 +5,10 @@ import django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'fastcp.settings')
 django.setup()
 
-from api.filemanager.serializers import FileListSerializer
-from django.conf import settings
-from urllib.parse import quote
+# The imports below are valid for this script after Django is configured. Silence E402.
+from api.filemanager.serializers import FileListSerializer  # noqa: E402
+from django.conf import settings  # noqa: E402
+from urllib.parse import quote  # noqa: E402
 
 
 def try_validate(path):

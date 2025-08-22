@@ -62,7 +62,7 @@ def download_file(request):
         BASE_PATH = settings.FILE_MANAGER_ROOT
     else:
         BASE_PATH = os.path.join(settings.FILE_MANAGER_ROOT, user.username)
-    
+
     if path and path.startswith(BASE_PATH) and os.path.exists(path):
         response = FileResponse(open(path, 'rb'))
         return response

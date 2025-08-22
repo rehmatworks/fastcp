@@ -38,7 +38,7 @@ class FastcpAcme(object):
             regr (str): Existing account as a JSON string if already created.
             staging (bool): Specifies either the staging directory URL should be used the production URL.
         """
-        
+
         # Generate account key if not provided, otherwise load it from the
         # provided string
         if not acc_key:
@@ -47,12 +47,12 @@ class FastcpAcme(object):
             acc_key = jose.JWK.json_loads(acc_key)
 
         self.acc_key = acc_key
-        
+
         # Load account if provided
         if regr:
             regr = messages.RegistrationResource.json_loads(regr)
-            
-        self.regr = regr        
+
+        self.regr = regr
 
         if staging:
             dir_url = STAGING_DIRECTORY_URL
@@ -62,7 +62,7 @@ class FastcpAcme(object):
         net = client.ClientNetwork(self.acc_key, account=self.regr, user_agent=USER_AGENT)
         directory = messages.Directory.from_json(net.get(dir_url).json())
         self.client = client.ClientV2(directory, net=net)
-        
+
         # Register account if not exists
         if not self.regr:
             regr = self._register_account()
@@ -90,7 +90,7 @@ class FastcpAcme(object):
         """
         if email:
             email = (email)
-              
+
         return self.client.new_account(
             messages.NewRegistration.from_data(email=None, terms_of_service_agreed=True))
 
@@ -130,7 +130,7 @@ class FastcpAcme(object):
         authz_list = orderr.authorizations
 
         chall_list = []
-        
+
         for authz in authz_list:
             # Choosing challenge.
             # authz.body.challenges is a set of ChallengeBody objects.
@@ -139,7 +139,7 @@ class FastcpAcme(object):
                 if chall_type == 'http':
                     if isinstance(i.chall, challenges.HTTP01):
                         chall_list.append(i)
-        
+
         return chall_list
 
     def request_ssl(self, domains: list, priv_key: str = None, chall_type='http') -> dict:
@@ -148,7 +148,7 @@ class FastcpAcme(object):
         This creates a new order for an SSL certificate for the provided domains. This method doesn't
         obtain the final SSL. It just places a request order and it returns the tokens to verify the
         ownership of the domain. Final SSL certificate files can be obtained using get_ssl() method.
-        
+
         To renew an existing certificate, the private key associated to that certificate should be provided.
 
         Args:
@@ -160,7 +160,7 @@ class FastcpAcme(object):
         Returns:
             dict: Containing the challenge HTTP path and the auth token.
         """
-        
+
         # Create a CSR and priv key
         priv_key, csr = self._generate_csr(domains, priv_key=priv_key)
         self.priv_key = priv_key
@@ -180,23 +180,23 @@ class FastcpAcme(object):
             # Get challenge path
             challange_path = os.path.join(
                 challenges.HTTP01.URI_ROOT_PATH, chall.chall.encode('token'))
-            
+
             # Challenge token
             challenge_token = validation.encode()
-            
+
             token_paths.append({
                 'path': challange_path,
                 'token': challenge_token
             })
-        
+
         return token_paths
-        
+
     def get_ssl(self):
         """Get SSL certificate files.
-        
+
         This method gets the final SSL certificate files and it should be called only after
         completing the validation steps, i.e. placing the auth tokens in webroot.
-        
+
         Returns:
             dict: Dict containing SSL certificates and the private key.
         """
@@ -208,5 +208,5 @@ class FastcpAcme(object):
                 'full_chain': order_result.fullchain_pem,
                 'priv_key': self.priv_key
             }
-        except:
+        except Exception:
             return False

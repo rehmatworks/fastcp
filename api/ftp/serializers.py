@@ -4,7 +4,7 @@ from core.models import FTPUser
 
 class FTPUserSerializer(serializers.ModelSerializer):
     """FTP User serializer."""
-    
+
     class Meta:
         model = FTPUser
         fields = ['id', 'username', 'password', 'website', 'created_at', 'updated_at']

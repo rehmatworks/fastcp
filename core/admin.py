@@ -1,1 +1,12 @@
-from django.contrib import admin
+# core admin module (empty)
+
+
+
+
+
+
+
+
+
+
+

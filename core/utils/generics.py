@@ -6,12 +6,13 @@ from datetime import datetime
 MEMORY = psutil.virtual_memory()
 DISK = psutil.disk_usage('/')
 
+
 def system_stats():
     """Returns system stats.
-    
+
     This function attempts to determine the system resources like disk usage, RAM usage,
     etc. and returns the stats as a dict.
-    
+
     Returns:
         dict: A dictionary that contains the info on system resources.
     """
@@ -31,6 +32,7 @@ def system_stats():
             'databases': Database.objects.count()
         }
     }
+
 
 def hardware_info():
     """Returns hardware information."""
@@ -58,4 +60,3 @@ def hardware_info():
             'percent': DISK.percent
         },
     }
-    

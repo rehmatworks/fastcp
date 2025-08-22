@@ -22,7 +22,7 @@ from subprocess import (
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
-import requests
+from core.utils.http import open_url
 
 
 # Constants
@@ -144,7 +144,7 @@ def setup_wordpress(website: object, **kwargs) -> None:
     wp_archive_path = os.path.join(base_path, 'latest.zip')
     # Ensure base path exists (tests may run without creating user dirs)
     os.makedirs(base_path, exist_ok=True)
-    with requests.get('https://wordpress.org/latest.zip') as res:
+    with open_url('https://wordpress.org/latest.zip') as res:
         with open(wp_archive_path, 'wb') as f:
             f.write(res.content)
 
