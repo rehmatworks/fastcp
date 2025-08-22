@@ -1,0 +1,4 @@
+# Default shell for ShellCheck to assume when a shebang is missing.
+# Setting a sensible default reduces SC2148 warnings for files that
+# are intended to be bash-compatible.
+shell=bash
