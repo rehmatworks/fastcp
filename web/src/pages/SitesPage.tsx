@@ -10,6 +10,7 @@ import {
   PauseCircle,
   PlayCircle,
   RefreshCw,
+  FolderOpen,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate, getStatusBgColor } from '@/lib/utils'
@@ -85,7 +86,7 @@ export function SitesPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -95,14 +96,14 @@ export function SitesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Sites</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-bold tracking-tight">Sites</h1>
+          <p className="text-muted-foreground mt-1">
             Manage your websites and applications
           </p>
         </div>
         <Link
           to="/sites/new"
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-medium rounded-lg transition-all duration-200"
+          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-medium rounded-xl transition-all duration-200 shadow-lg shadow-emerald-500/20 btn-lift"
         >
           <Plus className="w-4 h-4" />
           New Site
@@ -111,32 +112,38 @@ export function SitesPage() {
 
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
         <input
           type="text"
           placeholder="Search sites..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
+          className="w-full pl-12 pr-4 py-3 bg-card border border-white/[0.06] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all placeholder:text-muted-foreground/50"
         />
       </div>
 
       {/* Sites List */}
       {filteredSites.length === 0 ? (
-        <div className="bg-card border border-border rounded-xl p-12 text-center">
-          <Globe className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-          <h3 className="font-semibold text-lg mb-2">
+        <div className="bg-card border border-white/[0.06] rounded-2xl p-16 text-center">
+          <div className="w-20 h-20 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-6">
+            {sites.length === 0 ? (
+              <FolderOpen className="w-10 h-10 text-emerald-400/50" />
+            ) : (
+              <Search className="w-10 h-10 text-muted-foreground/50" />
+            )}
+          </div>
+          <h3 className="font-semibold text-xl mb-2">
             {sites.length === 0 ? 'No sites yet' : 'No sites found'}
           </h3>
-          <p className="text-muted-foreground mb-4">
+          <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
             {sites.length === 0
-              ? 'Create your first site to get started'
+              ? 'Create your first site to start hosting your applications'
               : 'Try a different search term'}
           </p>
           {sites.length === 0 && (
             <Link
               to="/sites/new"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-medium rounded-xl transition-all duration-200 shadow-lg shadow-emerald-500/20 btn-lift"
             >
               <Plus className="w-4 h-4" />
               Create Site
@@ -144,41 +151,41 @@ export function SitesPage() {
           )}
         </div>
       ) : (
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="bg-card border border-white/[0.06] rounded-2xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-border bg-secondary/50">
-                  <th className="text-left px-5 py-3 text-sm font-medium text-muted-foreground">
+                <tr className="border-b border-white/[0.06]">
+                  <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Site
                   </th>
-                  <th className="text-left px-5 py-3 text-sm font-medium text-muted-foreground">
+                  <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     PHP
                   </th>
-                  <th className="text-left px-5 py-3 text-sm font-medium text-muted-foreground">
+                  <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="text-left px-5 py-3 text-sm font-medium text-muted-foreground">
+                  <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Created
                   </th>
-                  <th className="text-right px-5 py-3 text-sm font-medium text-muted-foreground">
+                  <th className="text-right px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody className="divide-y divide-white/[0.04]">
                 {filteredSites.map((site) => (
-                  <tr key={site.id} className="hover:bg-secondary/30 transition-colors">
-                    <td className="px-5 py-4">
+                  <tr key={site.id} className="hover:bg-white/[0.02] transition-colors group">
+                    <td className="px-6 py-4">
                       <Link
                         to={`/sites/${site.id}`}
-                        className="flex items-center gap-3"
+                        className="flex items-center gap-4"
                       >
-                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 flex items-center justify-center border border-emerald-500/20">
-                          <Globe className="w-4 h-4 text-emerald-400" />
+                        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 flex items-center justify-center border border-emerald-500/20 group-hover:border-emerald-500/40 transition-colors">
+                          <Globe className="w-5 h-5 text-emerald-400" />
                         </div>
                         <div>
-                          <p className="font-medium hover:text-emerald-400 transition-colors">
+                          <p className="font-medium group-hover:text-emerald-400 transition-colors">
                             {site.name}
                           </p>
                           <p className="text-sm text-muted-foreground">
@@ -187,30 +194,31 @@ export function SitesPage() {
                         </div>
                       </Link>
                     </td>
-                    <td className="px-5 py-4">
-                      <span className="text-sm font-mono bg-secondary px-2 py-1 rounded">
+                    <td className="px-6 py-4">
+                      <span className="text-sm font-mono bg-white/[0.05] px-2.5 py-1 rounded-lg">
                         PHP {site.php_version}
                       </span>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-6 py-4">
                       <span
-                        className={`text-xs px-2.5 py-1 rounded-full border ${getStatusBgColor(
+                        className={`text-xs px-2.5 py-1 rounded-full border font-medium ${getStatusBgColor(
                           site.status
                         )}`}
                       >
                         {site.status}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-sm text-muted-foreground">
+                    <td className="px-6 py-4 text-sm text-muted-foreground">
                       {formatDate(site.created_at)}
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
                         <a
                           href={`https://${site.domain}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+                          className="p-2 text-muted-foreground hover:text-foreground hover:bg-white/[0.05] rounded-lg transition-all"
+                          title="Visit site"
                         >
                           <ExternalLink className="w-4 h-4" />
                         </a>
@@ -219,7 +227,7 @@ export function SitesPage() {
                             onClick={() =>
                               setOpenMenu(openMenu === site.id ? null : site.id)
                             }
-                            className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+                            className="p-2 text-muted-foreground hover:text-foreground hover:bg-white/[0.05] rounded-lg transition-all"
                           >
                             <MoreVertical className="w-4 h-4" />
                           </button>
@@ -229,40 +237,41 @@ export function SitesPage() {
                                 className="fixed inset-0 z-10"
                                 onClick={() => setOpenMenu(null)}
                               />
-                              <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-lg shadow-xl z-20">
+                              <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-white/[0.1] rounded-xl shadow-2xl shadow-black/50 z-20 overflow-hidden animate-fade-in">
                                 <div className="py-1">
                                   {site.status === 'active' ? (
                                     <button
                                       onClick={() => handleSuspend(site.id)}
-                                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left hover:bg-secondary transition-colors"
+                                      className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left hover:bg-white/[0.05] transition-colors"
                                     >
-                                      <PauseCircle className="w-4 h-4" />
+                                      <PauseCircle className="w-4 h-4 text-amber-400" />
                                       Suspend
                                     </button>
                                   ) : (
                                     <button
                                       onClick={() => handleUnsuspend(site.id)}
-                                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left hover:bg-secondary transition-colors"
+                                      className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left hover:bg-white/[0.05] transition-colors"
                                     >
-                                      <PlayCircle className="w-4 h-4" />
+                                      <PlayCircle className="w-4 h-4 text-emerald-400" />
                                       Activate
                                     </button>
                                   )}
                                   {site.worker_mode && (
                                     <button
                                       onClick={() => handleRestartWorkers(site.id)}
-                                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left hover:bg-secondary transition-colors"
+                                      className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left hover:bg-white/[0.05] transition-colors"
                                     >
-                                      <RefreshCw className="w-4 h-4" />
+                                      <RefreshCw className="w-4 h-4 text-blue-400" />
                                       Restart Workers
                                     </button>
                                   )}
+                                  <div className="my-1 border-t border-white/[0.06]" />
                                   <button
                                     onClick={() => handleDelete(site.id)}
-                                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-red-400 hover:bg-red-500/10 transition-colors"
+                                    className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left text-red-400 hover:bg-red-500/10 transition-colors"
                                   >
                                     <Trash2 className="w-4 h-4" />
-                                    Delete
+                                    Delete Site
                                   </button>
                                 </div>
                               </div>
@@ -281,4 +290,3 @@ export function SitesPage() {
     </div>
   )
 }
-

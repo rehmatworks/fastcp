@@ -14,6 +14,9 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
+  Sparkles,
+  ArrowUpRight,
+  Zap,
 } from 'lucide-react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { cn } from '@/lib/utils'
@@ -100,6 +103,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
     setUpgrading(true)
     setUpgradeStatus({ in_progress: true, success: false, message: 'Starting upgrade...' })
+    setShowUpgradeModal(false)
 
     try {
       await api.startUpgrade()
@@ -130,7 +134,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -138,29 +142,29 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform duration-200 ease-in-out lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 w-72 bg-card/80 backdrop-blur-xl border-r border-white/[0.06] transform transition-transform duration-300 ease-out lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center gap-3 px-6 py-5 border-b border-border">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
-              <span className="text-white font-bold text-lg">F</span>
+          <div className="flex items-center gap-3 px-6 py-6">
+            <div className="relative">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 via-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <Zap className="w-5 h-5 text-white" />
+              </div>
+              {versionInfo?.update_available && (
+                <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-blue-500 border-2 border-card status-dot-active" />
+              )}
             </div>
             <div>
-              <h1 className="font-semibold text-lg">FastCP</h1>
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-muted-foreground">
-                  {versionInfo ? `v${versionInfo.current_version}` : 'Control Panel'}
-                </p>
-                {versionInfo?.update_available && (
-                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" title="Update available" />
-                )}
-              </div>
+              <h1 className="font-semibold text-lg tracking-tight">FastCP</h1>
+              <p className="text-xs text-muted-foreground font-mono">
+                {versionInfo ? `v${versionInfo.current_version}` : 'Loading...'}
+              </p>
             </div>
             <button
-              className="ml-auto lg:hidden"
+              className="ml-auto lg:hidden p-2 hover:bg-white/5 rounded-lg transition-colors"
               onClick={() => setSidebarOpen(false)}
             >
               <X className="w-5 h-5" />
@@ -168,7 +172,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-3 py-4 space-y-1">
+          <nav className="flex-1 px-4 py-2 space-y-1">
             {navigation
               .filter((item) => !item.adminOnly || effectiveRole === 'admin')
               .map((item) => {
@@ -180,34 +184,69 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     to={item.href}
                     onClick={() => setSidebarOpen(false)}
                     className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                      'group flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200',
                       isActive
-                        ? 'bg-emerald-500/10 text-emerald-400'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                        ? 'bg-gradient-to-r from-emerald-500/15 to-teal-500/10 text-emerald-400 shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-white/[0.04]'
                     )}
                   >
-                    <item.icon className="w-5 h-5" />
+                    <item.icon className={cn(
+                      "w-5 h-5 transition-transform duration-200",
+                      isActive ? "" : "group-hover:scale-110"
+                    )} />
                     {item.name}
+                    {isActive && (
+                      <div className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    )}
                   </Link>
                 )
               })}
           </nav>
 
+          {/* Update available card in sidebar */}
+          {versionInfo?.update_available && effectiveRole === 'admin' && !upgrading && (
+            <div className="mx-4 mb-4">
+              <button
+                onClick={() => setShowUpgradeModal(true)}
+                className="w-full group relative overflow-hidden rounded-xl p-4 text-left transition-all duration-300 hover:scale-[1.02]"
+              >
+                {/* Animated gradient background */}
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 via-indigo-600/20 to-purple-600/20 rounded-xl" />
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <div className="absolute inset-[1px] bg-card/90 rounded-[11px]" />
+                
+                <div className="relative flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-500/20">
+                    <Sparkles className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground">Update Available</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {versionInfo.release_name}
+                    </p>
+                  </div>
+                  <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-blue-400 transition-colors flex-shrink-0 mt-1" />
+                </div>
+              </button>
+            </div>
+          )}
+
           {/* User section */}
-          <div className="p-3 border-t border-border">
-            <div className="flex items-center gap-3 px-3 py-2">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
-                <span className="text-white text-sm font-medium">
+          <div className="p-4 border-t border-white/[0.06]">
+            <div className="flex items-center gap-3 px-2 py-2">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center">
+                <span className="text-white text-sm font-semibold">
                   {user?.username?.charAt(0).toUpperCase() || 'A'}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{user?.username}</p>
-                <p className="text-xs text-muted-foreground">{user?.role}</p>
+                <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
               </div>
               <button
                 onClick={handleLogout}
-                className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+                className="p-2.5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all duration-200"
+                title="Sign out"
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -217,73 +256,53 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main content */}
-      <div className="lg:pl-64">
-        {/* Update available banner */}
-        {versionInfo?.update_available && effectiveRole === 'admin' && !upgrading && (
-          <div className="bg-blue-500/20 border-b border-blue-500/30 px-4 py-2">
-            <div className="flex items-center justify-between max-w-7xl mx-auto">
-              <div className="flex items-center gap-2 text-blue-200">
-                <Download className="w-4 h-4" />
-                <span className="text-sm">
-                  Update available: <strong>{versionInfo.release_name}</strong>
-                  <span className="text-blue-300/70 ml-2">(current: v{versionInfo.current_version})</span>
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowUpgradeModal(true)}
-                  className="text-xs px-3 py-1 bg-blue-500/30 hover:bg-blue-500/50 rounded-lg transition-colors text-blue-100"
-                >
-                  View Details
-                </button>
-                <button
-                  onClick={handleUpgrade}
-                  className="text-xs px-3 py-1 bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors text-white"
-                >
-                  Upgrade Now
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
+      <div className="lg:pl-72">
         {/* Upgrading banner */}
         {upgrading && upgradeStatus?.in_progress && (
-          <div className="bg-emerald-500/20 border-b border-emerald-500/30 px-4 py-2">
-            <div className="flex items-center gap-2 text-emerald-200 max-w-7xl mx-auto">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-sm">
-                {upgradeStatus.message || 'Upgrading FastCP...'}
-              </span>
+          <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 border-b border-emerald-500/20 px-6 py-3">
+            <div className="flex items-center gap-3 max-w-7xl mx-auto">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-emerald-300">
+                  {upgradeStatus.message || 'Upgrading FastCP...'}
+                </p>
+                <p className="text-xs text-emerald-400/60">Please wait, this may take a moment</p>
+              </div>
             </div>
           </div>
         )}
 
         {/* Upgrade completed banner */}
         {upgradeStatus && !upgradeStatus.in_progress && upgradeStatus.success && (
-          <div className="bg-emerald-500/20 border-b border-emerald-500/30 px-4 py-2">
-            <div className="flex items-center gap-2 text-emerald-200 max-w-7xl mx-auto">
-              <CheckCircle className="w-4 h-4" />
-              <span className="text-sm">
+          <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 border-b border-emerald-500/20 px-6 py-3">
+            <div className="flex items-center gap-3 max-w-7xl mx-auto">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                <CheckCircle className="w-4 h-4 text-emerald-400" />
+              </div>
+              <p className="text-sm font-medium text-emerald-300">
                 Upgrade completed successfully! Restarting...
-              </span>
+              </p>
             </div>
           </div>
         )}
 
         {/* Upgrade failed banner */}
         {upgradeStatus && !upgradeStatus.in_progress && upgradeStatus.error && (
-          <div className="bg-red-500/20 border-b border-red-500/30 px-4 py-2">
+          <div className="bg-gradient-to-r from-red-500/10 via-rose-500/10 to-pink-500/10 border-b border-red-500/20 px-6 py-3">
             <div className="flex items-center justify-between max-w-7xl mx-auto">
-              <div className="flex items-center gap-2 text-red-200">
-                <AlertCircle className="w-4 h-4" />
-                <span className="text-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
+                  <AlertCircle className="w-4 h-4 text-red-400" />
+                </div>
+                <p className="text-sm font-medium text-red-300">
                   Upgrade failed: {upgradeStatus.error}
-                </span>
+                </p>
               </div>
               <button
                 onClick={() => setUpgradeStatus(null)}
-                className="text-xs px-3 py-1 bg-red-500/30 hover:bg-red-500/50 rounded-lg transition-colors text-red-100"
+                className="text-xs px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors text-red-300"
               >
                 Dismiss
               </button>
@@ -293,18 +312,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Impersonation banner */}
         {isImpersonating && (
-          <div className="bg-amber-500/20 border-b border-amber-500/30 px-4 py-2">
+          <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-yellow-500/10 border-b border-amber-500/20 px-6 py-3">
             <div className="flex items-center justify-between max-w-7xl mx-auto">
-              <div className="flex items-center gap-2 text-amber-200">
-                <UserX className="w-4 h-4" />
-                <span className="text-sm">
-                  Viewing as <strong>{user?.username}</strong>
-                  <span className="text-amber-300/70 ml-2">(logged in as {realUser?.username})</span>
-                </span>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                  <UserX className="w-4 h-4 text-amber-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-amber-300">
+                    Viewing as <span className="font-semibold">{user?.username}</span>
+                  </p>
+                  <p className="text-xs text-amber-400/60">Logged in as {realUser?.username}</p>
+                </div>
               </div>
               <button
                 onClick={handleStopImpersonating}
-                className="text-xs px-3 py-1 bg-amber-500/30 hover:bg-amber-500/50 rounded-lg transition-colors text-amber-100"
+                className="text-xs px-4 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 rounded-lg transition-colors text-amber-300 font-medium"
               >
                 Exit Impersonation
               </button>
@@ -312,92 +335,114 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border">
-          <div className="flex items-center gap-4 px-4 py-3 lg:px-6">
+        {/* Mobile header */}
+        <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-white/[0.06] lg:hidden">
+          <div className="flex items-center gap-4 px-4 py-3">
             <button
-              className="lg:hidden p-2 -ml-2 text-muted-foreground hover:text-foreground"
+              className="p-2 -ml-2 text-muted-foreground hover:text-foreground hover:bg-white/5 rounded-lg transition-colors"
               onClick={() => setSidebarOpen(true)}
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="flex-1" />
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center">
+                <Zap className="w-3.5 h-3.5 text-white" />
+              </div>
+              <span className="font-semibold">FastCP</span>
+            </div>
           </div>
         </header>
 
         {/* Page content */}
-        <main className="p-4 lg:p-6">{children}</main>
+        <main className="p-4 lg:p-8">{children}</main>
       </div>
 
       {/* Upgrade Details Modal */}
       {showUpgradeModal && versionInfo && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-card border border-border rounded-xl w-full max-w-2xl max-h-[80vh] overflow-hidden m-4">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <div>
-                <h2 className="text-xl font-semibold">{versionInfo.release_name}</h2>
-                <p className="text-sm text-muted-foreground">
-                  Published {versionInfo.published_at ? new Date(versionInfo.published_at).toLocaleDateString() : 'recently'}
-                </p>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div 
+            className="bg-card border border-white/[0.08] rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden shadow-2xl shadow-black/50 animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="relative px-6 py-5 border-b border-white/[0.06]">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-indigo-500/5 to-purple-500/5" />
+              <div className="relative flex items-start justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <Sparkles className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold">{versionInfo.release_name}</h2>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Published {versionInfo.published_at ? new Date(versionInfo.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'recently'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowUpgradeModal(false)}
+                  className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                onClick={() => setShowUpgradeModal(false)}
-                className="p-2 hover:bg-secondary rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
             </div>
 
+            {/* Modal Content */}
             <div className="p-6 overflow-y-auto max-h-[50vh]">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="flex-1">
-                  <p className="text-sm text-muted-foreground">Current Version</p>
-                  <p className="font-mono">v{versionInfo.current_version}</p>
+              {/* Version comparison */}
+              <div className="flex items-center gap-4 p-4 bg-white/[0.02] rounded-xl border border-white/[0.06]">
+                <div className="flex-1 text-center">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Current</p>
+                  <p className="text-lg font-mono font-medium">v{versionInfo.current_version}</p>
                 </div>
-                <div className="text-2xl text-muted-foreground">→</div>
-                <div className="flex-1">
-                  <p className="text-sm text-muted-foreground">New Version</p>
-                  <p className="font-mono text-emerald-400">v{versionInfo.latest_version}</p>
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/20">
+                  <ArrowUpRight className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div className="flex-1 text-center">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">New Version</p>
+                  <p className="text-lg font-mono font-medium text-emerald-400">v{versionInfo.latest_version}</p>
                 </div>
               </div>
 
+              {/* Changelog */}
               {versionInfo.changelog && (
-                <div className="mt-4">
-                  <h3 className="font-medium mb-2">Changelog</h3>
-                  <div className="bg-secondary/50 rounded-lg p-4 prose prose-sm prose-invert max-w-none">
-                    <pre className="whitespace-pre-wrap text-sm text-muted-foreground">
+                <div className="mt-6">
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">What's New</h3>
+                  <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-4">
+                    <pre className="whitespace-pre-wrap text-sm text-foreground/80 font-mono leading-relaxed">
                       {versionInfo.changelog}
                     </pre>
                   </div>
                 </div>
               )}
 
+              {/* GitHub link */}
               {versionInfo.release_url && (
                 <a
                   href={versionInfo.release_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-block mt-4 text-sm text-blue-400 hover:text-blue-300"
+                  className="inline-flex items-center gap-2 mt-4 text-sm text-blue-400 hover:text-blue-300 transition-colors"
                 >
-                  View on GitHub →
+                  View full release on GitHub
+                  <ArrowUpRight className="w-4 h-4" />
                 </a>
               )}
             </div>
 
-            <div className="flex gap-3 px-6 py-4 border-t border-border bg-secondary/30">
+            {/* Modal Footer */}
+            <div className="flex gap-3 px-6 py-4 border-t border-white/[0.06] bg-white/[0.02]">
               <button
                 onClick={() => setShowUpgradeModal(false)}
-                className="flex-1 px-4 py-2 bg-secondary hover:bg-secondary/80 rounded-lg transition-colors"
+                className="flex-1 px-4 py-2.5 bg-white/[0.05] hover:bg-white/[0.08] rounded-xl font-medium transition-colors"
               >
-                Close
+                Maybe Later
               </button>
               <button
-                onClick={() => {
-                  setShowUpgradeModal(false)
-                  handleUpgrade()
-                }}
+                onClick={handleUpgrade}
                 disabled={upgrading}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-medium rounded-xl transition-all duration-200 disabled:opacity-50 shadow-lg shadow-emerald-500/20 btn-lift"
               >
                 {upgrading ? (
                   <>
@@ -418,4 +463,3 @@ export function Layout({ children }: { children: React.ReactNode }) {
     </div>
   )
 }
-
