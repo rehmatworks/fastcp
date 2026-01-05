@@ -78,6 +78,11 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -108,6 +113,101 @@ jobs:
             echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          VERSION_NUM=${VERSION#v}
+          
+          # Try to extract the section for this version from CHANGELOG.md
+          if [ -f "CHANGELOG.md" ]; then
+            # Extract content between this version header and the next version header
+            CHANGELOG=$(awk -v ver="$VERSION_NUM" '
+              /^## \[/ {
+                if (found) exit
+                if (index($0, "[" ver "]") || index($0, "[Unreleased]" )) {
+                  found = 1
+                  next
+                }
+              }
+              found { print }
+            ' CHANGELOG.md)
+            
+            if [ -n "$CHANGELOG" ]; then
+              echo "Found changelog for version $VERSION_NUM"
+              # Use heredoc to preserve multiline content
+              {
+                echo 'content<<EOF'
+                echo "$CHANGELOG"
+                echo 'EOF'
+              } >> $GITHUB_OUTPUT
+            else
+              echo "No changelog found for version $VERSION_NUM, will use auto-generated notes"
+              echo "content=" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "No CHANGELOG.md found"
+            echo "content=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          CHANGELOG="${{ steps.changelog.outputs.content }}"
+          
+          {
+            echo 'notes<<EOF'
+            
+            # If we have changelog content, use it
+            if [ -n "$CHANGELOG" ]; then
+              echo "$CHANGELOG"
+              echo ""
+            fi
+            
+            # Add installation section
+            cat << 'INSTALL'
+          ---
+
+          ## Installation
+
+          ```bash
+          # One-line install (recommended)
+          curl -fsSL https://fastcp.org/install.sh | sudo bash
+          ```
+
+          <details>
+          <summary>Manual installation</summary>
+
+          ```bash
+          # Linux x86_64 (Ubuntu, Debian, etc.)
+          curl -L https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/fastcp-linux-x86_64 -o /usr/local/bin/fastcp
+          chmod +x /usr/local/bin/fastcp
+
+          # Linux ARM64 (AWS Graviton, Oracle Ampere, etc.)
+          curl -L https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/fastcp-linux-aarch64 -o /usr/local/bin/fastcp
+          chmod +x /usr/local/bin/fastcp
+          ```
+
+          </details>
+
+          ## Quick Start
+
+          ```bash
+          # Start FastCP
+          sudo systemctl start fastcp
+          sudo systemctl enable fastcp
+          ```
+
+          **Default Credentials:**
+          - URL: `http://YOUR_SERVER_IP:8080`
+          - Username: `admin`
+          - Password: `fastcp2024!`
+          INSTALL
+            
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -116,40 +216,5 @@ jobs:
           draft: false
           prerelease: false
           files: release/*
-          body: |
-            ## FastCP ${{ steps.version.outputs.version }}
-            
-            ### Installation
-            
-            ```bash
-            # One-line install
-            curl -fsSL https://fastcp.org/install.sh | bash
-            
-            # Or manual download:
-            
-            # Linux x86_64 (Ubuntu, Debian, CentOS, etc.)
-            curl -L https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/fastcp-linux-x86_64 -o /usr/local/bin/fastcp
-            chmod +x /usr/local/bin/fastcp
-            
-            # Linux ARM64 (AWS Graviton, Oracle Ampere, etc.)
-            curl -L https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/fastcp-linux-aarch64 -o /usr/local/bin/fastcp
-            chmod +x /usr/local/bin/fastcp
-            ```
-            
-            ### Quick Start
-            
-            ```bash
-            # Run FastCP (auto-downloads FrankenPHP on first run)
-            sudo fastcp
-            
-            # Or with systemd
-            sudo systemctl start fastcp
-            sudo systemctl enable fastcp
-            ```
-            
-            ### Default Credentials
-            
-            - **Admin Panel**: http://YOUR_SERVER_IP:8080
-            - **Username**: admin
-            - **Password**: fastcp2024!
-
+          generate_release_notes: ${{ steps.changelog.outputs.content == '' }}
+          body: ${{ steps.release_notes.outputs.notes }}
