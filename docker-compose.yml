@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # Development mode with hot reload
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8080:8080"   # Admin panel
+      - "8000:8000"   # Proxy HTTP
+      - "8443:8443"   # Proxy HTTPS
+    volumes:
+      - .:/app                          # Mount source for hot reload
+      - go-cache:/go/pkg                # Cache Go modules
+      - node-cache:/app/web/node_modules # Cache node_modules
+      - fastcp-data:/var/lib/fastcp     # Persistent data
+      - ./sites:/var/www                # Sites directory
+    environment:
+      - FASTCP_DEV=1
+    stdin_open: true
+    tty: true
+
+  # Production test
+  prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - fastcp-data:/var/lib/fastcp
+      - ./sites:/var/www
+      - fastcp-logs:/var/log/fastcp
+
+volumes:
+  go-cache:
+  node-cache:
+  fastcp-data:
+  fastcp-logs:
+

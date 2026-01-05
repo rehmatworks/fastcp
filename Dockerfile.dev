@@ -1,0 +1,36 @@
+# Development Dockerfile with hot reload
+FROM golang:1.23-bookworm
+
+WORKDIR /app
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs
+
+# Install Air for Go hot reload
+RUN go install github.com/air-verse/air@latest
+
+# Create directories
+RUN mkdir -p /var/lib/fastcp /var/www /var/log/fastcp /etc/fastcp
+
+# Copy dependency files first (for caching)
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY web/package*.json ./web/
+RUN cd web && npm install
+
+# Copy source
+COPY . .
+
+EXPOSE 8080 8000 8443
+
+# Run with Air for hot reload
+CMD ["air", "-c", ".air.toml"]
+

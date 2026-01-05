@@ -1,0 +1,71 @@
+# Binaries (in root only, not cmd/fastcp/)
+/fastcp
+/fastcp-*
+*.exe
+bin/
+
+# Build output
+dist/
+
+# Go
+*.test
+*.out
+coverage.html
+coverage.txt
+
+# Dependencies
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend
+web/node_modules/
+web/dist/
+
+# Runtime data
+data/
+*.db
+*.sqlite
+*.log
+*.pid
+
+# Config (local overrides)
+config.json
+config.local.json
+
+# Caddy generated configs
+*.Caddyfile
+caddyfiles/
+
+# Downloads cache
+downloads/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Air (hot reload)
+tmp/
+
+# Docker
+.docker/
+
+# Local development data
+.fastcp/
+sites/
+
