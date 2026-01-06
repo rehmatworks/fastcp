@@ -314,6 +314,12 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Prevent disabling self
+	if !req.Enabled && username == claims.Username {
+		s.error(w, http.StatusBadRequest, "cannot disable your own account")
+		return
+	}
+
 	// Handle state change
 	if !req.Enabled && currentEnabled {
 		// Disabling user - lock account and suspend all their sites
