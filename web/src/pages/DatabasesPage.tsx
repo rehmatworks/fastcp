@@ -411,18 +411,11 @@ export function DatabasesPage() {
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Databases</h1>
-            <p className="text-muted-foreground mt-1">
-              Manage MySQL databases
-              {status?.running && status?.version && (
-                <span className="text-xs ml-2 px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-full">
-                  {status.version}
-                </span>
-              )}
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Databases</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage your MySQL databases
+          </p>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
