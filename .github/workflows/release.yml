@@ -174,7 +174,20 @@ jobs:
           
           # Fail hard if changelog is missing so we never publish a release with only install text
           if not changelog_content.strip():
-              print(f\"\\nRefusing to publish release without changelog.\\nAdd a section like:\\n\\n## [{version}] - YYYY-MM-DD\\n\\n...\\n\\nIn CHANGELOG.md (in the same commit you tag).\", file=sys.stderr)
+              msg = f"""
+ERROR: No changelog found for version {version}
+
+Refusing to publish release without changelog.
+Add a section like:
+
+## [{version}] - YYYY-MM-DD
+
+### Added
+- New feature...
+
+In CHANGELOG.md (in the same commit you tag).
+"""
+              print(msg, file=sys.stderr)
               sys.exit(1)
           
           # Generate release notes
