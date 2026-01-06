@@ -11,16 +11,104 @@ import {
   PlayCircle,
   RefreshCw,
   FolderOpen,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react'
 import { api } from '@/lib/api'
-import { formatDate, getStatusBgColor } from '@/lib/utils'
+import { formatDate, getStatusBgColor, cn } from '@/lib/utils'
 import type { Site } from '@/types'
+
+interface ConfirmModalProps {
+  isOpen: boolean
+  title: string
+  message: string
+  confirmLabel: string
+  confirmVariant?: 'danger' | 'warning' | 'primary'
+  isLoading?: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+function ConfirmModal({
+  isOpen,
+  title,
+  message,
+  confirmLabel,
+  confirmVariant = 'danger',
+  isLoading,
+  onConfirm,
+  onCancel,
+}: ConfirmModalProps) {
+  if (!isOpen) return null
+
+  const variantClasses = {
+    danger: 'bg-red-500 hover:bg-red-600 text-white',
+    warning: 'bg-amber-500 hover:bg-amber-600 text-white',
+    primary: 'bg-emerald-500 hover:bg-emerald-600 text-white',
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl animate-fade-in">
+        <div className="p-6">
+          <div className="flex items-start gap-4">
+            <div className={cn(
+              "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0",
+              confirmVariant === 'danger' && "bg-red-500/10",
+              confirmVariant === 'warning' && "bg-amber-500/10",
+              confirmVariant === 'primary' && "bg-emerald-500/10",
+            )}>
+              <AlertCircle className={cn(
+                "w-6 h-6",
+                confirmVariant === 'danger' && "text-red-500",
+                confirmVariant === 'warning' && "text-amber-500",
+                confirmVariant === 'primary' && "text-emerald-500",
+              )} />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold">{title}</h3>
+              <p className="text-sm text-muted-foreground mt-1">{message}</p>
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-3 px-6 pb-6">
+          <button
+            onClick={onCancel}
+            disabled={isLoading}
+            className="flex-1 px-4 py-2.5 bg-secondary hover:bg-secondary/80 rounded-xl font-medium transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isLoading}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-colors disabled:opacity-50",
+              variantClasses[confirmVariant]
+            )}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              confirmLabel
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function SitesPage() {
   const [sites, setSites] = useState<Site[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [openMenu, setOpenMenu] = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<Site | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     fetchSites()
@@ -57,15 +145,18 @@ export function SitesPage() {
     setOpenMenu(null)
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Are you sure you want to delete this site?')) return
+  async function handleDelete() {
+    if (!deleteConfirm) return
+    setDeleting(true)
     try {
-      await api.deleteSite(id)
+      await api.deleteSite(deleteConfirm.id)
+      setDeleteConfirm(null)
       fetchSites()
     } catch (error) {
       console.error('Failed to delete site:', error)
+    } finally {
+      setDeleting(false)
     }
-    setOpenMenu(null)
   }
 
   async function handleRestartWorkers(id: string) {
@@ -267,7 +358,10 @@ export function SitesPage() {
                                   )}
                                   <div className="my-1 border-t border-border" />
                                   <button
-                                    onClick={() => handleDelete(site.id)}
+                                    onClick={() => {
+                                      setDeleteConfirm(site)
+                                      setOpenMenu(null)
+                                    }}
                                     className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left text-red-500 hover:bg-red-500/10 transition-colors"
                                   >
                                     <Trash2 className="w-4 h-4" />
@@ -287,6 +381,18 @@ export function SitesPage() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteConfirm}
+        title="Delete Site"
+        message={`Are you sure you want to delete "${deleteConfirm?.name}"? This will permanently remove the site, its files, and all associated data.`}
+        confirmLabel="Delete Site"
+        confirmVariant="danger"
+        isLoading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteConfirm(null)}
+      />
     </div>
   )
 }
