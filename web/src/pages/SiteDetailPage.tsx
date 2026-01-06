@@ -370,11 +370,16 @@ export function SiteDetailPage() {
             <h3 className="font-semibold">Site Information</h3>
 
             <div className="space-y-3 text-sm">
-              <div className="flex items-center gap-3">
-                <FolderOpen className="w-4 h-4 text-muted-foreground" />
-                <div>
+              <div className="flex items-start gap-3">
+                <FolderOpen className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
                   <p className="text-muted-foreground">Root Path</p>
-                  <p className="font-mono text-xs">{site.root_path}</p>
+                  <p 
+                    className="font-mono text-xs break-all" 
+                    title={site.root_path}
+                  >
+                    {site.root_path}
+                  </p>
                 </div>
               </div>
 

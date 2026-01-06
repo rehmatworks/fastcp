@@ -23,7 +23,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/rehmatworks/fastcp/internal/config"
-	"github.com/rehmatworks/fastcp/internal/jail"
 	"github.com/rehmatworks/fastcp/internal/models"
 )
 
@@ -385,6 +384,8 @@ func (m *Manager) GetAll() []models.Site {
 }
 
 // Update updates an existing site
+// IMPORTANT: RootPath is NEVER modified - it's set once during creation
+// This prevents data loss when domains are changed
 func (m *Manager) Update(id string, updates *models.Site) (*models.Site, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -393,6 +394,10 @@ func (m *Manager) Update(id string, updates *models.Site) (*models.Site, error) 
 	if !ok {
 		return nil, ErrSiteNotFound
 	}
+
+	// CRITICAL: Preserve original RootPath - files live at this location
+	// and changing it would orphan all site files
+	originalRootPath := site.RootPath
 
 	oldPrimary := site.Domain
 	oldAliases := append([]string{}, site.Aliases...)
@@ -487,6 +492,10 @@ func (m *Manager) Update(id string, updates *models.Site) (*models.Site, error) 
 		site.Environment = updates.Environment
 	}
 
+	// CRITICAL: Ensure RootPath is NEVER changed - restore original
+	// This prevents any accidental modification that could orphan site files
+	site.RootPath = originalRootPath
+
 	site.UpdatedAt = time.Now()
 
 	// Save to disk
@@ -562,6 +571,7 @@ func (m *Manager) Unsuspend(id string) error {
 }
 
 // createSiteDirectories creates the directory structure for a site with proper ownership
+// IMPORTANT: This function must NEVER modify site.RootPath - paths are immutable after creation
 func (m *Manager) createSiteDirectories(site *models.Site) error {
 	cfg := config.Get()
 
@@ -569,20 +579,11 @@ func (m *Manager) createSiteDirectories(site *models.Site) error {
 	username := getUsernameFromID(site.UserID)
 	uid, gid := getUIDGID(site.UserID)
 
-	// For jailed users, the www directory is inside their home
-	// For non-jailed users, it's in /var/www/username
-	var userBaseDir string
+	// Ensure user's base directory exists
+	// All sites use /var/www/username structure consistently
+	// For jailed users, jail.SetupUserJail already creates the proper symlink structure
 	if username != "" && username != "admin" && runtime.GOOS == "linux" {
-		isJailed := jail.IsUserJailed(username)
-		if isJailed {
-			// Jailed user - www is in home directory
-			userBaseDir = filepath.Join("/home", username, "www")
-			// For jailed users, the RootPath should be updated
-			site.RootPath = filepath.Join(userBaseDir, site.Domain)
-		} else {
-			// Non-jailed user - www is in /var/www
-			userBaseDir = filepath.Join(cfg.SitesDir, username)
-		}
+		userBaseDir := filepath.Join(cfg.SitesDir, username)
 
 		if err := os.MkdirAll(userBaseDir, 0755); err != nil {
 			return err

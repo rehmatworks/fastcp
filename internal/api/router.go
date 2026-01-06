@@ -101,6 +101,10 @@ func (s *Server) setupRoutes() {
 			// Current user
 			r.Get("/me", s.getCurrentUser)
 			r.Put("/me/password", s.changePassword)
+			r.Get("/me/connection", s.getConnectionInfo)
+			r.Get("/me/ssh-keys", s.getSSHKeys)
+			r.Post("/me/ssh-keys", s.addSSHKey)
+			r.Delete("/me/ssh-keys/{fingerprint}", s.deleteSSHKey)
 
 			// Sites
 			r.Route("/sites", func(r chi.Router) {

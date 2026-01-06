@@ -89,6 +89,20 @@ func SetupUserJail(username string) error {
 		return nil
 	}
 
+	// Never jail root or system users
+	if username == "" || username == "root" {
+		return fmt.Errorf("cannot jail root or empty username")
+	}
+
+	// Check if user is an admin (in sudo/wheel group) - never jail admins
+	checkAdmin := exec.Command("groups", username)
+	if output, err := checkAdmin.Output(); err == nil {
+		groups := string(output)
+		if strings.Contains(groups, "sudo") || strings.Contains(groups, "wheel") {
+			return fmt.Errorf("cannot jail admin user %s", username)
+		}
+	}
+
 	homeDir := fmt.Sprintf("/home/%s", username)
 
 	// The home directory must be owned by root for chroot to work
@@ -118,6 +132,10 @@ func SetupUserJail(username string) error {
 	wwwDir := filepath.Join(homeDir, "www")
 	_ = exec.Command("chown", fmt.Sprintf("%s:%s", username, username), wwwDir).Run()
 	_ = exec.Command("chmod", "755", wwwDir).Run()
+
+	// Set up ACLs so fastcp user can read/write files (required for PHP/WordPress)
+	// This ensures files uploaded via SFTP are accessible to the web server
+	setJailACL(wwwDir, username)
 
 	// Set up .ssh directory
 	sshDir := filepath.Join(homeDir, ".ssh")
@@ -204,6 +222,28 @@ func GetJailStatus(username string) *JailStatus {
 	}
 }
 
+// setJailACL sets up ACLs for the jail www directory
+// This ensures files uploaded via SFTP are readable by the fastcp user (PHP)
+func setJailACL(path, username string) {
+	cmds := [][]string{
+		// Owner has full access
+		{"setfacl", "-R", "-m", fmt.Sprintf("u:%s:rwx", username), path},
+		// fastcp user has full access for PHP (needed for WordPress)
+		{"setfacl", "-R", "-m", "u:fastcp:rwx", path},
+		// Root has full access
+		{"setfacl", "-R", "-m", "u:root:rwx", path},
+		// Default ACLs for new files (these are inherited by new files/dirs)
+		{"setfacl", "-R", "-d", "-m", fmt.Sprintf("u:%s:rwx", username), path},
+		{"setfacl", "-R", "-d", "-m", "u:fastcp:rwx", path},
+		{"setfacl", "-R", "-d", "-m", "u:root:rwx", path},
+	}
+
+	for _, cmdArgs := range cmds {
+		cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+		_ = cmd.Run()
+	}
+}
+
 // FixJailPermissions fixes permissions for all jailed users
 func FixJailPermissions(username string) error {
 	if runtime.GOOS != "linux" {
@@ -220,6 +260,9 @@ func FixJailPermissions(username string) error {
 	// www owned by user
 	_ = exec.Command("chown", "-R", fmt.Sprintf("%s:%s", username, username), wwwDir).Run()
 	_ = exec.Command("chmod", "755", wwwDir).Run()
+
+	// Set up ACLs for fastcp user access
+	setJailACL(wwwDir, username)
 
 	return nil
 }

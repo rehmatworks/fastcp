@@ -260,6 +260,34 @@ class APIClient {
   async getUpgradeStatus(): Promise<UpgradeStatus> {
     return this.request('/upgrade/status')
   }
+
+  // Profile / Connection info
+  async getConnectionInfo(): Promise<ConnectionInfo> {
+    return this.request('/me/connection')
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+    return this.request('/me/password', {
+      method: 'PUT',
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    })
+  }
+
+  // SSH Keys
+  async getSSHKeys(): Promise<{ ssh_keys: SSHKeyItem[]; total: number }> {
+    return this.request('/me/ssh-keys')
+  }
+
+  async addSSHKey(name: string, publicKey: string): Promise<{ message: string; fingerprint: string }> {
+    return this.request('/me/ssh-keys', {
+      method: 'POST',
+      body: JSON.stringify({ name, public_key: publicKey }),
+    })
+  }
+
+  async deleteSSHKey(fingerprint: string): Promise<{ message: string }> {
+    return this.request(`/me/ssh-keys/${encodeURIComponent(fingerprint)}`, { method: 'DELETE' })
+  }
 }
 
 // Database types
@@ -357,6 +385,25 @@ export interface UpdateUserRequest {
   ram_limit_mb?: number
   cpu_percent?: number
   max_processes?: number
+}
+
+export interface ConnectionInfo {
+  host: string
+  port: number
+  username: string
+  protocol: string
+  ssh_enabled: boolean
+  sftp_enabled: boolean
+  home_dir: string
+  note?: string
+}
+
+export interface SSHKeyItem {
+  id: string
+  name: string
+  fingerprint: string
+  public_key: string
+  added_at?: string
 }
 
 export const api = new APIClient()
