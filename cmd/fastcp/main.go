@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/rehmatworks/fastcp/internal/jail"
 	"github.com/rehmatworks/fastcp/internal/php"
 	"github.com/rehmatworks/fastcp/internal/sites"
+	"github.com/rehmatworks/fastcp/internal/ssl"
 	"github.com/rehmatworks/fastcp/internal/upgrade"
 )
 
@@ -27,6 +29,7 @@ var (
 	configPath = flag.String("config", "", "Path to configuration file (default: OS-appropriate path)")
 	listenAddr = flag.String("listen", "", "Override listen address (e.g., :8080)")
 	devMode    = flag.Bool("dev", false, "Enable development mode")
+	noSSL      = flag.Bool("no-ssl", false, "Disable HTTPS and use HTTP instead")
 )
 
 func main() {
@@ -164,16 +167,59 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	// Determine if we should use HTTPS
+	useHTTPS := !*devMode && !*noSSL
+
+	// Initialize SSL if needed
+	var sslManager *ssl.Manager
+	var protocol string
+	if useHTTPS {
+		sslManager = ssl.NewManager(cfg.DataDir)
+		if err := sslManager.EnsureCertificate(); err != nil {
+			logger.Error("Failed to generate SSL certificate", "error", err)
+			logger.Warn("Falling back to HTTP")
+			useHTTPS = false
+			protocol = "http"
+		} else {
+			logger.Info("SSL certificate ready")
+			protocol = "https"
+		}
+	} else {
+		protocol = "http"
+	}
+
 	// Start server in goroutine
 	go func() {
-		logger.Info("FastCP API server starting", "address", cfg.ListenAddr)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("Server error", "error", err)
-			os.Exit(1)
+		if useHTTPS {
+			certPath, keyPath := sslManager.CertPaths()
+			logger.Info("FastCP API server starting with HTTPS", "address", cfg.ListenAddr)
+			if err := server.ListenAndServeTLS(certPath, keyPath); err != nil && err != http.ErrServerClosed {
+				logger.Error("Server error", "error", err)
+				os.Exit(1)
+			}
+		} else {
+			logger.Info("FastCP API server starting with HTTP", "address", cfg.ListenAddr)
+			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				logger.Error("Server error", "error", err)
+				os.Exit(1)
+			}
 		}
 	}()
 
+	// Extract port from listen address for display
+	port := cfg.ListenAddr
+	if strings.HasPrefix(port, ":") {
+		port = port[1:]
+	}
+
 	// Print startup message
+	var sslNote string
+	if useHTTPS {
+		sslNote = "⚠️  Self-signed certificate - accept browser warning"
+	} else {
+		sslNote = "⚠️  Running in HTTP mode (use --no-ssl=false for HTTPS)"
+	}
+
 	fmt.Printf(`
 ╔═══════════════════════════════════════════════════════════════╗
 ║                                                               ║
@@ -187,13 +233,15 @@ func main() {
 ║   Modern PHP Hosting Control Panel                            ║
 ║   Version: %-51s ║
 ║                                                               ║
-║   Admin Panel: http://localhost%-29s ║
+║   Admin Panel: %s://localhost:%-27s ║
 ║   Sites Proxy: http://localhost:%-28d ║
 ║   Default Login: admin / fastcp2024!                          ║
 ║                                                               ║
+║   %-61s ║
+║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
 
-`, version, cfg.ListenAddr, cfg.ProxyPort)
+`, version, protocol, port, cfg.ProxyPort, sslNote)
 
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
@@ -217,4 +265,3 @@ func main() {
 
 	logger.Info("FastCP stopped")
 }
-
