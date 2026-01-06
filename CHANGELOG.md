@@ -7,46 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-01-06
+
 ### Added
-- Beautiful new UI/UX with modern design system
-- Outfit and JetBrains Mono fonts for better typography
-- Animated gradient backgrounds and glass morphism effects
-- Update notification card in sidebar with elegant styling
-- Improved login page with floating gradient orbs
+- **Light/Dark Mode Support** - Full theme system with light, dark, and system preference options
+- **Theme Toggle** - Theme switcher in sidebar and login page
+- **Search in Databases** - Search databases by name or username
+- **Custom Confirmation Modals** - Beautiful modals replace browser alerts for deletions
+- **Port Availability Checks** - Installer validates ports 80, 443, 8080 before installation
+- **Async MySQL Installation** - Background installation with progress tracking
+- **Auto-Upgrade System** - Version check and one-click upgrade from control panel
+- **Proxied Installer** - install.sh proxied from GitHub for always-latest version
 
 ### Changed
-- Redesigned dashboard with enhanced stat cards
-- Improved sidebar navigation with active state indicators
-- Better upgrade modal with version comparison display
-- Refined color palette (deep navy instead of pure black)
+- **Complete UI Overhaul** - Modern design with Outfit and JetBrains Mono fonts
+- **Databases Page Redesign** - Table layout, search bar, less prominent MySQL status
+- **Dashboard Enhancement** - Gradient stat cards with shine effects
+- **Sidebar Navigation** - Active state indicators, upgrade card in sidebar
+- **Login Page** - Floating gradient orbs, glass morphism effects
+- **Color Palette** - Deep navy backgrounds, refined for light/dark modes
+- **GitHub Actions** - Strips `v` prefix from version, improved release notes
 
 ### Fixed
-- Removed duplicate header border in main layout
-- Fixed MySQL installation on Ubuntu 22.04 (auth_socket support)
-- Fixed WordPress plugin deletion permissions (ACL improvements)
-
-## [0.1.3] - 2026-01-05
-
-### Added
-- Port availability checks before installation (80, 443, 8080)
-- Asynchronous MySQL installation with progress tracking
-- Auto-upgrade functionality from control panel
-- Version check against fastcp.org API
-
-### Fixed
-- MySQL root authentication on Ubuntu 22.04+
-- Installer now properly validates Ubuntu version (22.04+)
-- WordPress file permissions for plugin management
-
-## [0.1.2] - 2026-01-04
-
-### Added
-- Database management (MySQL installation, create/delete databases)
-- User impersonation for admins
-- PHP version management
-
-### Changed
-- Improved error handling throughout the API
+- MySQL root authentication on Ubuntu 22.04+ (auth_socket support)
+- WordPress plugin deletion permissions (ACL improvements)
+- Duplicate header border removed
+- Ubuntu version validation (22.04+ only)
 
 ## [0.1.1] - 2026-01-03
 
@@ -54,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Site management (create, delete, suspend, unsuspend)
 - SSL certificate provisioning via Caddy
 - Worker mode support for Laravel Octane
+- Database management (MySQL installation, create/delete databases)
+- User impersonation for admins
+- PHP version management
 
 ### Fixed
 - Various bug fixes and stability improvements
@@ -69,9 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FrankenPHP for PHP execution
 - Systemd service management
 
-[Unreleased]: https://github.com/rehmatworks/fastcp/compare/v0.1.3...HEAD
-[0.1.3]: https://github.com/rehmatworks/fastcp/compare/v0.1.2...v0.1.3
+[Unreleased]: https://github.com/rehmatworks/fastcp/compare/v0.1.2...HEAD
 [0.1.2]: https://github.com/rehmatworks/fastcp/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/rehmatworks/fastcp/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/rehmatworks/fastcp/releases/tag/v0.1.0
-
