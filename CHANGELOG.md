@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Public IP Detection** - SSH/SFTP connection info now shows server's public IP instead of hostname
 
 ### Changed
-- **Unified Home Directory Structure** - All user sites now stored in `/home/username/www/domain/` instead of `/var/www`. Simpler and less confusing.
+- **Unified Home Directory Structure** - ALL sites now stored in `/home/username/www/domain/`. No more `/var/www`. Every site belongs to a user, including admin sites.
 
 ### Fixed
 - **Settings Access** - Non-admin users can now access Settings page for SSH keys and password

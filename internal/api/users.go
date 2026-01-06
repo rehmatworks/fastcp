@@ -180,15 +180,8 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create user's web directory with proper permissions
-	// For jailed users, this is in /home/username/www
-	// For non-jailed users, this is in /var/www/username
-	var userWebDir string
-	if !req.ShellAccess && !req.IsAdmin {
-		// Jailed user - www is inside home
-		userWebDir = fmt.Sprintf("/home/%s/www", req.Username)
-	} else {
-		userWebDir = fmt.Sprintf("/var/www/%s", req.Username)
-	}
+	// All users have their sites in /home/username/www
+	userWebDir := fmt.Sprintf("/home/%s/www", req.Username)
 	
 	if err := os.MkdirAll(userWebDir, 0755); err != nil {
 		s.logger.Warn("failed to create user web directory", "error", err)
@@ -429,10 +422,8 @@ func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Clean up user's web directory
-	userWebDir := fmt.Sprintf("/var/www/%s", username)
-	if err := os.RemoveAll(userWebDir); err != nil {
-		s.logger.Warn("failed to remove user web directory", "path", userWebDir, "error", err)
-	}
+	// Note: User's home directory (/home/username) is deleted by userdel -r above
+	// which includes /home/username/www where all their sites were stored
 
 	s.logger.Info("user deleted", "username", username, "sites_deleted", len(userSites), "by", claims.Username)
 	s.success(w, map[string]interface{}{
@@ -601,8 +592,8 @@ func (s *Server) fixUserPermissions(w http.ResponseWriter, r *http.Request) {
 			errors++
 		}
 
-		// Fix web directory
-		webDir := fmt.Sprintf("/var/www/%s", u.Username)
+		// Fix web directory (under user's home)
+		webDir := fmt.Sprintf("/home/%s/www", u.Username)
 		if _, err := os.Stat(webDir); err == nil {
 			if err := exec.Command("chmod", "750", webDir).Run(); err == nil {
 				userResults["web_chmod"] = "fixed"
@@ -624,12 +615,12 @@ func (s *Server) fixUserPermissions(w http.ResponseWriter, r *http.Request) {
 		fixed++
 	}
 
-	// Secure base /var/www directory
-	_ = exec.Command("chown", "root:root", "/var/www").Run()
-	_ = exec.Command("chmod", "751", "/var/www").Run()
-	results["var_www"] = map[string]string{
+	// Secure base /home directory
+	_ = exec.Command("chown", "root:root", "/home").Run()
+	_ = exec.Command("chmod", "755", "/home").Run()
+	results["home"] = map[string]string{
 		"owner":       "root:root",
-		"permissions": "751",
+		"permissions": "755",
 	}
 
 	s.logger.Info("fixed user permissions", "users", fixed, "errors", errors, "by", claims.Username)

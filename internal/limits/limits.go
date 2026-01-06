@@ -234,8 +234,8 @@ func (m *Manager) lookupUser(username string) (*userInfo, error) {
 }
 
 func (m *Manager) getDiskUsage(username string) (int64, error) {
-	// Use du to calculate disk usage
-	userDir := filepath.Join("/var/www", username)
+	// Use du to calculate disk usage - check user's www directory
+	userDir := filepath.Join("/home", username, "www")
 	cmd := exec.Command("du", "-sm", userDir)
 	output, err := cmd.Output()
 	if err != nil {

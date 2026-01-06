@@ -108,7 +108,7 @@ func SetupUserJail(username string) error {
 	// The home directory must be owned by root for chroot to work
 	// Create subdirectories for user content
 	dirs := []string{
-		filepath.Join(homeDir, "www"),      // Symlink to /var/www/username
+		filepath.Join(homeDir, "www"),      // Web root for user's sites
 		filepath.Join(homeDir, ".ssh"),     // For SSH keys
 	}
 

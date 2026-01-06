@@ -67,7 +67,7 @@ func getDefaultPaths() (dataDir, sitesDir, logDir, configDir, binaryPath string,
 	} else {
 		// Production mode: use standard Linux system paths
 		dataDir = getEnvOrDefault(EnvDataDir, "/var/lib/fastcp")
-		sitesDir = getEnvOrDefault(EnvSitesDir, "/var/www")
+		sitesDir = getEnvOrDefault(EnvSitesDir, "/home")  // Sites are at /home/{user}/www/{domain}
 		logDir = getEnvOrDefault(EnvLogDir, "/var/log/fastcp")
 		configDir = getEnvOrDefault(EnvConfigDir, "/etc/fastcp")
 		binaryPath = getEnvOrDefault(EnvBinaryPath, "/usr/local/bin/frankenphp")

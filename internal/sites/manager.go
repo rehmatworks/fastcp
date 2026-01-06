@@ -291,16 +291,13 @@ func (m *Manager) Create(site *models.Site) (*models.Site, error) {
 
 	// Set root path based on user ownership
 	// Structure: /home/{username}/www/{domain}/
-	// All user sites are under their home directory for simplicity
+	// ALL sites are under user's home directory - no exceptions
 	if site.RootPath == "" {
 		username := getUsernameFromID(site.UserID)
-		if username != "" && username != "admin" {
-			// User-specific directory in home
-			site.RootPath = filepath.Join("/home", username, "www", site.Domain)
-		} else {
-			// Fallback for admin - use /var/www directly
-			site.RootPath = filepath.Join(cfg.SitesDir, site.Domain)
+		if username == "" {
+			return nil, fmt.Errorf("site must belong to a valid user")
 		}
+		site.RootPath = filepath.Join("/home", username, "www", site.Domain)
 	}
 
 	site.CreatedAt = time.Now()
@@ -518,7 +515,8 @@ func (m *Manager) Delete(id string) error {
 	}
 
 	// Remove site directory from filesystem
-	if site.RootPath != "" && site.RootPath != "/" && site.RootPath != "/var/www" {
+	// Safety check: only delete paths under /home/*/www/
+	if site.RootPath != "" && site.RootPath != "/" && strings.HasPrefix(site.RootPath, "/home/") {
 		if err := os.RemoveAll(site.RootPath); err != nil {
 			// Log but don't fail - directory might already be gone
 			slog.Warn("failed to remove site directory", "path", site.RootPath, "error", err)
@@ -938,16 +936,17 @@ func setACL(path, username string) error {
 	return nil
 }
 
-// SecureBaseDirectory ensures /var/www has proper permissions
+// SecureBaseDirectory ensures /home has proper permissions
+// All sites are under /home/username/www/ structure
 func SecureBaseDirectory(sitesDir string) error {
 	if runtime.GOOS != "linux" {
 		return nil
 	}
 
-	// /var/www should be owned by root with 751 permissions
-	// This allows traversal but not listing
-	_ = exec.Command("chown", "root:root", sitesDir).Run()
-	_ = exec.Command("chmod", "751", sitesDir).Run()
+	// /home should be owned by root with 755 permissions
+	// Each user's home directory is secured individually
+	_ = exec.Command("chown", "root:root", "/home").Run()
+	_ = exec.Command("chmod", "755", "/home").Run()
 
 	return nil
 }
