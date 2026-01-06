@@ -603,7 +603,7 @@ export function SettingsPage() {
               <div
                 key={key.id}
                   className="flex items-center justify-between px-6 py-4 hover:bg-secondary/30 transition-colors"
-                >
+              >
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
                       <Shield className="w-5 h-5 text-muted-foreground" />
@@ -669,7 +669,7 @@ export function SettingsPage() {
                     <Check className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mt-0.5" />
                     <p className="text-sm text-emerald-700 dark:text-emerald-400">
                       API key created! Copy it now - you won't see it again.
-                    </p>
+                  </p>
                   </div>
                 </div>
 

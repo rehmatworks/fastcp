@@ -412,7 +412,8 @@ func (m *UserPHPManager) generateUserCaddyfile(username, version, socketPath str
 http:// {
 	bind unix/%s
 
-	root * %s
+	# Dynamic root based on Host header - maps to /home/{user}/www/{domain}/
+	root * %s/{http.request.host}
 	
 	# PHP handling
 	php_server {
