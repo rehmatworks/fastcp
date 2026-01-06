@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-01-06
+
+### Added
+- **SSH Key Management** - Add, list, and delete SSH public keys from settings
+- **Password Change** - Users can change their own password from settings
+- **SFTP/SSH Connection Info** - Display connection details (host, port, username, home directory)
+- **Connection Status Badges** - Show SFTP/SSH enabled status
+
+### Fixed
+- **Critical: RootPath preservation** - Site root path no longer changes when domain is updated
+- **Critical: Jail isolation** - Disabling shell for a user no longer affects root SSH access
+- **SFTP File Permissions** - Files uploaded via SFTP now accessible to PHP/WordPress (ACL fix)
+- **Site Details Overflow** - Long root paths no longer overflow the info widget
+- **Standardized Directory Structure** - All sites use consistent `/var/www/username/domain` paths
+- **Self-disable Prevention** - Users cannot disable their own account
+
+### Security
+- Added safeguards to prevent jailing root or admin users
+- SSH key fingerprint validation prevents duplicate keys
+
 ## [0.1.9] - 2026-01-06
 
 ### Fixed
@@ -73,7 +93,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FrankenPHP for PHP execution
 - Systemd service management
 
-[Unreleased]: https://github.com/rehmatworks/fastcp/compare/v0.1.9...HEAD
+[Unreleased]: https://github.com/rehmatworks/fastcp/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/rehmatworks/fastcp/compare/v0.1.9...v0.2.0
 [0.1.9]: https://github.com/rehmatworks/fastcp/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/rehmatworks/fastcp/compare/v0.1.2...v0.1.8
 [0.1.2]: https://github.com/rehmatworks/fastcp/compare/v0.1.1...v0.1.2
