@@ -409,7 +409,9 @@ func (m *UserPHPManager) generateUserCaddyfile(username, version, socketPath str
 }
 
 # Listen on Unix socket
-http://unix/%s {
+http:// {
+	bind unix/%s
+
 	root * %s
 	
 	# PHP handling
