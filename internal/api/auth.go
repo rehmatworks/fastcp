@@ -3,9 +3,12 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -287,9 +290,8 @@ func (s *Server) getConnectionInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get hostname
-	hostname, _ := exec.Command("hostname", "-f").Output()
-	host := strings.TrimSpace(string(hostname))
+	// Get public IP address
+	host := getPublicIP()
 	if host == "" {
 		host = "your-server-ip"
 	}
@@ -450,5 +452,92 @@ func (s *Server) removeFromAuthorizedKeys(username, fingerprint string) error {
 	_ = exec.Command("chown", fmt.Sprintf("%s:%s", username, username), authKeysPath).Run()
 
 	return nil
+}
+
+// getPublicIP returns the server's public IP address
+func getPublicIP() string {
+	// Try multiple services for reliability
+	services := []string{
+		"https://api.ipify.org",
+		"https://ifconfig.me/ip",
+		"https://icanhazip.com",
+	}
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	for _, service := range services {
+		resp, err := client.Get(service)
+		if err != nil {
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				continue
+			}
+			ip := strings.TrimSpace(string(body))
+			// Validate it looks like an IP
+			if net.ParseIP(ip) != nil {
+				return ip
+			}
+		}
+	}
+
+	// Fallback: try to get local IP that's likely public-facing
+	return getLocalIP()
+}
+
+// getLocalIP returns the local IP address (fallback)
+func getLocalIP() string {
+	// Try to find a non-loopback IP
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				// Skip private/local IPs if possible
+				ip := ipnet.IP.String()
+				// Return first non-private IP, or any non-loopback as fallback
+				if !isPrivateIP(ipnet.IP) {
+					return ip
+				}
+			}
+		}
+	}
+
+	// If no public IP found, return any non-loopback IPv4
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+
+	return ""
+}
+
+// isPrivateIP checks if an IP is in private ranges
+func isPrivateIP(ip net.IP) bool {
+	privateRanges := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+	}
+
+	for _, cidr := range privateRanges {
+		_, network, _ := net.ParseCIDR(cidr)
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 

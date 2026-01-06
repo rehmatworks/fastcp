@@ -17,7 +17,7 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react'
-import { api, ConnectionInfo, SSHKeyItem } from '@/lib/api'
+import { api, ConnectionInfo, SSHKeyItem, SSHServerSettings } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import type { APIKey } from '@/types'
@@ -122,6 +122,10 @@ export function SettingsPage() {
   const [deleteSSHKeyConfirm, setDeleteSSHKeyConfirm] = useState<SSHKeyItem | null>(null)
   const [isDeletingSSHKey, setIsDeletingSSHKey] = useState(false)
 
+  // SSH Server Settings state (admin only)
+  const [sshServerSettings, setSSHServerSettings] = useState<SSHServerSettings | null>(null)
+  const [isUpdatingSSHSettings, setIsUpdatingSSHSettings] = useState(false)
+
   useEffect(() => {
     fetchData()
   }, [])
@@ -129,13 +133,27 @@ export function SettingsPage() {
   async function fetchData() {
     setIsLoading(true)
     try {
-      await Promise.all([
-        fetchAPIKeys(),
+      const promises: Promise<void>[] = [
         fetchConnectionInfo(),
         fetchSSHKeys(),
-      ])
+      ]
+      // Only fetch admin data if admin
+      if (user?.role === 'admin') {
+        promises.push(fetchAPIKeys())
+        promises.push(fetchSSHServerSettings())
+      }
+      await Promise.all(promises)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  async function fetchSSHServerSettings() {
+    try {
+      const settings = await api.getSSHSettings()
+      setSSHServerSettings(settings)
+    } catch (error) {
+      console.error('Failed to fetch SSH settings:', error)
     }
   }
 
@@ -231,6 +249,18 @@ export function SettingsPage() {
       console.error('Failed to delete SSH key:', error)
     } finally {
       setIsDeletingSSHKey(false)
+    }
+  }
+
+  async function handleTogglePasswordAuth(enabled: boolean) {
+    setIsUpdatingSSHSettings(true)
+    try {
+      await api.updateSSHSettings({ password_auth_enabled: enabled })
+      setSSHServerSettings({ password_auth_enabled: enabled })
+    } catch (error) {
+      console.error('Failed to update SSH settings:', error)
+    } finally {
+      setIsUpdatingSSHSettings(false)
     }
   }
 
@@ -458,113 +488,164 @@ export function SettingsPage() {
         </div>
       </div>
 
+      {/* SSH Server Settings - Admin Only */}
+      {user?.role === 'admin' && sshServerSettings && (
+        <div className="bg-card border border-border rounded-2xl p-6 card-shadow">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+              <Shield className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold mb-1">SSH Server Settings</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Configure server-wide SSH authentication settings
+              </p>
+              
+              <div className="flex items-center justify-between py-3 px-4 bg-secondary rounded-xl">
+                <div>
+                  <p className="font-medium">Password Authentication</p>
+                  <p className="text-sm text-muted-foreground">
+                    Allow users to authenticate with passwords. Disable for key-only access.
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleTogglePasswordAuth(!sshServerSettings.password_auth_enabled)}
+                  disabled={isUpdatingSSHSettings}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    sshServerSettings.password_auth_enabled
+                      ? 'bg-emerald-500'
+                      : 'bg-gray-400 dark:bg-gray-600'
+                  } ${isUpdatingSSHSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      sshServerSettings.password_auth_enabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              
+              {!sshServerSettings.password_auth_enabled && (
+                <div className="mt-3 flex items-start gap-2 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                  <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-amber-600 dark:text-amber-400">
+                    Password authentication is disabled. Users must use SSH keys to connect. 
+                    Make sure you have added an SSH key before disabling passwords.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quick Actions - Admin Only */}
       {user?.role === 'admin' && (
         <div className="bg-card border border-border rounded-2xl p-6 card-shadow">
-        <h2 className="font-semibold mb-4">Quick Actions</h2>
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={handleReloadAll}
-            disabled={isReloading}
+          <h2 className="font-semibold mb-4">Quick Actions</h2>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleReloadAll}
+              disabled={isReloading}
               className="flex items-center gap-2 px-4 py-2.5 bg-secondary hover:bg-secondary/80 rounded-xl font-medium transition-colors disabled:opacity-50"
-          >
-            {isReloading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4" />
-            )}
-            Reload All Configurations
-          </button>
+            >
+              {isReloading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              Reload All Configurations
+            </button>
+          </div>
         </div>
-      </div>
       )}
 
       {/* API Keys - Admin Only */}
       {user?.role === 'admin' && (
         <div className="bg-card border border-border rounded-2xl card-shadow overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
                 <Key className="w-5 h-5 text-primary" />
               </div>
-              <div>
-                <h2 className="font-semibold">API Keys</h2>
-                <p className="text-sm text-muted-foreground">
-                  For WHMCS and external integrations
-                </p>
-              </div>
+            <div>
+              <h2 className="font-semibold">API Keys</h2>
+              <p className="text-sm text-muted-foreground">
+                For WHMCS and external integrations
+              </p>
             </div>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl font-medium transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Create Key
-            </button>
           </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl font-medium transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create Key
+          </button>
+        </div>
 
-          <div className="divide-y divide-border">
-            {apiKeys.length === 0 ? (
+        <div className="divide-y divide-border">
+          {apiKeys.length === 0 ? (
               <div className="px-6 py-12 text-center">
                 <div className="w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-4">
                   <Key className="w-8 h-8 text-muted-foreground" />
                 </div>
                 <p className="text-muted-foreground mb-2">No API keys yet</p>
-                <button
-                  onClick={() => setShowCreateModal(true)}
+              <button
+                onClick={() => setShowCreateModal(true)}
                   className="text-sm text-primary hover:underline"
-                >
-                  Create your first API key
-                </button>
-              </div>
-            ) : (
-              apiKeys.map((key) => (
-                <div
-                  key={key.id}
+              >
+                Create your first API key
+              </button>
+            </div>
+          ) : (
+            apiKeys.map((key) => (
+              <div
+                key={key.id}
                   className="flex items-center justify-between px-6 py-4 hover:bg-secondary/30 transition-colors"
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
                       <Shield className="w-5 h-5 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{key.name}</p>
-                      <p className="text-sm text-muted-foreground font-mono">
-                        {key.key}
-                      </p>
-                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground">
-                      {formatDate(key.created_at)}
-                    </span>
-                    <button
-                      onClick={() => setDeleteConfirm(key)}
-                      className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                  <div>
+                    <p className="font-medium">{key.name}</p>
+                    <p className="text-sm text-muted-foreground font-mono">
+                      {key.key}
+                    </p>
                   </div>
                 </div>
-              ))
-            )}
-          </div>
+                  <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted-foreground">
+                    {formatDate(key.created_at)}
+                  </span>
+                  <button
+                      onClick={() => setDeleteConfirm(key)}
+                      className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
+      </div>
       )}
 
       {/* WHMCS Integration Info - Admin Only */}
       {user?.role === 'admin' && (
         <div className="bg-card border border-border rounded-2xl p-6 card-shadow">
-          <div className="flex items-start gap-4">
+        <div className="flex items-start gap-4">
             <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center flex-shrink-0">
               <Shield className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            </div>
+          </div>
             <div className="flex-1">
-              <h3 className="font-semibold mb-1">WHMCS Integration</h3>
+            <h3 className="font-semibold mb-1">WHMCS Integration</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Use API keys to integrate FastCP with WHMCS for automated
-                provisioning. Send requests to the following endpoints:
-              </p>
+              Use API keys to integrate FastCP with WHMCS for automated
+              provisioning. Send requests to the following endpoints:
+            </p>
               <div className="space-y-2">
                 <div className="flex items-center gap-3 px-4 py-3 bg-secondary rounded-xl font-mono text-sm">
                   <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded text-xs font-semibold">POST</span>
@@ -573,7 +654,7 @@ export function SettingsPage() {
                 <div className="flex items-center gap-3 px-4 py-3 bg-secondary rounded-xl font-mono text-sm">
                   <span className="px-2 py-0.5 bg-blue-500/20 text-blue-700 dark:text-blue-400 rounded text-xs font-semibold">GET</span>
                   <span className="text-foreground">/api/v1/whmcs/status/{'{service_id}'}</span>
-                </div>
+              </div>
               </div>
               <p className="text-xs text-muted-foreground mt-4">
                 Include the API key in the <code className="px-1.5 py-0.5 bg-secondary rounded text-foreground">X-API-Key</code> header.

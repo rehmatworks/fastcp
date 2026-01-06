@@ -288,6 +288,18 @@ class APIClient {
   async deleteSSHKey(fingerprint: string): Promise<{ message: string }> {
     return this.request(`/me/ssh-keys/${encodeURIComponent(fingerprint)}`, { method: 'DELETE' })
   }
+
+  // SSH Server Settings (Admin only)
+  async getSSHSettings(): Promise<SSHServerSettings> {
+    return this.request('/ssh-settings')
+  }
+
+  async updateSSHSettings(settings: SSHServerSettings): Promise<{ message: string }> {
+    return this.request('/ssh-settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    })
+  }
 }
 
 // Database types
@@ -404,6 +416,10 @@ export interface SSHKeyItem {
   fingerprint: string
   public_key: string
   added_at?: string
+}
+
+export interface SSHServerSettings {
+  password_auth_enabled: boolean
 }
 
 export const api = new APIClient()

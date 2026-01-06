@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -238,5 +239,134 @@ func (s *Server) deleteAPIKey(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Info("API key deleted", "id", id, "user", claims.Username)
 	s.success(w, map[string]string{"message": "API key deleted"})
+}
+
+// SSHSettings represents SSH server settings
+type SSHSettings struct {
+	PasswordAuthEnabled bool `json:"password_auth_enabled"`
+}
+
+const sshdConfigPath = "/etc/ssh/sshd_config"
+
+// getSSHSettings returns current SSH server settings (admin only)
+func (s *Server) getSSHSettings(w http.ResponseWriter, r *http.Request) {
+	if runtime.GOOS != "linux" {
+		s.success(w, SSHSettings{PasswordAuthEnabled: true})
+		return
+	}
+
+	enabled := isSSHPasswordAuthEnabled()
+	s.success(w, SSHSettings{PasswordAuthEnabled: enabled})
+}
+
+// updateSSHSettings updates SSH server settings (admin only)
+func (s *Server) updateSSHSettings(w http.ResponseWriter, r *http.Request) {
+	claims := middleware.GetClaims(r)
+
+	if runtime.GOOS != "linux" {
+		s.error(w, http.StatusBadRequest, "SSH settings only available on Linux")
+		return
+	}
+
+	var req SSHSettings
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := setSSHPasswordAuth(req.PasswordAuthEnabled); err != nil {
+		s.logger.Error("failed to update SSH settings", "error", err)
+		s.error(w, http.StatusInternalServerError, "failed to update SSH settings: "+err.Error())
+		return
+	}
+
+	status := "disabled"
+	if req.PasswordAuthEnabled {
+		status = "enabled"
+	}
+	s.logger.Info("SSH password authentication "+status, "user", claims.Username)
+	s.success(w, map[string]string{"message": "SSH settings updated, password authentication " + status})
+}
+
+// isSSHPasswordAuthEnabled checks if password authentication is enabled in sshd_config
+func isSSHPasswordAuthEnabled() bool {
+	data, err := os.ReadFile(sshdConfigPath)
+	if err != nil {
+		return true // Default to enabled if can't read
+	}
+
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		// Skip comments
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		// Check for PasswordAuthentication directive
+		if strings.HasPrefix(strings.ToLower(line), "passwordauthentication") {
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				return strings.ToLower(parts[1]) == "yes"
+			}
+		}
+	}
+
+	// Default is yes if not specified
+	return true
+}
+
+// setSSHPasswordAuth enables or disables password authentication in sshd_config
+func setSSHPasswordAuth(enabled bool) error {
+	data, err := os.ReadFile(sshdConfigPath)
+	if err != nil {
+		return err
+	}
+
+	lines := strings.Split(string(data), "\n")
+	found := false
+	newValue := "no"
+	if enabled {
+		newValue = "yes"
+	}
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		// Check for PasswordAuthentication (including commented out)
+		lower := strings.ToLower(trimmed)
+		if strings.HasPrefix(lower, "passwordauthentication") ||
+			strings.HasPrefix(lower, "#passwordauthentication") {
+			lines[i] = "PasswordAuthentication " + newValue
+			found = true
+			break
+		}
+	}
+
+	// If not found, add it before any Match blocks or at the end
+	if !found {
+		// Find where to insert (before Match blocks if any)
+		insertIndex := len(lines)
+		for i, line := range lines {
+			if strings.HasPrefix(strings.TrimSpace(strings.ToLower(line)), "match ") {
+				insertIndex = i
+				break
+			}
+		}
+
+		// Insert the directive
+		newLine := "PasswordAuthentication " + newValue
+		lines = append(lines[:insertIndex], append([]string{newLine}, lines[insertIndex:]...)...)
+	}
+
+	// Write back
+	content := strings.Join(lines, "\n")
+	if err := os.WriteFile(sshdConfigPath, []byte(content), 0644); err != nil {
+		return err
+	}
+
+	// Reload SSH service
+	_ = exec.Command("systemctl", "reload", "sshd").Run()
+	_ = exec.Command("systemctl", "reload", "ssh").Run()
+
+	return nil
 }
 

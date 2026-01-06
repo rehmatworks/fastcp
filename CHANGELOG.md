@@ -14,13 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Password Change** - Users can change their own password from settings
 - **SFTP/SSH Connection Info** - Display connection details (host, port, username, home directory)
 - **Connection Status Badges** - Show SFTP/SSH enabled status
+- **SSH Password Auth Toggle** - Admins can enable/disable server-wide password authentication for SSH/SFTP
+- **Public IP Detection** - SSH/SFTP connection info now shows server's public IP instead of hostname
+
+### Changed
+- **Unified Home Directory Structure** - All user sites now stored in `/home/username/www/domain/` instead of `/var/www`. Simpler and less confusing.
 
 ### Fixed
+- **Settings Access** - Non-admin users can now access Settings page for SSH keys and password
 - **Critical: RootPath preservation** - Site root path no longer changes when domain is updated
 - **Critical: Jail isolation** - Disabling shell for a user no longer affects root SSH access
 - **SFTP File Permissions** - Files uploaded via SFTP now accessible to PHP/WordPress (ACL fix)
 - **Site Details Overflow** - Long root paths no longer overflow the info widget
-- **Standardized Directory Structure** - All sites use consistent `/var/www/username/domain` paths
 - **Self-disable Prevention** - Users cannot disable their own account
 
 ### Security

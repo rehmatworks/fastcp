@@ -290,14 +290,15 @@ func (m *Manager) Create(site *models.Site) (*models.Site, error) {
 	}
 
 	// Set root path based on user ownership
-	// Structure: /var/www/{username}/{domain}/
+	// Structure: /home/{username}/www/{domain}/
+	// All user sites are under their home directory for simplicity
 	if site.RootPath == "" {
 		username := getUsernameFromID(site.UserID)
 		if username != "" && username != "admin" {
-			// User-specific directory
-			site.RootPath = filepath.Join(cfg.SitesDir, username, site.Domain)
+			// User-specific directory in home
+			site.RootPath = filepath.Join("/home", username, "www", site.Domain)
 		} else {
-			// Fallback for admin or config-based auth
+			// Fallback for admin - use /var/www directly
 			site.RootPath = filepath.Join(cfg.SitesDir, site.Domain)
 		}
 	}
@@ -579,19 +580,24 @@ func (m *Manager) createSiteDirectories(site *models.Site) error {
 	username := getUsernameFromID(site.UserID)
 	uid, gid := getUIDGID(site.UserID)
 
-	// Ensure user's base directory exists
-	// All sites use /var/www/username structure consistently
-	// For jailed users, jail.SetupUserJail already creates the proper symlink structure
+	// Ensure user's www directory exists
+	// Structure: /home/{username}/www/ for user sites
 	if username != "" && username != "admin" && runtime.GOOS == "linux" {
-		userBaseDir := filepath.Join(cfg.SitesDir, username)
-
-		if err := os.MkdirAll(userBaseDir, 0755); err != nil {
+		// Create home directory if needed
+		homeDir := filepath.Join("/home", username)
+		if err := os.MkdirAll(homeDir, 0755); err != nil {
 			return err
 		}
-		// Set ownership on user base directory
-		setOwnership(userBaseDir, uid, gid)
+
+		// www directory inside home
+		wwwDir := filepath.Join(homeDir, "www")
+		if err := os.MkdirAll(wwwDir, 0755); err != nil {
+			return err
+		}
+		// Set ownership on www directory
+		setOwnership(wwwDir, uid, gid)
 		// Set ACL to prevent other users from accessing
-		setACL(userBaseDir, username)
+		setACL(wwwDir, username)
 	}
 
 	dirs := []string{

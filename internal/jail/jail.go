@@ -142,35 +142,9 @@ func SetupUserJail(username string) error {
 	_ = exec.Command("chown", fmt.Sprintf("%s:%s", username, username), sshDir).Run()
 	_ = exec.Command("chmod", "700", sshDir).Run()
 
-	// Create symlink from /var/www/username to user's www directory
-	// Actually, we'll use the home www as the actual storage
-	varWwwDir := fmt.Sprintf("/var/www/%s", username)
-	
-	// Remove existing /var/www/username if it's a directory
-	info, err := os.Lstat(varWwwDir)
-	if err == nil {
-		if info.Mode()&os.ModeSymlink != 0 {
-			// Already a symlink, check if correct
-			target, _ := os.Readlink(varWwwDir)
-			if target == wwwDir {
-				// Already correct
-				goto addToGroup
-			}
-			os.Remove(varWwwDir)
-		} else if info.IsDir() {
-			// Move existing content to new location
-			_ = exec.Command("cp", "-a", varWwwDir+"/.", wwwDir+"/").Run()
-			_ = exec.Command("rm", "-rf", varWwwDir).Run()
-		}
-	}
+	// Note: Sites are stored directly in /home/username/www/
+	// No symlink to /var/www needed - everything is under home directory
 
-	// Create symlink /var/www/username -> /home/username/www
-	if err := os.Symlink(wwwDir, varWwwDir); err != nil {
-		// If symlink fails, just ensure /var/www/username exists
-		os.MkdirAll(varWwwDir, 0755)
-	}
-
-addToGroup:
 	// Add user to jail group
 	_ = exec.Command("usermod", "-aG", JailGroup, username).Run()
 

@@ -175,6 +175,10 @@ func (s *Server) setupRoutes() {
 				r.Get("/config", s.getConfig)
 				r.Put("/config", s.updateConfig)
 
+				// SSH Settings
+				r.Get("/ssh-settings", s.getSSHSettings)
+				r.Put("/ssh-settings", s.updateSSHSettings)
+
 				// System
 				r.Post("/reload", s.reloadAll)
 
