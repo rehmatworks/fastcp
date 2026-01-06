@@ -143,7 +143,7 @@ Development mode (`FASTCP_DEV=1`) uses local directories:
 
 ## Usage
 
-1. Open `http://localhost:8080` in your browser
+1. Open `https://localhost:8080` in your browser
 2. Login with default credentials:
    - Username: `admin`
    - Password: `fastcp2024!`
@@ -180,12 +180,12 @@ Configuration file: `/etc/fastcp/config.json`
 
 ```bash
 # Login
-curl -X POST http://localhost:8080/api/v1/auth/login \
+curl -X POST https://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "password": "fastcp2024!"}'
 
 # Use token in subsequent requests
-curl http://localhost:8080/api/v1/sites \
+curl https://localhost:8080/api/v1/sites \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 

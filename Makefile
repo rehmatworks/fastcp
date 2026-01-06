@@ -31,7 +31,7 @@ build: build-frontend build-backend
 dev:
 	@echo "Starting FastCP in development mode..."
 	@echo "Data directory: ./.fastcp/"
-	@echo "Admin panel: http://localhost:8080"
+	@echo "Admin panel: https://localhost:8080"
 	@echo "Proxy: http://localhost:8000"
 	@echo ""
 	FASTCP_DEV=1 go run ./cmd/fastcp
