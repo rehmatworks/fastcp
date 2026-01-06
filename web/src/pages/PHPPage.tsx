@@ -82,17 +82,17 @@ export function PHPPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">PHP Instances</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-2xl font-bold tracking-tight">PHP Instances</h1>
+        <p className="text-muted-foreground mt-1">
           Manage FrankenPHP instances for different PHP versions
         </p>
       </div>
@@ -102,23 +102,23 @@ export function PHPPage() {
         {instances.map((instance) => (
           <div
             key={instance.version}
-            className="bg-card border border-border rounded-xl overflow-hidden hover:border-emerald-500/30 transition-colors"
+            className="bg-card border border-border rounded-2xl overflow-hidden card-shadow hover:border-primary/20 transition-colors"
           >
             {/* Header */}
-            <div className="px-5 py-4 border-b border-border bg-secondary/30">
+            <div className="px-5 py-4 border-b border-border bg-secondary/50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center ${
                       instance.status === 'running'
-                        ? 'bg-emerald-500/20 border border-emerald-500/30'
-                        : 'bg-secondary border border-border'
+                        ? 'bg-emerald-500/10'
+                        : 'bg-secondary'
                     }`}
                   >
                     <Server
                       className={`w-5 h-5 ${
                         instance.status === 'running'
-                          ? 'text-emerald-400'
+                          ? 'text-emerald-600 dark:text-emerald-400'
                           : 'text-muted-foreground'
                       }`}
                     />
@@ -132,10 +132,10 @@ export function PHPPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {instance.status === 'running' && (
-                    <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
+                    <Activity className="w-4 h-4 text-emerald-500" />
                   )}
                   <span
-                    className={`text-xs px-2.5 py-1 rounded-full border ${getStatusBgColor(
+                    className={`text-xs px-2.5 py-1 rounded-full border font-medium ${getStatusBgColor(
                       instance.status
                     )}`}
                   >
@@ -169,14 +169,14 @@ export function PHPPage() {
             </div>
 
             {/* Actions */}
-            <div className="px-5 py-4 border-t border-border bg-secondary/20">
+            <div className="px-5 py-4 border-t border-border bg-secondary/30">
               <div className="flex items-center gap-2">
                 {instance.status === 'running' ? (
                   <>
                     <button
                       onClick={() => handleStop(instance.version)}
                       disabled={actionLoading === instance.version}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-lg transition-colors disabled:opacity-50"
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-xl transition-colors disabled:opacity-50"
                     >
                       {actionLoading === instance.version ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -188,7 +188,7 @@ export function PHPPage() {
                     <button
                       onClick={() => handleRestart(instance.version)}
                       disabled={actionLoading === instance.version}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-lg transition-colors disabled:opacity-50"
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-xl transition-colors disabled:opacity-50"
                     >
                       <RefreshCw className="w-4 h-4" />
                       Restart
@@ -198,7 +198,7 @@ export function PHPPage() {
                   <button
                     onClick={() => handleStart(instance.version)}
                     disabled={actionLoading === instance.version}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded-lg transition-colors disabled:opacity-50"
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-colors disabled:opacity-50"
                   >
                     {actionLoading === instance.version ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -214,7 +214,7 @@ export function PHPPage() {
                 <button
                   onClick={() => handleRestartWorkers(instance.version)}
                   disabled={actionLoading === instance.version}
-                  className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+                  className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary rounded-xl transition-colors"
                 >
                   <Cpu className="w-4 h-4" />
                   Restart Workers
@@ -226,8 +226,10 @@ export function PHPPage() {
       </div>
 
       {instances.length === 0 && (
-        <div className="bg-card border border-border rounded-xl p-12 text-center">
-          <Server className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+        <div className="bg-card border border-border rounded-2xl p-12 text-center card-shadow">
+          <div className="w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-4">
+            <Server className="w-8 h-8 text-muted-foreground" />
+          </div>
           <h3 className="font-semibold text-lg mb-2">No PHP instances configured</h3>
           <p className="text-muted-foreground">
             Configure PHP versions in the settings to get started
@@ -236,10 +238,10 @@ export function PHPPage() {
       )}
 
       {/* Info Card */}
-      <div className="bg-gradient-to-r from-emerald-500/10 to-emerald-600/10 border border-emerald-500/20 rounded-xl p-5">
+      <div className="bg-card border border-border rounded-2xl p-5 card-shadow">
         <div className="flex items-start gap-4">
-          <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
-            <Server className="w-5 h-5 text-emerald-400" />
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <Server className="w-5 h-5 text-primary" />
           </div>
           <div>
             <h3 className="font-semibold mb-1">About PHP Instances</h3>
@@ -255,4 +257,3 @@ export function PHPPage() {
     </div>
   )
 }
-

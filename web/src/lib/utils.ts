@@ -47,14 +47,14 @@ export function getStatusColor(status: string): string {
   switch (status) {
     case 'active':
     case 'running':
-      return 'text-emerald-400'
+      return 'text-emerald-600 dark:text-emerald-400'
     case 'suspended':
     case 'stopped':
-      return 'text-amber-400'
+      return 'text-amber-600 dark:text-amber-400'
     case 'error':
-      return 'text-red-400'
+      return 'text-red-600 dark:text-red-400'
     default:
-      return 'text-gray-400'
+      return 'text-gray-600 dark:text-gray-400'
   }
 }
 
@@ -62,14 +62,14 @@ export function getStatusBgColor(status: string): string {
   switch (status) {
     case 'active':
     case 'running':
-      return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+      return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20'
     case 'suspended':
     case 'stopped':
-      return 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+      return 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20'
     case 'error':
-      return 'bg-red-500/10 text-red-400 border-red-500/20'
+      return 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20'
     default:
-      return 'bg-gray-500/10 text-gray-400 border-gray-500/20'
+      return 'bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-500/20'
   }
 }
 

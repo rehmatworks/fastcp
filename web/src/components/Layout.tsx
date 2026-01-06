@@ -49,17 +49,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [showThemeMenu, setShowThemeMenu] = useState(false)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  // When impersonating, use realUser for admin checks
   const effectiveRole = isImpersonating ? realUser?.role : user?.role
 
-  // Check for updates on mount
   useEffect(() => {
     if (effectiveRole === 'admin') {
       checkForUpdates()
     }
   }, [effectiveRole])
 
-  // Cleanup polling on unmount
   useEffect(() => {
     return () => {
       if (pollIntervalRef.current) {
@@ -83,7 +80,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
       setUpgradeStatus(status)
 
       if (!status.in_progress) {
-        // Upgrade finished, stop polling
         if (pollIntervalRef.current) {
           clearInterval(pollIntervalRef.current)
           pollIntervalRef.current = null
@@ -91,7 +87,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         setUpgrading(false)
 
         if (status.success) {
-          // Reload page after successful upgrade
           setTimeout(() => {
             window.location.reload()
           }, 3000)
@@ -113,7 +108,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
     try {
       await api.startUpgrade()
-      // Start polling for status
       pollIntervalRef.current = setInterval(pollUpgradeStatus, 2000)
     } catch (error: any) {
       setUpgrading(false)
@@ -140,7 +134,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -148,29 +142,29 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-72 bg-card/95 backdrop-blur-xl border-r border-border transform transition-transform duration-300 ease-out lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform duration-200 lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center gap-3 px-6 py-6">
+          <div className="flex items-center gap-3 px-5 py-5 border-b border-border">
             <div className="relative">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 via-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                <Zap className="w-5 h-5 text-white" />
+              <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
+                <Zap className="w-5 h-5 text-primary-foreground" />
               </div>
               {versionInfo?.update_available && (
-                <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-blue-500 border-2 border-card status-dot-active" />
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-card" />
               )}
             </div>
             <div>
-              <h1 className="font-semibold text-lg tracking-tight">FastCP</h1>
+              <h1 className="font-semibold">FastCP</h1>
               <p className="text-xs text-muted-foreground font-mono">
-                {versionInfo ? `v${versionInfo.current_version}` : 'Loading...'}
+                {versionInfo ? `v${versionInfo.current_version}` : '...'}
               </p>
             </div>
             <button
-              className="ml-auto lg:hidden p-2 hover:bg-white/5 rounded-lg transition-colors"
+              className="ml-auto lg:hidden p-2 hover:bg-secondary rounded-lg transition-colors"
               onClick={() => setSidebarOpen(false)}
             >
               <X className="w-5 h-5" />
@@ -178,7 +172,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-2 space-y-1">
+          <nav className="flex-1 px-3 py-4 space-y-1">
             {navigation
               .filter((item) => !item.adminOnly || effectiveRole === 'admin')
               .map((item) => {
@@ -190,106 +184,76 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     to={item.href}
                     onClick={() => setSidebarOpen(false)}
                     className={cn(
-                      'group flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200',
+                      'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
                       isActive
-                        ? 'bg-gradient-to-r from-emerald-500/15 to-teal-500/10 text-emerald-400 shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-white/[0.04]'
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
                     )}
                   >
-                    <item.icon className={cn(
-                      "w-5 h-5 transition-transform duration-200",
-                      isActive ? "" : "group-hover:scale-110"
-                    )} />
+                    <item.icon className="w-5 h-5" />
                     {item.name}
-                    {isActive && (
-                      <div className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    )}
                   </Link>
                 )
               })}
           </nav>
 
-          {/* Update available card in sidebar */}
+          {/* Update available card */}
           {versionInfo?.update_available && effectiveRole === 'admin' && !upgrading && (
-            <div className="mx-4 mb-4">
+            <div className="mx-3 mb-3">
               <button
                 onClick={() => setShowUpgradeModal(true)}
-                className="w-full group relative overflow-hidden rounded-xl p-4 text-left transition-all duration-300 hover:scale-[1.02]"
+                className="w-full flex items-center gap-3 p-3 bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/20 rounded-xl text-left transition-colors"
               >
-                {/* Animated gradient background */}
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 via-indigo-600/20 to-purple-600/20 rounded-xl" />
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <div className="absolute inset-[1px] bg-card/90 rounded-[11px]" />
-                
-                <div className="relative flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-500/20">
-                    <Sparkles className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground">Update Available</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                      {versionInfo.release_name}
-                    </p>
-                  </div>
-                  <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-blue-400 transition-colors flex-shrink-0 mt-1" />
+                <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">Update Available</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    v{versionInfo.latest_version}
+                  </p>
                 </div>
               </button>
             </div>
           )}
 
           {/* Theme toggle */}
-          <div className="px-4 pb-2">
+          <div className="px-3 pb-3">
             <div className="relative">
               <button
                 onClick={() => setShowThemeMenu(!showThemeMenu)}
-                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/50 dark:hover:bg-white/[0.04] transition-all duration-200"
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
               >
                 {resolvedTheme === 'dark' ? (
                   <Moon className="w-5 h-5" />
                 ) : (
                   <Sun className="w-5 h-5" />
                 )}
-                <span className="capitalize">{theme === 'system' ? `System (${resolvedTheme})` : theme}</span>
+                <span className="capitalize">{theme === 'system' ? `System` : theme}</span>
               </button>
               
               {showThemeMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowThemeMenu(false)} />
-                  <div className="absolute bottom-full left-0 right-0 mb-2 bg-card border border-border rounded-xl shadow-xl z-20 overflow-hidden animate-fade-in">
+                  <div className="absolute bottom-full left-0 right-0 mb-2 bg-card border border-border rounded-xl shadow-lg z-20 overflow-hidden">
                     <div className="py-1">
-                      <button
-                        onClick={() => { setTheme('light'); setShowThemeMenu(false) }}
-                        className={cn(
-                          "flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left transition-colors",
-                          theme === 'light' ? "bg-primary/10 text-primary" : "hover:bg-secondary/50 dark:hover:bg-white/[0.04]"
-                        )}
-                      >
-                        <Sun className="w-4 h-4" />
-                        Light
-                        {theme === 'light' && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
-                      </button>
-                      <button
-                        onClick={() => { setTheme('dark'); setShowThemeMenu(false) }}
-                        className={cn(
-                          "flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left transition-colors",
-                          theme === 'dark' ? "bg-primary/10 text-primary" : "hover:bg-secondary/50 dark:hover:bg-white/[0.04]"
-                        )}
-                      >
-                        <Moon className="w-4 h-4" />
-                        Dark
-                        {theme === 'dark' && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
-                      </button>
-                      <button
-                        onClick={() => { setTheme('system'); setShowThemeMenu(false) }}
-                        className={cn(
-                          "flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left transition-colors",
-                          theme === 'system' ? "bg-primary/10 text-primary" : "hover:bg-secondary/50 dark:hover:bg-white/[0.04]"
-                        )}
-                      >
-                        <Monitor className="w-4 h-4" />
-                        System
-                        {theme === 'system' && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
-                      </button>
+                      {[
+                        { value: 'light', icon: Sun, label: 'Light' },
+                        { value: 'dark', icon: Moon, label: 'Dark' },
+                        { value: 'system', icon: Monitor, label: 'System' },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => { setTheme(option.value as any); setShowThemeMenu(false) }}
+                          className={cn(
+                            "flex items-center gap-3 w-full px-3 py-2.5 text-sm text-left transition-colors",
+                            theme === option.value ? "bg-primary/10 text-primary" : "hover:bg-secondary"
+                          )}
+                        >
+                          <option.icon className="w-4 h-4" />
+                          {option.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </>
@@ -298,10 +262,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* User section */}
-          <div className="p-4 border-t border-border">
+          <div className="p-3 border-t border-border">
             <div className="flex items-center gap-3 px-2 py-2">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 dark:from-slate-600 dark:to-slate-700 flex items-center justify-center">
-                <span className="text-white text-sm font-semibold">
+              <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center">
+                <span className="text-sm font-medium">
                   {user?.username?.charAt(0).toUpperCase() || 'A'}
                 </span>
               </div>
@@ -311,7 +275,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
               <button
                 onClick={handleLogout}
-                className="p-2.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all duration-200"
+                className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
                 title="Sign out"
               >
                 <LogOut className="w-4 h-4" />
@@ -322,53 +286,42 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main content */}
-      <div className="lg:pl-72">
-        {/* Upgrading banner */}
+      <div className="lg:pl-64">
+        {/* Status banners */}
         {upgrading && upgradeStatus?.in_progress && (
-          <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 border-b border-emerald-500/20 px-6 py-3">
+          <div className="bg-blue-500/10 border-b border-blue-500/20 px-6 py-3">
             <div className="flex items-center gap-3 max-w-7xl mx-auto">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-emerald-300">
-                  {upgradeStatus.message || 'Upgrading FastCP...'}
-                </p>
-                <p className="text-xs text-emerald-400/60">Please wait, this may take a moment</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Upgrade completed banner */}
-        {upgradeStatus && !upgradeStatus.in_progress && upgradeStatus.success && (
-          <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 border-b border-emerald-500/20 px-6 py-3">
-            <div className="flex items-center gap-3 max-w-7xl mx-auto">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                <CheckCircle className="w-4 h-4 text-emerald-400" />
-              </div>
-              <p className="text-sm font-medium text-emerald-300">
-                Upgrade completed successfully! Restarting...
+              <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+              <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                {upgradeStatus.message || 'Upgrading FastCP...'}
               </p>
             </div>
           </div>
         )}
 
-        {/* Upgrade failed banner */}
+        {upgradeStatus && !upgradeStatus.in_progress && upgradeStatus.success && (
+          <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-6 py-3">
+            <div className="flex items-center gap-3 max-w-7xl mx-auto">
+              <CheckCircle className="w-4 h-4 text-emerald-500" />
+              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                Upgrade completed! Restarting...
+              </p>
+            </div>
+          </div>
+        )}
+
         {upgradeStatus && !upgradeStatus.in_progress && upgradeStatus.error && (
-          <div className="bg-gradient-to-r from-red-500/10 via-rose-500/10 to-pink-500/10 border-b border-red-500/20 px-6 py-3">
+          <div className="bg-red-500/10 border-b border-red-500/20 px-6 py-3">
             <div className="flex items-center justify-between max-w-7xl mx-auto">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
-                  <AlertCircle className="w-4 h-4 text-red-400" />
-                </div>
-                <p className="text-sm font-medium text-red-300">
+                <AlertCircle className="w-4 h-4 text-red-500" />
+                <p className="text-sm font-medium text-red-700 dark:text-red-300">
                   Upgrade failed: {upgradeStatus.error}
                 </p>
               </div>
               <button
                 onClick={() => setUpgradeStatus(null)}
-                className="text-xs px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors text-red-300"
+                className="text-xs px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors text-red-600 dark:text-red-300"
               >
                 Dismiss
               </button>
@@ -376,43 +329,37 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        {/* Impersonation banner */}
         {isImpersonating && (
-          <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-yellow-500/10 border-b border-amber-500/20 px-6 py-3">
+          <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-3">
             <div className="flex items-center justify-between max-w-7xl mx-auto">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                  <UserX className="w-4 h-4 text-amber-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-amber-300">
-                    Viewing as <span className="font-semibold">{user?.username}</span>
-                  </p>
-                  <p className="text-xs text-amber-400/60">Logged in as {realUser?.username}</p>
-                </div>
+                <UserX className="w-4 h-4 text-amber-500" />
+                <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                  Viewing as <span className="font-semibold">{user?.username}</span>
+                </p>
               </div>
               <button
                 onClick={handleStopImpersonating}
-                className="text-xs px-4 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 rounded-lg transition-colors text-amber-300 font-medium"
+                className="text-xs px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 rounded-lg transition-colors text-amber-600 dark:text-amber-300 font-medium"
               >
-                Exit Impersonation
+                Exit
               </button>
             </div>
           </div>
         )}
 
         {/* Mobile header */}
-        <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-white/[0.06] lg:hidden">
+        <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border lg:hidden">
           <div className="flex items-center gap-4 px-4 py-3">
             <button
-              className="p-2 -ml-2 text-muted-foreground hover:text-foreground hover:bg-white/5 rounded-lg transition-colors"
+              className="p-2 -ml-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
               onClick={() => setSidebarOpen(true)}
             >
               <Menu className="w-5 h-5" />
             </button>
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center">
-                <Zap className="w-3.5 h-3.5 text-white" />
+              <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+                <Zap className="w-4 h-4 text-primary-foreground" />
               </div>
               <span className="font-semibold">FastCP</span>
             </div>
@@ -423,92 +370,83 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <main className="p-4 lg:p-8">{children}</main>
       </div>
 
-      {/* Upgrade Details Modal */}
+      {/* Upgrade Modal */}
       {showUpgradeModal && versionInfo && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div 
-            className="bg-card border border-white/[0.08] rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden shadow-2xl shadow-black/50 animate-fade-in"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="relative px-6 py-5 border-b border-white/[0.06]">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-indigo-500/5 to-purple-500/5" />
-              <div className="relative flex items-start justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                    <Sparkles className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-semibold">{versionInfo.release_name}</h2>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      Published {versionInfo.published_at ? new Date(versionInfo.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'recently'}
-                    </p>
-                  </div>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-xl">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 </div>
-                <button
-                  onClick={() => setShowUpgradeModal(false)}
-                  className="p-2 hover:bg-white/5 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div>
+                  <h2 className="font-semibold">{versionInfo.release_name}</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {versionInfo.published_at && new Date(versionInfo.published_at).toLocaleDateString()}
+                  </p>
+                </div>
               </div>
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                className="p-2 hover:bg-secondary rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {/* Modal Content */}
-            <div className="p-6 overflow-y-auto max-h-[50vh]">
+            {/* Content */}
+            <div className="p-6">
               {/* Version comparison */}
-              <div className="flex items-center gap-4 p-4 bg-white/[0.02] rounded-xl border border-white/[0.06]">
+              <div className="flex items-center gap-4 p-4 bg-secondary rounded-xl mb-4">
                 <div className="flex-1 text-center">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Current</p>
-                  <p className="text-lg font-mono font-medium">v{versionInfo.current_version}</p>
+                  <p className="text-xs text-muted-foreground mb-1">Current</p>
+                  <p className="font-mono font-medium">v{versionInfo.current_version}</p>
                 </div>
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/20">
-                  <ArrowUpRight className="w-5 h-5 text-emerald-400" />
-                </div>
+                <ArrowUpRight className="w-5 h-5 text-primary" />
                 <div className="flex-1 text-center">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">New Version</p>
-                  <p className="text-lg font-mono font-medium text-emerald-400">v{versionInfo.latest_version}</p>
+                  <p className="text-xs text-muted-foreground mb-1">New</p>
+                  <p className="font-mono font-medium text-primary">v{versionInfo.latest_version}</p>
                 </div>
               </div>
 
               {/* Changelog */}
               {versionInfo.changelog && (
-                <div className="mt-6">
-                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">What's New</h3>
-                  <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-4">
-                    <pre className="whitespace-pre-wrap text-sm text-foreground/80 font-mono leading-relaxed">
+                <div className="max-h-48 overflow-y-auto">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">What's New</p>
+                  <div className="bg-secondary rounded-xl p-4">
+                    <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed text-foreground">
                       {versionInfo.changelog}
                     </pre>
                   </div>
                 </div>
               )}
 
-              {/* GitHub link */}
               {versionInfo.release_url && (
                 <a
                   href={versionInfo.release_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 mt-4 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                  className="inline-flex items-center gap-1 mt-4 text-sm text-primary hover:underline"
                 >
-                  View full release on GitHub
-                  <ArrowUpRight className="w-4 h-4" />
+                  View on GitHub
+                  <ArrowUpRight className="w-3 h-3" />
                 </a>
               )}
             </div>
 
-            {/* Modal Footer */}
-            <div className="flex gap-3 px-6 py-4 border-t border-white/[0.06] bg-white/[0.02]">
+            {/* Footer */}
+            <div className="flex gap-3 px-6 pb-6">
               <button
                 onClick={() => setShowUpgradeModal(false)}
-                className="flex-1 px-4 py-2.5 bg-white/[0.05] hover:bg-white/[0.08] rounded-xl font-medium transition-colors"
+                className="flex-1 px-4 py-2.5 bg-secondary hover:bg-secondary/80 rounded-xl font-medium transition-colors"
               >
-                Maybe Later
+                Later
               </button>
               <button
                 onClick={handleUpgrade}
                 disabled={upgrading}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-medium rounded-xl transition-all duration-200 disabled:opacity-50 shadow-lg shadow-emerald-500/20 btn-lift"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-xl transition-colors disabled:opacity-50"
               >
                 {upgrading ? (
                   <>

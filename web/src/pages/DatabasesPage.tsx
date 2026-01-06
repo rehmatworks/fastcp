@@ -63,25 +63,25 @@ function ConfirmModal({
   const variantClasses = {
     danger: 'bg-red-500 hover:bg-red-600 text-white',
     warning: 'bg-amber-500 hover:bg-amber-600 text-white',
-    primary: 'bg-emerald-500 hover:bg-emerald-600 text-white',
+    primary: 'bg-primary hover:bg-primary/90 text-primary-foreground',
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl animate-fade-in">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-xl">
         <div className="p-6">
           <div className="flex items-start gap-4">
             <div className={cn(
               "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0",
               confirmVariant === 'danger' && "bg-red-500/10",
               confirmVariant === 'warning' && "bg-amber-500/10",
-              confirmVariant === 'primary' && "bg-emerald-500/10",
+              confirmVariant === 'primary' && "bg-primary/10",
             )}>
               <AlertCircle className={cn(
                 "w-6 h-6",
                 confirmVariant === 'danger' && "text-red-500",
                 confirmVariant === 'warning' && "text-amber-500",
-                confirmVariant === 'primary' && "text-emerald-500",
+                confirmVariant === 'primary' && "text-primary",
               )} />
             </div>
             <div className="flex-1">
@@ -149,7 +149,6 @@ export function DatabasesPage() {
     password: '',
   })
 
-  // Poll for installation status
   const pollInstallStatus = useCallback(async () => {
     try {
       const status = await api.getMySQLInstallStatus()
@@ -317,7 +316,7 @@ export function DatabasesPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -325,21 +324,19 @@ export function DatabasesPage() {
   // MySQL not installed
   if (status && !status.installed) {
     return (
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Databases</h1>
-            <p className="text-muted-foreground mt-1">Manage MySQL databases</p>
-          </div>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Databases</h1>
+          <p className="text-muted-foreground mt-1">Manage MySQL databases</p>
         </div>
 
-        <div className="bg-card border border-border rounded-2xl p-16 text-center card-shadow">
-          <div className="w-20 h-20 rounded-2xl bg-blue-500/10 flex items-center justify-center mx-auto mb-6">
-            <Server className="w-10 h-10 text-blue-500" />
+        <div className="bg-card border border-border rounded-2xl p-12 text-center card-shadow">
+          <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center mx-auto mb-5">
+            <Server className="w-8 h-8 text-blue-600 dark:text-blue-400" />
           </div>
           <h2 className="text-xl font-semibold mb-2">MySQL Not Installed</h2>
-          <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-            MySQL server is not installed on this system. Install it to start creating databases.
+          <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+            MySQL server is not installed. Install it to start creating databases.
           </p>
 
           {installing && installStatus?.in_progress && (
@@ -347,7 +344,7 @@ export function DatabasesPage() {
               <div className="flex items-center gap-3">
                 <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
                 <div className="text-left">
-                  <p className="text-blue-600 dark:text-blue-400 font-medium">Installing MySQL...</p>
+                  <p className="text-blue-700 dark:text-blue-400 font-medium">Installing MySQL...</p>
                   <p className="text-sm text-muted-foreground">
                     {installStatus.message || 'This may take a few minutes...'}
                   </p>
@@ -361,7 +358,7 @@ export function DatabasesPage() {
               <div className="flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5" />
                 <div className="text-left">
-                  <p className="text-red-600 dark:text-red-400 font-medium">Installation Failed</p>
+                  <p className="text-red-700 dark:text-red-400 font-medium">Installation Failed</p>
                   <p className="text-sm text-muted-foreground">{installStatus.error}</p>
                 </div>
               </div>
@@ -373,7 +370,7 @@ export function DatabasesPage() {
               <div className="flex items-center gap-3">
                 <Check className="w-5 h-5 text-emerald-500" />
                 <div className="text-left">
-                  <p className="text-emerald-600 dark:text-emerald-400 font-medium">MySQL Installed Successfully!</p>
+                  <p className="text-emerald-700 dark:text-emerald-400 font-medium">MySQL Installed!</p>
                   <p className="text-sm text-muted-foreground">{installStatus.message}</p>
                 </div>
               </div>
@@ -383,7 +380,7 @@ export function DatabasesPage() {
           {!installing && user?.role === 'admin' && (
             <button
               onClick={() => setInstallConfirm(true)}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-medium rounded-xl transition-all shadow-lg shadow-emerald-500/20 btn-lift"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-xl transition-colors"
             >
               <Server className="w-5 h-5" />
               Install MySQL
@@ -408,7 +405,7 @@ export function DatabasesPage() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -419,7 +416,7 @@ export function DatabasesPage() {
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-medium rounded-xl transition-all duration-200 shadow-lg shadow-emerald-500/20 btn-lift"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-xl transition-colors"
         >
           <Plus className="w-4 h-4" />
           New Database
@@ -434,19 +431,19 @@ export function DatabasesPage() {
           placeholder="Search databases..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-12 pr-4 py-3 bg-card border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder:text-muted-foreground/50"
+          className="w-full pl-12 pr-4 py-3 bg-card border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
         />
       </div>
 
       {/* New Database Credentials */}
       {newDatabase && newDatabase.password && (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6">
+        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-5">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
-              <Check className="w-6 h-6 text-emerald-500" />
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+              <Check className="w-5 h-5 text-emerald-500" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-emerald-600 dark:text-emerald-400 mb-1">Database Created Successfully!</h3>
+              <h3 className="font-semibold text-emerald-700 dark:text-emerald-400 mb-1">Database Created!</h3>
               <p className="text-sm text-muted-foreground mb-4">
                 Save these credentials - the password won't be shown again.
               </p>
@@ -454,7 +451,7 @@ export function DatabasesPage() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Database Name</p>
                   <div className="flex items-center gap-2">
-                    <code className="text-sm font-mono">{newDatabase.name}</code>
+                    <code className="text-sm font-mono text-foreground">{newDatabase.name}</code>
                     <button
                       onClick={() => copyToClipboard(newDatabase.name, 'name')}
                       className="text-muted-foreground hover:text-foreground"
@@ -466,7 +463,7 @@ export function DatabasesPage() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Username</p>
                   <div className="flex items-center gap-2">
-                    <code className="text-sm font-mono">{newDatabase.username}</code>
+                    <code className="text-sm font-mono text-foreground">{newDatabase.username}</code>
                     <button
                       onClick={() => copyToClipboard(newDatabase.username, 'user')}
                       className="text-muted-foreground hover:text-foreground"
@@ -478,7 +475,7 @@ export function DatabasesPage() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Password</p>
                   <div className="flex items-center gap-2">
-                    <code className="text-sm font-mono">{newDatabase.password}</code>
+                    <code className="text-sm font-mono text-foreground">{newDatabase.password}</code>
                     <button
                       onClick={() => copyToClipboard(newDatabase.password!, 'pass')}
                       className="text-muted-foreground hover:text-foreground"
@@ -489,7 +486,7 @@ export function DatabasesPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Host</p>
-                  <code className="text-sm font-mono">{newDatabase.host}:{newDatabase.port}</code>
+                  <code className="text-sm font-mono text-foreground">{newDatabase.host}:{newDatabase.port}</code>
                 </div>
               </div>
               <button
@@ -505,16 +502,16 @@ export function DatabasesPage() {
 
       {/* Database List */}
       {filteredDatabases.length === 0 ? (
-        <div className="bg-card border border-border rounded-2xl p-16 text-center card-shadow">
-          <div className="w-20 h-20 rounded-2xl bg-blue-500/10 flex items-center justify-center mx-auto mb-6">
+        <div className="bg-card border border-border rounded-2xl p-12 text-center card-shadow">
+          <div className="w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-4">
             {databases.length === 0 ? (
-              <Database className="w-10 h-10 text-blue-500/50" />
+              <Database className="w-8 h-8 text-muted-foreground" />
             ) : (
-              <Search className="w-10 h-10 text-muted-foreground/50" />
+              <Search className="w-8 h-8 text-muted-foreground" />
             )}
           </div>
-          <h3 className="font-semibold text-xl mb-2">
-            {databases.length === 0 ? 'No Databases Yet' : 'No Databases Found'}
+          <h3 className="font-semibold text-lg mb-2">
+            {databases.length === 0 ? 'No Databases Yet' : 'No Results'}
           </h3>
           <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
             {databases.length === 0
@@ -524,7 +521,7 @@ export function DatabasesPage() {
           {databases.length === 0 && (
             <button
               onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-medium rounded-xl transition-all shadow-lg shadow-emerald-500/20 btn-lift"
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-xl transition-colors"
             >
               <Plus className="w-4 h-4" />
               Create Database
@@ -536,64 +533,62 @@ export function DatabasesPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-border bg-secondary/30">
-                  <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <tr className="border-b border-border bg-secondary/50">
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Database
                   </th>
-                  <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Username
                   </th>
-                  <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Host
                   </th>
-                  <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Created
                   </th>
-                  <th className="text-right px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {filteredDatabases.map((db) => (
-                  <tr key={db.id} className="hover:bg-secondary/30 transition-colors group">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500/20 to-indigo-500/10 flex items-center justify-center border border-blue-500/20 group-hover:border-blue-500/40 transition-colors">
-                          <Database className="w-5 h-5 text-blue-500" />
+                  <tr key={db.id} className="hover:bg-secondary/30 transition-colors">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                          <Database className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                         </div>
-                        <div>
-                          <p className="font-medium font-mono">{db.name}</p>
-                        </div>
+                        <span className="font-medium font-mono">{db.name}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm font-mono bg-secondary/50 px-2.5 py-1 rounded-lg">
+                    <td className="px-5 py-4">
+                      <code className="text-sm bg-secondary px-2 py-1 rounded">
                         {db.username}
-                      </span>
+                      </code>
                     </td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground font-mono">
+                    <td className="px-5 py-4 text-sm text-muted-foreground font-mono">
                       {db.host}:{db.port}
                     </td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground">
+                    <td className="px-5 py-4 text-sm text-muted-foreground">
                       {formatDate(db.created_at)}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => {
                             setShowResetPasswordModal(db)
                             setNewPassword('')
                             setError('')
                           }}
-                          className="p-2 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 rounded-lg transition-all"
+                          className="p-2 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 rounded-lg transition-colors"
                           title="Reset password"
                         >
                           <Key className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => setDeleteConfirm(db)}
-                          className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                          className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
                           title="Delete database"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -622,19 +617,19 @@ export function DatabasesPage() {
 
       {/* New Password Display */}
       {showNewPassword && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl animate-fade-in">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-xl">
             <div className="p-6">
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
-                  <Check className="w-6 h-6 text-emerald-500" />
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                  <Check className="w-5 h-5 text-emerald-500" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-emerald-600 dark:text-emerald-400 mb-1">Password Reset Successfully!</h3>
+                  <h3 className="font-semibold text-emerald-700 dark:text-emerald-400 mb-1">Password Reset!</h3>
                   <p className="text-sm text-muted-foreground mb-4">
                     Save this password - it won't be shown again.
                   </p>
-                  <div className="bg-secondary/50 rounded-xl p-4 space-y-3 border border-border">
+                  <div className="bg-secondary rounded-xl p-4 space-y-3">
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Database</p>
                       <code className="text-sm font-mono">{showNewPassword.db.name}</code>
@@ -673,10 +668,10 @@ export function DatabasesPage() {
 
       {/* Create Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl animate-fade-in">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h2 className="text-xl font-semibold">Create Database</h2>
+              <h2 className="text-lg font-semibold">Create Database</h2>
               <button
                 onClick={() => {
                   setShowCreateModal(false)
@@ -703,7 +698,7 @@ export function DatabasesPage() {
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 font-mono"
+                  className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary font-mono transition-colors"
                   placeholder="my_database"
                   required
                   pattern="[a-zA-Z0-9_]+"
@@ -717,7 +712,7 @@ export function DatabasesPage() {
                   type="text"
                   value={form.username}
                   onChange={(e) => setForm({ ...form, username: e.target.value })}
-                  className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 font-mono"
+                  className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary font-mono transition-colors"
                   placeholder="Same as database name"
                   pattern="[a-zA-Z0-9_]+"
                 />
@@ -729,7 +724,7 @@ export function DatabasesPage() {
                   type="text"
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 font-mono"
+                  className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary font-mono transition-colors"
                   placeholder="Auto-generated if empty"
                 />
                 <p className="text-xs text-muted-foreground mt-2">
@@ -752,7 +747,7 @@ export function DatabasesPage() {
                 <button
                   type="submit"
                   disabled={creating}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-medium rounded-xl transition-colors disabled:opacity-50"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-xl transition-colors disabled:opacity-50"
                 >
                   {creating ? (
                     <>
@@ -774,10 +769,10 @@ export function DatabasesPage() {
 
       {/* Reset Password Modal */}
       {showResetPasswordModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl animate-fade-in">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h2 className="text-xl font-semibold">Reset Password</h2>
+              <h2 className="text-lg font-semibold">Reset Password</h2>
               <button
                 onClick={() => {
                   setShowResetPasswordModal(null)
@@ -792,7 +787,7 @@ export function DatabasesPage() {
 
             <form onSubmit={handleResetPassword} className="p-6 space-y-4">
               <p className="text-sm text-muted-foreground">
-                Reset password for database user <code className="text-foreground font-mono bg-secondary px-1.5 py-0.5 rounded">{showResetPasswordModal.username}</code>
+                Reset password for <code className="text-foreground font-mono bg-secondary px-1.5 py-0.5 rounded">{showResetPasswordModal.username}</code>
               </p>
 
               {error && (
@@ -809,7 +804,7 @@ export function DatabasesPage() {
                     type="text"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="flex-1 px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 font-mono text-sm"
+                    className="flex-1 px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary font-mono text-sm transition-colors"
                     placeholder="Enter new password"
                     required
                     minLength={8}
@@ -817,7 +812,7 @@ export function DatabasesPage() {
                   <button
                     type="button"
                     onClick={generateRandomPassword}
-                    className="px-4 py-2 bg-secondary hover:bg-secondary/80 border border-border rounded-xl transition-colors text-sm font-medium"
+                    className="px-4 py-2 bg-secondary hover:bg-secondary/80 rounded-xl transition-colors text-sm font-medium"
                     title="Generate random password"
                   >
                     Generate
