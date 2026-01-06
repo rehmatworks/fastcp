@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	version    = "0.2.5"
+	version    = "0.2.6"
 	configPath = flag.String("config", "", "Path to configuration file (default: OS-appropriate path)")
 	listenAddr = flag.String("listen", "", "Override listen address (e.g., :8080)")
 	devMode    = flag.Bool("dev", false, "Enable development mode")

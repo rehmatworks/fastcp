@@ -7,14 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-01-06
+
+### Fixed
+- **Dynamic Site Root Resolution** - PHP instances now dynamically resolve site directories using `{http.request.host}` placeholder
+- Fixed 404 errors when accessing sites - root path now correctly maps to `/home/{user}/www/{domain}/`
+- Each domain request is automatically routed to its corresponding site directory
+
 ## [0.2.5] - 2026-01-06
 
 ### Fixed
 - **FrankenPHP Unix Socket Binding** - Fixed deprecated Caddyfile syntax for Unix socket listeners
 - Per-user PHP instances now correctly bind to Unix sockets using `http:// { bind unix/... }` format
 - Resolved 502 Bad Gateway errors caused by FrankenPHP not binding to sockets properly
-- **Dynamic Site Root Resolution** - PHP instances now dynamically resolve site directories using `{http.request.host}` placeholder
-- Fixed 404 errors when accessing sites - root path now correctly maps to `/home/{user}/www/{domain}/`
 
 ## [0.2.4] - 2026-01-06
 
