@@ -126,6 +126,7 @@ jobs:
           cat > extract_changelog.py << 'PYEOF'
           import os
           import re
+          import sys
           
           version = os.environ.get('VERSION', '').lstrip('v')
           repo = os.environ.get('REPO', '')
@@ -146,7 +147,7 @@ jobs:
                   if re.match(r'^## \[', line):
                       if in_section:
                           break
-                      if f'[{version}]' in line:
+                      if f'[{version}]' in line or f'[v{version}]' in line:
                           in_section = True
                           continue
                   elif in_section:
@@ -164,27 +165,32 @@ jobs:
               if changelog_content:
                   print(f"Found changelog for version {version}", file=__import__('sys').stderr)
               else:
-                  print(f"No changelog found for version {version}", file=__import__('sys').stderr)
+                  print(f"ERROR: No changelog found for version {version}", file=__import__('sys').stderr)
                   
           except FileNotFoundError:
-              print("CHANGELOG.md not found", file=__import__('sys').stderr)
+              print("ERROR: CHANGELOG.md not found", file=__import__('sys').stderr)
           except Exception as e:
-              print(f"Error reading changelog: {e}", file=__import__('sys').stderr)
+              print(f"ERROR: Error reading changelog: {e}", file=__import__('sys').stderr)
+          
+          # Fail hard if changelog is missing so we never publish a release with only install text
+          if not changelog_content.strip():
+              print(f\"\\nRefusing to publish release without changelog.\\nAdd a section like:\\n\\n## [{version}] - YYYY-MM-DD\\n\\n...\\n\\nIn CHANGELOG.md (in the same commit you tag).\", file=sys.stderr)
+              sys.exit(1)
           
           # Generate release notes
           with open("release_notes.md", "w") as f:
-              if changelog_content:
-                  f.write(changelog_content)
-                  f.write("\n\n")
+              f.write(changelog_content)
+              f.write("\n\n")
               
               f.write("---\n\n")
-              f.write("## Installation\n\n")
+              f.write("<details>\n")
+              f.write("<summary>Installation</summary>\n\n")
               f.write("```bash\n")
               f.write("# One-line install (recommended)\n")
               f.write("curl -fsSL https://fastcp.org/install.sh | sudo bash\n")
               f.write("```\n\n")
               f.write("<details>\n")
-              f.write("<summary>Manual installation</summary>\n\n")
+              f.write("<summary>Manual install</summary>\n\n")
               f.write("```bash\n")
               f.write("# Linux x86_64 (Ubuntu, Debian, etc.)\n")
               f.write(f"curl -L https://github.com/{repo}/releases/download/{full_version}/fastcp-linux-x86_64 -o /usr/local/bin/fastcp\n")
@@ -194,7 +200,7 @@ jobs:
               f.write("chmod +x /usr/local/bin/fastcp\n")
               f.write("```\n\n")
               f.write("</details>\n\n")
-              f.write("## Quick Start\n\n")
+              f.write("### Quick Start\n\n")
               f.write("```bash\n")
               f.write("# Start FastCP\n")
               f.write("sudo systemctl start fastcp\n")
@@ -204,6 +210,7 @@ jobs:
               f.write("- URL: `http://YOUR_SERVER_IP:8080`\n")
               f.write("- Username: `admin`\n")
               f.write("- Password: `fastcp2024!`\n")
+              f.write("\n</details>\n")
           
           print("Release notes generated successfully", file=__import__('sys').stderr)
           PYEOF
