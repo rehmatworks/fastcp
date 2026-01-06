@@ -123,26 +123,26 @@ jobs:
           if [ -f "CHANGELOG.md" ]; then
             # Extract content between this version header and the next version header
             CHANGELOG=$(awk -v ver="$VERSION_NUM" '
+              BEGIN { found = 0 }
               /^## \[/ {
                 if (found) exit
-                if (index($0, "[" ver "]") || index($0, "[Unreleased]" )) {
+                if ($0 ~ "\\[" ver "\\]") {
                   found = 1
                   next
                 }
               }
-              found { print }
-            ' CHANGELOG.md)
+              found && !/^\[.*\]:/ { print }
+            ' CHANGELOG.md | sed '/^$/N;/^\n$/d')
             
             if [ -n "$CHANGELOG" ]; then
               echo "Found changelog for version $VERSION_NUM"
-              # Use heredoc to preserve multiline content
               {
                 echo 'content<<EOF'
                 echo "$CHANGELOG"
                 echo 'EOF'
               } >> $GITHUB_OUTPUT
             else
-              echo "No changelog found for version $VERSION_NUM, will use auto-generated notes"
+              echo "No changelog found for version $VERSION_NUM"
               echo "content=" >> $GITHUB_OUTPUT
             fi
           else
