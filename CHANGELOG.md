@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-01-06
+
+### Changed
+- **Complete /var/www Removal** - Eliminated all legacy /var/www code paths and references
+- **Site Ownership Enforcement** - All sites now require a valid user owner (no orphan sites)
+
+### Removed
+- Removed `SecureBaseDirectory` function (no longer needed without /var/www)
+- Removed /var/www symlink creation from user jail setup
+- Removed fallback to `/var/www` in site creation logic
+
+### Fixed
+- Disk usage calculations now correctly use `/home/username/www`
+- User permission fixes target correct home directory paths
+- Jail ACL setup no longer creates unnecessary symlinks
+
 ## [0.2.0] - 2026-01-06
 
 ### Added
@@ -98,7 +114,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FrankenPHP for PHP execution
 - Systemd service management
 
-[Unreleased]: https://github.com/rehmatworks/fastcp/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/rehmatworks/fastcp/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/rehmatworks/fastcp/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/rehmatworks/fastcp/compare/v0.1.9...v0.2.0
 [0.1.9]: https://github.com/rehmatworks/fastcp/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/rehmatworks/fastcp/compare/v0.1.2...v0.1.8
