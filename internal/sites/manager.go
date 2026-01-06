@@ -578,28 +578,26 @@ func (m *Manager) createSiteDirectories(site *models.Site) error {
 	username := getUsernameFromID(site.UserID)
 	uid, gid := getUIDGID(site.UserID)
 
-	// Ensure user's www directory exists
-	// Structure: /home/{username}/www/ for user sites
+	// Ensure user's directories exist for per-user PHP instances
+	// Structure: /home/{username}/{www,run,log}/
+	// PHP runs as the user, so no ACLs needed - simple Unix permissions
 	if username != "" && runtime.GOOS == "linux" {
-		// Create home directory if needed
 		homeDir := filepath.Join("/home", username)
-		if err := os.MkdirAll(homeDir, 0755); err != nil {
-			return err
+		
+		// Create all user directories
+		userDirs := []string{
+			homeDir,
+			filepath.Join(homeDir, "www"),  // Web root
+			filepath.Join(homeDir, "run"),  // PHP sockets and PIDs
+			filepath.Join(homeDir, "log"),  // PHP logs
 		}
-		// Set ownership on home directory
-		setOwnership(homeDir, uid, gid)
-		// Grant fastcp execute permission on home dir (for PHP to traverse)
-		setHomeDirACL(homeDir, username)
-
-		// www directory inside home
-		wwwDir := filepath.Join(homeDir, "www")
-		if err := os.MkdirAll(wwwDir, 0755); err != nil {
-			return err
+		
+		for _, dir := range userDirs {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return err
+			}
+			setOwnership(dir, uid, gid)
 		}
-		// Set ownership on www directory
-		setOwnership(wwwDir, uid, gid)
-		// Set ACL for www directory (full access for owner and fastcp)
-		setACL(wwwDir, username)
 	}
 
 	dirs := []string{
@@ -898,80 +896,9 @@ func setOwnershipRecursive(path string, uid, gid int) error {
 	})
 }
 
-// setHomeDirACL sets minimal ACLs on user's home directory
-// Grants execute (traverse) permission to fastcp so PHP can reach www/
-func setHomeDirACL(homeDir, username string) error {
-	if runtime.GOOS != "linux" {
-		return nil
-	}
-
-	// Home directory should be 750 (owner full, group rx, others none)
-	_ = exec.Command("chmod", "750", homeDir).Run()
-
-	// Grant execute (traverse) permission to fastcp user
-	// This allows PHP to cd into the home directory to reach www/
-	cmds := [][]string{
-		// Grant owner full access
-		{"setfacl", "-m", fmt.Sprintf("u:%s:rwx", username), homeDir},
-		// Grant fastcp execute only (traverse) - no read (can't list files)
-		{"setfacl", "-m", "u:fastcp:--x", homeDir},
-		// Grant root full access
-		{"setfacl", "-m", "u:root:rwx", homeDir},
-		// No group access
-		{"setfacl", "-m", "g::---", homeDir},
-		// No other access
-		{"setfacl", "-m", "o::---", homeDir},
-	}
-
-	for _, cmdArgs := range cmds {
-		cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
-		_ = cmd.Run()
-	}
-
-	return nil
-}
-
-// setACL sets POSIX ACLs to restrict access to a directory
-// Also grants read access to the fastcp user for PHP execution
-func setACL(path, username string) error {
-	if runtime.GOOS != "linux" {
-		return nil
-	}
-
-	// First, set strict Unix permissions recursively (no access for others)
-	_ = exec.Command("chmod", "-R", "750", path).Run()
-
-	// Remove all default ACLs and set strict permissions recursively
-	// Owner has full access, fastcp user has full access for PHP/WordPress, others have none
-	cmds := [][]string{
-		// Remove existing ACLs recursively
-		{"setfacl", "-R", "-b", path},
-		// Set owner access recursively
-		{"setfacl", "-R", "-m", fmt.Sprintf("u:%s:rwx", username), path},
-		// Set fastcp (PHP) user full access recursively (needed for WordPress plugin/theme management)
-		{"setfacl", "-R", "-m", "u:fastcp:rwx", path},
-		// Set root access recursively
-		{"setfacl", "-R", "-m", "u:root:rwx", path},
-		// Remove group access recursively
-		{"setfacl", "-R", "-m", "g::---", path},
-		// Remove other users' access recursively
-		{"setfacl", "-R", "-m", "o::---", path},
-		// Set default ACL for new files/dirs (inherit) - only on directories
-		{"setfacl", "-d", "-m", fmt.Sprintf("u:%s:rwx", username), path},
-		{"setfacl", "-d", "-m", "u:fastcp:rwx", path},
-		{"setfacl", "-d", "-m", "u:root:rwx", path},
-		{"setfacl", "-d", "-m", "g::---", path},
-		{"setfacl", "-d", "-m", "o::---", path},
-	}
-
-	for _, cmdArgs := range cmds {
-		cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
-		// Ignore errors - setfacl might not be installed
-		_ = cmd.Run()
-	}
-
-	return nil
-}
+// Note: ACL functions removed - PHP now runs as the user via per-user FrankenPHP instances
+// Each user's PHP process runs with their UID/GID, so no ACLs needed
+// Simple Unix permissions are sufficient since the user owns all their files
 
 // SecureBaseDirectory ensures /home has proper permissions
 // All sites are under /home/username/www/ structure

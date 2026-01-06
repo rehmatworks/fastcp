@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-01-06
+
+### Added
+- **Per-User PHP Instances** - Each user now gets their own FrankenPHP process running as their UID/GID
+- **Per-User Per-Version PHP Sockets** - Each user can have multiple PHP versions, each with its own Unix socket
+- **UserPHPManager** - New manager to handle per-user PHP instance lifecycle
+- **User directories** - Automatic creation of `run/` and `log/` directories for PHP instances
+
+### Changed
+- **Architecture Overhaul** - PHP no longer runs as a shared `fastcp` user; each user's PHP runs as themselves
+- **Unix Sockets** - PHP instances now use Unix sockets at `/home/{user}/run/php-{version}.sock`
+- **Simplified Permissions** - No more complex ACLs; user owns all their files, PHP runs as user
+- **Caddy Proxy** - Routes to per-user sockets based on site ownership
+
+### Removed
+- **ACL Permission System** - Completely removed `setfacl` calls (no longer needed)
+- **Global PHP Instances** - Removed shared PHP instances; each user is isolated
+
+### Security
+- **User Isolation** - Users can no longer access each other's files through PHP
+- **WordPress Works Perfectly** - Plugin/theme updates work without FTP prompts
+- **SFTP Integration** - Files uploaded via SFTP are immediately accessible to PHP
+
 ## [0.2.2] - 2026-01-06
 
 ### Changed
@@ -125,7 +148,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FrankenPHP for PHP execution
 - Systemd service management
 
-[Unreleased]: https://github.com/rehmatworks/fastcp/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/rehmatworks/fastcp/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/rehmatworks/fastcp/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/rehmatworks/fastcp/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/rehmatworks/fastcp/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/rehmatworks/fastcp/compare/v0.1.9...v0.2.0

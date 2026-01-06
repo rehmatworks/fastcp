@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/rehmatworks/fastcp/internal/caddy"
 	"github.com/rehmatworks/fastcp/internal/middleware"
 	"github.com/rehmatworks/fastcp/internal/models"
 	"github.com/rehmatworks/fastcp/internal/sites"
@@ -139,6 +140,16 @@ func (s *Server) createSite(w http.ResponseWriter, r *http.Request) {
 			// Update site with database ID
 			created.DatabaseID = dbInfo.ID
 			s.siteManager.Update(created.ID, created)
+		}
+	}
+
+	// Start/ensure user's PHP instance is running for this PHP version
+	username := caddy.ExtractUsernameFromRootPath(created.RootPath)
+	if username != "" && s.userPHPManager != nil {
+		if err := s.userPHPManager.StartInstance(username, created.PHPVersion); err != nil {
+			s.logger.Warn("failed to start user PHP instance", "user", username, "version", created.PHPVersion, "error", err)
+		} else {
+			s.logger.Info("user PHP instance started", "user", username, "version", created.PHPVersion)
 		}
 	}
 

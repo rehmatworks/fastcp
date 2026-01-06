@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	version    = "0.2.2"
+	version    = "0.3.0"
 	configPath = flag.String("config", "", "Path to configuration file (default: OS-appropriate path)")
 	listenAddr = flag.String("listen", "", "Override listen address (e.g., :8080)")
 	devMode    = flag.Bool("dev", false, "Enable development mode")
@@ -136,6 +136,14 @@ func main() {
 		logger.Info("PHP instances and proxy started successfully")
 	}
 
+	// Initialize per-user PHP manager
+	userPHPManager := php.NewUserPHPManager()
+	// Recover any existing user PHP instances from PID files
+	if err := userPHPManager.RecoverInstances(); err != nil {
+		logger.Warn("Failed to recover user PHP instances", "error", err)
+	}
+	logger.Info("User PHP manager initialized")
+
 	// Initialize database manager
 	dbManager := database.NewManager()
 	logger.Info("Database manager initialized")
@@ -152,6 +160,7 @@ func main() {
 	apiServer := api.NewServer(
 		siteManager,
 		phpManager,
+		userPHPManager,
 		dbManager,
 		caddyGen,
 		upgradeManager,

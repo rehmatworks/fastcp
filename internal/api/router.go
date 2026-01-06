@@ -24,6 +24,7 @@ type Server struct {
 	router         chi.Router
 	siteManager    *sites.Manager
 	phpManager     *php.Manager
+	userPHPManager *php.UserPHPManager
 	dbManager      *database.Manager
 	caddyGen       *caddy.Generator
 	upgradeManager *upgrade.Manager
@@ -34,6 +35,7 @@ type Server struct {
 func NewServer(
 	siteManager *sites.Manager,
 	phpManager *php.Manager,
+	userPHPManager *php.UserPHPManager,
 	dbManager *database.Manager,
 	caddyGen *caddy.Generator,
 	upgradeManager *upgrade.Manager,
@@ -42,6 +44,7 @@ func NewServer(
 	s := &Server{
 		siteManager:    siteManager,
 		phpManager:     phpManager,
+		userPHPManager: userPHPManager,
 		dbManager:      dbManager,
 		caddyGen:       caddyGen,
 		upgradeManager: upgradeManager,

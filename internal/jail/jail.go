@@ -129,13 +129,18 @@ func SetupUserJail(username string) error {
 	}
 
 	// Set up www directory - this is where user files go
+	// PHP runs as the user, so no ACLs needed - simple Unix permissions
 	wwwDir := filepath.Join(homeDir, "www")
 	_ = exec.Command("chown", fmt.Sprintf("%s:%s", username, username), wwwDir).Run()
 	_ = exec.Command("chmod", "755", wwwDir).Run()
 
-	// Set up ACLs so fastcp user can read/write files (required for PHP/WordPress)
-	// This ensures files uploaded via SFTP are accessible to the web server
-	setJailACL(wwwDir, username)
+	// Set up run/ and log/ directories for per-user PHP instances
+	runDir := filepath.Join(homeDir, "run")
+	logDir := filepath.Join(homeDir, "log")
+	for _, dir := range []string{runDir, logDir} {
+		_ = os.MkdirAll(dir, 0755)
+		_ = exec.Command("chown", fmt.Sprintf("%s:%s", username, username), dir).Run()
+	}
 
 	// Set up .ssh directory
 	sshDir := filepath.Join(homeDir, ".ssh")
@@ -196,27 +201,8 @@ func GetJailStatus(username string) *JailStatus {
 	}
 }
 
-// setJailACL sets up ACLs for the jail www directory
-// This ensures files uploaded via SFTP are readable by the fastcp user (PHP)
-func setJailACL(path, username string) {
-	cmds := [][]string{
-		// Owner has full access
-		{"setfacl", "-R", "-m", fmt.Sprintf("u:%s:rwx", username), path},
-		// fastcp user has full access for PHP (needed for WordPress)
-		{"setfacl", "-R", "-m", "u:fastcp:rwx", path},
-		// Root has full access
-		{"setfacl", "-R", "-m", "u:root:rwx", path},
-		// Default ACLs for new files (these are inherited by new files/dirs)
-		{"setfacl", "-R", "-d", "-m", fmt.Sprintf("u:%s:rwx", username), path},
-		{"setfacl", "-R", "-d", "-m", "u:fastcp:rwx", path},
-		{"setfacl", "-R", "-d", "-m", "u:root:rwx", path},
-	}
-
-	for _, cmdArgs := range cmds {
-		cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
-		_ = cmd.Run()
-	}
-}
+// Note: ACL functions removed - PHP now runs as the user via per-user FrankenPHP instances
+// Each user's PHP process runs with their UID/GID, so no ACLs needed
 
 // FixJailPermissions fixes permissions for all jailed users
 func FixJailPermissions(username string) error {
@@ -225,18 +211,17 @@ func FixJailPermissions(username string) error {
 	}
 
 	homeDir := fmt.Sprintf("/home/%s", username)
-	wwwDir := filepath.Join(homeDir, "www")
 
 	// Home must be root-owned for chroot
 	_ = exec.Command("chown", "root:root", homeDir).Run()
 	_ = exec.Command("chmod", "755", homeDir).Run()
 
-	// www owned by user
-	_ = exec.Command("chown", "-R", fmt.Sprintf("%s:%s", username, username), wwwDir).Run()
-	_ = exec.Command("chmod", "755", wwwDir).Run()
-
-	// Set up ACLs for fastcp user access
-	setJailACL(wwwDir, username)
+	// User directories owned by user - PHP runs as user so no ACLs needed
+	for _, subdir := range []string{"www", "run", "log"} {
+		dir := filepath.Join(homeDir, subdir)
+		_ = os.MkdirAll(dir, 0755)
+		_ = exec.Command("chown", "-R", fmt.Sprintf("%s:%s", username, username), dir).Run()
+	}
 
 	return nil
 }

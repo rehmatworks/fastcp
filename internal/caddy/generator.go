@@ -186,8 +186,13 @@ func (g *Generator) GenerateMainProxy(sites []models.Site, phpVersions []models.
 			continue
 		}
 
-		// Get Unix socket path for this PHP version
-		socketPath := GetPHPSocketPath(site.PHPVersion)
+		// Get Unix socket path for this user's PHP version
+		// Extract username from the site's root path (/home/{username}/www/{domain})
+		username := ExtractUsernameFromRootPath(site.RootPath)
+		if username == "" {
+			continue // Skip sites without valid user
+		}
+		socketPath := GetUserPHPSocketPath(username, site.PHPVersion)
 
 		primary := site.Domain
 		aliases := site.Aliases
@@ -399,9 +404,27 @@ func (g *Generator) GenerateMainProxy(sites []models.Site, phpVersions []models.
 	return buf.String(), nil
 }
 
-// GetPHPSocketPath returns the Unix socket path for a PHP version
+// GetPHPSocketPath returns the Unix socket path for a PHP version (legacy - global)
 func GetPHPSocketPath(version string) string {
 	return fmt.Sprintf("/var/run/fastcp/php-%s.sock", version)
+}
+
+// GetUserPHPSocketPath returns the Unix socket path for a user's PHP version
+func GetUserPHPSocketPath(username, version string) string {
+	return filepath.Join("/home", username, "run", fmt.Sprintf("php-%s.sock", version))
+}
+
+// ExtractUsernameFromRootPath extracts the username from a site's root path
+// Expected format: /home/{username}/www/{domain}
+func ExtractUsernameFromRootPath(rootPath string) string {
+	// Split path and find username after /home/
+	parts := strings.Split(filepath.Clean(rootPath), string(filepath.Separator))
+	for i, part := range parts {
+		if part == "home" && i+1 < len(parts) {
+			return parts[i+1]
+		}
+	}
+	return ""
 }
 
 // GeneratePHPInstance generates a Caddyfile for a specific PHP version instance

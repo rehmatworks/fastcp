@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -150,8 +151,18 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 	// Secure home directory - prevent other users from accessing
 	homeDir := fmt.Sprintf("/home/%s", req.Username)
 	_ = exec.Command("chmod", "750", homeDir).Run()
-	// Set ACL on home dir to allow fastcp user to traverse (needed for PHP)
-	setHomeDirACL(homeDir, req.Username)
+
+	// Create directories for per-user PHP instances
+	// PHP runs as the user, so no ACLs needed - simple Unix permissions
+	phpDirs := []string{
+		filepath.Join(homeDir, "run"),  // PHP sockets and PIDs
+		filepath.Join(homeDir, "log"),  // PHP logs
+	}
+	for _, dir := range phpDirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			s.logger.Warn("failed to create directory", "path", dir, "error", err)
+		}
+	}
 
 	// Add to fastcp group (for FastCP panel access)
 	_ = exec.Command("groupadd", "-f", "fastcp").Run()
@@ -183,20 +194,22 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 
 	// Create user's web directory with proper permissions
 	// All users have their sites in /home/username/www
-	userWebDir := fmt.Sprintf("/home/%s/www", req.Username)
+	// Since PHP runs as the user, no ACLs needed - just set ownership
+	userWebDir := filepath.Join(homeDir, "www")
 	
 	if err := os.MkdirAll(userWebDir, 0755); err != nil {
 		s.logger.Warn("failed to create user web directory", "error", err)
-	} else {
-		// Set ownership to the new user
-		u, _ := user.Lookup(req.Username)
-		if u != nil {
-			uid, _ := strconv.Atoi(u.Uid)
-			gid, _ := strconv.Atoi(u.Gid)
-			_ = os.Chown(userWebDir, uid, gid)
+	}
+
+	// Set ownership of all user directories to the user
+	u, _ := user.Lookup(req.Username)
+	if u != nil {
+		uid, _ := strconv.Atoi(u.Uid)
+		gid, _ := strconv.Atoi(u.Gid)
+		// Own www, run, and log directories
+		for _, dir := range []string{userWebDir, filepath.Join(homeDir, "run"), filepath.Join(homeDir, "log")} {
+			_ = os.Chown(dir, uid, gid)
 		}
-		// Set ACL on www dir to allow fastcp user full access (PHP/WordPress)
-		setUserDirACL(userWebDir, req.Username)
 	}
 
 	// Set resource limits
@@ -221,8 +234,8 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 	s.logger.Info("user created", "username", req.Username, "by", claims.Username)
 
 	// Return the created user
-	u, _ := s.getFastCPUser(req.Username)
-	s.json(w, http.StatusCreated, u)
+	createdUser, _ := s.getFastCPUser(req.Username)
+	s.json(w, http.StatusCreated, createdUser)
 }
 
 // updateUser updates a user's settings
@@ -391,6 +404,15 @@ func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request) {
 		s.logger.Info("deleting site for user deletion", "site", site.Domain, "user", username)
 		if err := s.siteManager.Delete(site.ID); err != nil {
 			s.logger.Warn("failed to delete site", "site", site.Domain, "error", err)
+		}
+	}
+
+	// Stop all user's PHP instances
+	if s.userPHPManager != nil {
+		if err := s.userPHPManager.StopAllUserInstances(username); err != nil {
+			s.logger.Warn("failed to stop user PHP instances", "user", username, "error", err)
+		} else {
+			s.logger.Info("stopped user PHP instances", "user", username)
 		}
 	}
 
@@ -596,22 +618,24 @@ func (s *Server) fixUserPermissions(w http.ResponseWriter, r *http.Request) {
 			errors++
 		}
 
-		// Set ACL on home directory (allow fastcp to traverse)
-		setHomeDirACL(homeDir, u.Username)
-		userResults["home_acl"] = "applied"
+		// Ensure run/ and log/ directories exist for per-user PHP instances
+		for _, subdir := range []string{"run", "log", "www"} {
+			dir := filepath.Join(homeDir, subdir)
+			if err := os.MkdirAll(dir, 0755); err == nil {
+				_ = exec.Command("chown", fmt.Sprintf("%s:%s", u.Username, u.Username), dir).Run()
+				userResults[subdir+"_dir"] = "fixed"
+			}
+		}
 
-		// Fix web directory (under user's home)
-		webDir := fmt.Sprintf("/home/%s/www", u.Username)
+		// Fix web directory (under user's home) - PHP runs as user, no ACLs needed
+		webDir := filepath.Join(homeDir, "www")
 		if _, err := os.Stat(webDir); err == nil {
-			if err := exec.Command("chmod", "750", webDir).Run(); err == nil {
+			if err := exec.Command("chmod", "755", webDir).Run(); err == nil {
 				userResults["web_chmod"] = "fixed"
 			}
 			if err := exec.Command("chown", "-R", fmt.Sprintf("%s:%s", u.Username, u.Username), webDir).Run(); err == nil {
 				userResults["web_chown"] = "fixed"
 			}
-			// Apply ACL
-			setUserDirACL(webDir, u.Username)
-			userResults["web_acl"] = "applied"
 		}
 
 		// Ensure user is in SSH groups
@@ -641,55 +665,6 @@ func (s *Server) fixUserPermissions(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// setHomeDirACL sets minimal ACLs on user's home directory
-// Grants execute (traverse) permission to fastcp so PHP can reach www/
-func setHomeDirACL(homeDir, username string) {
-	cmds := [][]string{
-		// Grant owner full access
-		{"setfacl", "-m", fmt.Sprintf("u:%s:rwx", username), homeDir},
-		// Grant fastcp execute only (traverse) - no read (can't list files)
-		{"setfacl", "-m", "u:fastcp:--x", homeDir},
-		// Grant root full access
-		{"setfacl", "-m", "u:root:rwx", homeDir},
-		// No group access
-		{"setfacl", "-m", "g::---", homeDir},
-		// No other access
-		{"setfacl", "-m", "o::---", homeDir},
-	}
-
-	for _, cmdArgs := range cmds {
-		cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
-		_ = cmd.Run()
-	}
-}
-
-// setUserDirACL applies ACL to a user directory
-// Includes read/write/execute access for fastcp user (PHP execution + WordPress file operations)
-func setUserDirACL(path, username string) {
-	cmds := [][]string{
-		// Clear existing ACLs
-		{"setfacl", "-b", path},
-		// Owner has full access
-		{"setfacl", "-R", "-m", fmt.Sprintf("u:%s:rwx", username), path},
-		// fastcp user has full access for PHP (needed for WordPress plugin/theme management)
-		{"setfacl", "-R", "-m", "u:fastcp:rwx", path},
-		// Root has full access
-		{"setfacl", "-R", "-m", "u:root:rwx", path},
-		// No group access
-		{"setfacl", "-R", "-m", "g::---", path},
-		// No other users access
-		{"setfacl", "-R", "-m", "o::---", path},
-		// Default ACLs for new files (inherit)
-		{"setfacl", "-d", "-m", fmt.Sprintf("u:%s:rwx", username), path},
-		{"setfacl", "-d", "-m", "u:fastcp:rwx", path},
-		{"setfacl", "-d", "-m", "u:root:rwx", path},
-		{"setfacl", "-d", "-m", "g::---", path},
-		{"setfacl", "-d", "-m", "o::---", path},
-	}
-
-	for _, cmdArgs := range cmds {
-		cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
-		_ = cmd.Run()
-	}
-}
+// Note: ACL functions removed - PHP now runs as the user, so no ACLs needed
+// Simple Unix permissions are sufficient since the user owns all files
 
