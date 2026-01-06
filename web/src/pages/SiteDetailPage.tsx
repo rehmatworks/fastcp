@@ -1,26 +1,29 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
   Globe,
   ExternalLink,
-  RefreshCw,
   Trash2,
   Save,
   Loader2,
-  Zap,
   FolderOpen,
   Clock,
+  X,
+  Plus,
+  AlertCircle,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate, getStatusBgColor } from '@/lib/utils'
 import type { Site, PHPInstance } from '@/types'
 
-function parseAliases(input: string): string[] {
-  return input
-    .split(',')
-    .map((d) => d.trim())
-    .filter(Boolean)
+function normalizeDomain(domain: string): string {
+  let d = domain.trim().toLowerCase()
+  // Strip http(s)://
+  d = d.replace(/^https?:\/\//, '')
+  // Strip path, query, port
+  d = d.split('/')[0].split(':')[0].split('?')[0]
+  return d
 }
 
 export function SiteDetailPage() {
@@ -36,13 +39,36 @@ export function SiteDetailPage() {
   const [form, setForm] = useState({
     name: '',
     domain: '',
-    aliases: '',
     php_version: '',
     public_path: '',
-    worker_mode: false,
-    worker_file: '',
-    worker_num: 2,
   })
+  const [aliases, setAliases] = useState<string[]>([])
+  const [aliasInput, setAliasInput] = useState('')
+  const [aliasError, setAliasError] = useState('')
+
+  const addAlias = useCallback(() => {
+    setAliasError('')
+    const normalized = normalizeDomain(aliasInput)
+    if (!normalized) {
+      setAliasInput('')
+      return
+    }
+    const normalizedPrimary = normalizeDomain(form.domain)
+    if (normalized === normalizedPrimary) {
+      setAliasError('Alias cannot be the same as the primary domain')
+      return
+    }
+    if (aliases.includes(normalized)) {
+      setAliasError('This domain is already in the list')
+      return
+    }
+    setAliases((prev) => [...prev, normalized])
+    setAliasInput('')
+  }, [aliasInput, form.domain, aliases])
+
+  const removeAlias = useCallback((alias: string) => {
+    setAliases((prev) => prev.filter((a) => a !== alias))
+  }, [])
 
   useEffect(() => {
     async function fetchData() {
@@ -57,13 +83,10 @@ export function SiteDetailPage() {
         setForm({
           name: siteData.name,
           domain: siteData.domain,
-          aliases: (siteData.aliases || []).join(', '),
           php_version: siteData.php_version,
           public_path: siteData.public_path,
-          worker_mode: siteData.worker_mode,
-          worker_file: siteData.worker_file || 'index.php',
-          worker_num: siteData.worker_num || 2,
         })
+        setAliases(siteData.aliases || [])
       } catch (error) {
         console.error('Failed to fetch site:', error)
       } finally {
@@ -83,31 +106,18 @@ export function SiteDetailPage() {
       const updated = await api.updateSite(id, {
         name: form.name,
         domain: form.domain,
-        aliases: parseAliases(form.aliases),
+        aliases: aliases,
         php_version: form.php_version,
         public_path: form.public_path,
-        worker_mode: form.worker_mode,
-        worker_file: form.worker_mode ? form.worker_file : undefined,
-        worker_num: form.worker_mode ? form.worker_num : undefined,
       })
       setSite(updated)
+      setAliases(updated.aliases || [])
       setSuccess('Site updated successfully')
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update site')
     } finally {
       setIsSaving(false)
-    }
-  }
-
-  const handleRestartWorkers = async () => {
-    if (!id) return
-    try {
-      await api.restartSiteWorkers(id)
-      setSuccess('Workers restarted successfully')
-      setTimeout(() => setSuccess(''), 3000)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to restart workers')
     }
   }
 
@@ -182,24 +192,13 @@ export function SiteDetailPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {site.worker_mode && (
-              <button
-                onClick={handleRestartWorkers}
-                className="flex items-center gap-2 px-3 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-lg transition-colors"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Restart Workers
-              </button>
-            )}
-            <button
-              onClick={handleDelete}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-red-400 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-              Delete
-            </button>
-          </div>
+          <button
+            onClick={handleDelete}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-red-400 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
         </div>
       </div>
 
@@ -251,15 +250,66 @@ export function SiteDetailPage() {
               <label className="block text-sm font-medium">
                 Additional Domains <span className="text-muted-foreground font-normal">(optional)</span>
               </label>
-              <input
-                type="text"
-                value={form.aliases}
-                onChange={(e) => setForm({ ...form, aliases: e.target.value })}
-                className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
-                placeholder="www.example.com, example.net"
-              />
+              
+              {/* Alias chips */}
+              {aliases.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {aliases.map((alias) => (
+                    <span
+                      key={alias}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-secondary border border-border rounded-lg text-sm group"
+                    >
+                      <Globe className="w-3.5 h-3.5 text-muted-foreground" />
+                      {alias}
+                      <button
+                        type="button"
+                        onClick={() => removeAlias(alias)}
+                        className="ml-1 p-0.5 rounded hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              
+              {/* Add alias input */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={aliasInput}
+                  onChange={(e) => {
+                    setAliasInput(e.target.value)
+                    setAliasError('')
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      addAlias()
+                    }
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
+                  placeholder="www.example.com"
+                />
+                <button
+                  type="button"
+                  onClick={addAlias}
+                  className="px-4 py-2.5 bg-secondary border border-border rounded-lg hover:bg-secondary/80 transition-colors flex items-center gap-2 text-sm font-medium"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add
+                </button>
+              </div>
+              
+              {aliasError && (
+                <p className="text-xs text-red-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {aliasError}
+                </p>
+              )}
+              
               <p className="text-xs text-muted-foreground">
-                Comma-separated. Domains are normalized and must be unique across all sites.
+                These domains will permanently redirect to the primary domain.
               </p>
             </div>
 
@@ -291,62 +341,6 @@ export function SiteDetailPage() {
                 className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
               />
             </div>
-          </div>
-
-          {/* Worker Mode */}
-          <div className="bg-card border border-border rounded-xl p-6 space-y-5">
-            <div className="flex items-center justify-between pb-4 border-b border-border">
-              <div className="flex items-center gap-3">
-                <Zap className="w-5 h-5 text-purple-400" />
-                <h2 className="font-semibold">Worker Mode</h2>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.worker_mode}
-                  onChange={(e) =>
-                    setForm({ ...form, worker_mode: e.target.checked })
-                  }
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-secondary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-              </label>
-            </div>
-
-            {form.worker_mode && (
-              <div className="space-y-5">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium">Worker Script</label>
-                  <input
-                    type="text"
-                    value={form.worker_file}
-                    onChange={(e) =>
-                      setForm({ ...form, worker_file: e.target.value })
-                    }
-                    className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium">
-                    Number of Workers
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={form.worker_num}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        worker_num: parseInt(e.target.value) || 2,
-                      })
-                    }
-                    className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
-                  />
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Save Button */}

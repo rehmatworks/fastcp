@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Loader2, Globe, Zap, FileCode, CircleDot, Database, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Loader2, Globe, FileCode, CircleDot, Database, AlertCircle, X, Plus } from 'lucide-react'
 import { api, DatabaseStatus } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type { PHPInstance } from '@/types'
@@ -20,11 +20,13 @@ const APP_TYPES = [
   },
 ]
 
-function parseAliases(input: string): string[] {
-  return input
-    .split(',')
-    .map((d) => d.trim())
-    .filter(Boolean)
+function normalizeDomain(domain: string): string {
+  let d = domain.trim().toLowerCase()
+  // Strip http(s)://
+  d = d.replace(/^https?:\/\//, '')
+  // Strip path, query, port
+  d = d.split('/')[0].split(':')[0].split('?')[0]
+  return d
 }
 
 export function CreateSitePage() {
@@ -37,16 +39,39 @@ export function CreateSitePage() {
   const [form, setForm] = useState({
     name: '',
     domain: '',
-    aliases: '',
     php_version: '8.4',
     public_path: 'public',
     app_type: 'blank',
-    worker_mode: false,
-    worker_file: 'index.php',
-    worker_num: 2,
   })
+  const [aliases, setAliases] = useState<string[]>([])
+  const [aliasInput, setAliasInput] = useState('')
+  const [aliasError, setAliasError] = useState('')
 
   const isMySQLReady = mysqlStatus?.installed && mysqlStatus?.running
+
+  const addAlias = useCallback(() => {
+    setAliasError('')
+    const normalized = normalizeDomain(aliasInput)
+    if (!normalized) {
+      setAliasInput('')
+      return
+    }
+    const normalizedPrimary = normalizeDomain(form.domain)
+    if (normalized === normalizedPrimary) {
+      setAliasError('Alias cannot be the same as the primary domain')
+      return
+    }
+    if (aliases.includes(normalized)) {
+      setAliasError('This domain is already in the list')
+      return
+    }
+    setAliases((prev) => [...prev, normalized])
+    setAliasInput('')
+  }, [aliasInput, form.domain, aliases])
+
+  const removeAlias = useCallback((alias: string) => {
+    setAliases((prev) => prev.filter((a) => a !== alias))
+  }, [])
 
   useEffect(() => {
     async function fetchData() {
@@ -77,13 +102,10 @@ export function CreateSitePage() {
       const site = await api.createSite({
         name: form.name || form.domain,
         domain: form.domain,
-        aliases: parseAliases(form.aliases),
+        aliases: aliases,
         php_version: form.php_version,
         public_path: form.app_type === 'wordpress' ? '' : form.public_path, // WordPress uses root
         app_type: form.app_type as 'blank' | 'wordpress',
-        worker_mode: form.worker_mode,
-        worker_file: form.worker_mode ? form.worker_file : undefined,
-        worker_num: form.worker_mode ? form.worker_num : undefined,
       })
       navigate(`/sites/${site.id}`)
     } catch (err) {
@@ -258,19 +280,69 @@ export function CreateSitePage() {
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="aliases" className="block text-sm font-medium">
+            <label className="block text-sm font-medium">
               Additional Domains <span className="text-muted-foreground font-normal">(optional)</span>
             </label>
-            <input
-              id="aliases"
-              type="text"
-              value={form.aliases}
-              onChange={(e) => setForm({ ...form, aliases: e.target.value })}
-              className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
-              placeholder="www.example.com, example.net"
-            />
+            
+            {/* Alias chips */}
+            {aliases.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {aliases.map((alias) => (
+                  <span
+                    key={alias}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-secondary border border-border rounded-lg text-sm group"
+                  >
+                    <Globe className="w-3.5 h-3.5 text-muted-foreground" />
+                    {alias}
+                    <button
+                      type="button"
+                      onClick={() => removeAlias(alias)}
+                      className="ml-1 p-0.5 rounded hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            
+            {/* Add alias input */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={aliasInput}
+                onChange={(e) => {
+                  setAliasInput(e.target.value)
+                  setAliasError('')
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addAlias()
+                  }
+                }}
+                className="flex-1 px-4 py-2.5 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
+                placeholder="www.example.com"
+              />
+              <button
+                type="button"
+                onClick={addAlias}
+                className="px-4 py-2.5 bg-secondary border border-border rounded-lg hover:bg-secondary/80 transition-colors flex items-center gap-2 text-sm font-medium"
+              >
+                <Plus className="w-4 h-4" />
+                Add
+              </button>
+            </div>
+            
+            {aliasError && (
+              <p className="text-xs text-red-400 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {aliasError}
+              </p>
+            )}
+            
             <p className="text-xs text-muted-foreground">
-              Comma-separated. FastCP will normalize (trim + lowercase) and enforce global uniqueness.
+              These domains will permanently redirect to the primary domain.
             </p>
           </div>
 
@@ -308,80 +380,6 @@ export function CreateSitePage() {
               The publicly accessible directory (e.g., "public", "web", "html")
             </p>
           </div>
-        </div>
-
-        {/* Worker Mode */}
-        <div className="bg-card border border-border rounded-xl p-6 space-y-5">
-          <div className="flex items-center gap-3 pb-4 border-b border-border">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500/20 to-purple-600/20 flex items-center justify-center border border-purple-500/20">
-              <Zap className="w-5 h-5 text-purple-400" />
-            </div>
-            <div className="flex-1">
-              <h2 className="font-semibold">Worker Mode</h2>
-              <p className="text-sm text-muted-foreground">
-                Enable for high-performance applications
-              </p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.worker_mode}
-                onChange={(e) =>
-                  setForm({ ...form, worker_mode: e.target.checked })
-                }
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-secondary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-            </label>
-          </div>
-
-          {form.worker_mode && (
-            <div className="space-y-5 pt-2">
-              <div className="space-y-2">
-                <label htmlFor="worker_file" className="block text-sm font-medium">
-                  Worker Script
-                </label>
-                <input
-                  id="worker_file"
-                  type="text"
-                  value={form.worker_file}
-                  onChange={(e) =>
-                    setForm({ ...form, worker_file: e.target.value })
-                  }
-                  className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
-                  placeholder="index.php"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="worker_num" className="block text-sm font-medium">
-                  Number of Workers
-                </label>
-                <input
-                  id="worker_num"
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={form.worker_num}
-                  onChange={(e) =>
-                    setForm({ ...form, worker_num: parseInt(e.target.value) || 2 })
-                  }
-                  className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Recommended: 2-4 workers per CPU core
-                </p>
-              </div>
-
-              <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4">
-                <p className="text-sm text-purple-200">
-                  <strong>Worker Mode</strong> keeps your application in memory,
-                  dramatically improving performance. Ideal for Laravel, Symfony,
-                  and WordPress sites.
-                </p>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Submit */}
