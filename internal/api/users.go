@@ -150,6 +150,8 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 	// Secure home directory - prevent other users from accessing
 	homeDir := fmt.Sprintf("/home/%s", req.Username)
 	_ = exec.Command("chmod", "750", homeDir).Run()
+	// Set ACL on home dir to allow fastcp user to traverse (needed for PHP)
+	setHomeDirACL(homeDir, req.Username)
 
 	// Add to fastcp group (for FastCP panel access)
 	_ = exec.Command("groupadd", "-f", "fastcp").Run()
@@ -193,6 +195,8 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 			gid, _ := strconv.Atoi(u.Gid)
 			_ = os.Chown(userWebDir, uid, gid)
 		}
+		// Set ACL on www dir to allow fastcp user full access (PHP/WordPress)
+		setUserDirACL(userWebDir, req.Username)
 	}
 
 	// Set resource limits
@@ -592,6 +596,10 @@ func (s *Server) fixUserPermissions(w http.ResponseWriter, r *http.Request) {
 			errors++
 		}
 
+		// Set ACL on home directory (allow fastcp to traverse)
+		setHomeDirACL(homeDir, u.Username)
+		userResults["home_acl"] = "applied"
+
 		// Fix web directory (under user's home)
 		webDir := fmt.Sprintf("/home/%s/www", u.Username)
 		if _, err := os.Stat(webDir); err == nil {
@@ -631,6 +639,28 @@ func (s *Server) fixUserPermissions(w http.ResponseWriter, r *http.Request) {
 		"errors":      errors,
 		"details":     results,
 	})
+}
+
+// setHomeDirACL sets minimal ACLs on user's home directory
+// Grants execute (traverse) permission to fastcp so PHP can reach www/
+func setHomeDirACL(homeDir, username string) {
+	cmds := [][]string{
+		// Grant owner full access
+		{"setfacl", "-m", fmt.Sprintf("u:%s:rwx", username), homeDir},
+		// Grant fastcp execute only (traverse) - no read (can't list files)
+		{"setfacl", "-m", "u:fastcp:--x", homeDir},
+		// Grant root full access
+		{"setfacl", "-m", "u:root:rwx", homeDir},
+		// No group access
+		{"setfacl", "-m", "g::---", homeDir},
+		// No other access
+		{"setfacl", "-m", "o::---", homeDir},
+	}
+
+	for _, cmdArgs := range cmds {
+		cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+		_ = cmd.Run()
+	}
 }
 
 // setUserDirACL applies ACL to a user directory

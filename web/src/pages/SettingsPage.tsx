@@ -542,22 +542,22 @@ export function SettingsPage() {
       {/* Quick Actions - Admin Only */}
       {user?.role === 'admin' && (
         <div className="bg-card border border-border rounded-2xl p-6 card-shadow">
-          <h2 className="font-semibold mb-4">Quick Actions</h2>
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={handleReloadAll}
-              disabled={isReloading}
+        <h2 className="font-semibold mb-4">Quick Actions</h2>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handleReloadAll}
+            disabled={isReloading}
               className="flex items-center gap-2 px-4 py-2.5 bg-secondary hover:bg-secondary/80 rounded-xl font-medium transition-colors disabled:opacity-50"
-            >
-              {isReloading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4" />
-              )}
-              Reload All Configurations
-            </button>
-          </div>
+          >
+            {isReloading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            Reload All Configurations
+          </button>
         </div>
+      </div>
       )}
 
       {/* API Keys - Admin Only */}
@@ -631,37 +631,6 @@ export function SettingsPage() {
           )}
         </div>
       </div>
-      )}
-
-      {/* WHMCS Integration Info - Admin Only */}
-      {user?.role === 'admin' && (
-        <div className="bg-card border border-border rounded-2xl p-6 card-shadow">
-        <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-              <Shield className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-          </div>
-            <div className="flex-1">
-            <h3 className="font-semibold mb-1">WHMCS Integration</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-              Use API keys to integrate FastCP with WHMCS for automated
-              provisioning. Send requests to the following endpoints:
-            </p>
-              <div className="space-y-2">
-                <div className="flex items-center gap-3 px-4 py-3 bg-secondary rounded-xl font-mono text-sm">
-                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded text-xs font-semibold">POST</span>
-                  <span className="text-foreground">/api/v1/whmcs/provision</span>
-                </div>
-                <div className="flex items-center gap-3 px-4 py-3 bg-secondary rounded-xl font-mono text-sm">
-                  <span className="px-2 py-0.5 bg-blue-500/20 text-blue-700 dark:text-blue-400 rounded text-xs font-semibold">GET</span>
-                  <span className="text-foreground">/api/v1/whmcs/status/{'{service_id}'}</span>
-              </div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-4">
-                Include the API key in the <code className="px-1.5 py-0.5 bg-secondary rounded text-foreground">X-API-Key</code> header.
-              </p>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Delete Confirmation Modal */}

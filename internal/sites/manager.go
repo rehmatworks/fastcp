@@ -580,12 +580,16 @@ func (m *Manager) createSiteDirectories(site *models.Site) error {
 
 	// Ensure user's www directory exists
 	// Structure: /home/{username}/www/ for user sites
-	if username != "" && username != "admin" && runtime.GOOS == "linux" {
+	if username != "" && runtime.GOOS == "linux" {
 		// Create home directory if needed
 		homeDir := filepath.Join("/home", username)
 		if err := os.MkdirAll(homeDir, 0755); err != nil {
 			return err
 		}
+		// Set ownership on home directory
+		setOwnership(homeDir, uid, gid)
+		// Grant fastcp execute permission on home dir (for PHP to traverse)
+		setHomeDirACL(homeDir, username)
 
 		// www directory inside home
 		wwwDir := filepath.Join(homeDir, "www")
@@ -594,7 +598,7 @@ func (m *Manager) createSiteDirectories(site *models.Site) error {
 		}
 		// Set ownership on www directory
 		setOwnership(wwwDir, uid, gid)
-		// Set ACL to prevent other users from accessing
+		// Set ACL for www directory (full access for owner and fastcp)
 		setACL(wwwDir, username)
 	}
 
@@ -892,6 +896,39 @@ func setOwnershipRecursive(path string, uid, gid int) error {
 		}
 		return os.Chown(name, uid, gid)
 	})
+}
+
+// setHomeDirACL sets minimal ACLs on user's home directory
+// Grants execute (traverse) permission to fastcp so PHP can reach www/
+func setHomeDirACL(homeDir, username string) error {
+	if runtime.GOOS != "linux" {
+		return nil
+	}
+
+	// Home directory should be 750 (owner full, group rx, others none)
+	_ = exec.Command("chmod", "750", homeDir).Run()
+
+	// Grant execute (traverse) permission to fastcp user
+	// This allows PHP to cd into the home directory to reach www/
+	cmds := [][]string{
+		// Grant owner full access
+		{"setfacl", "-m", fmt.Sprintf("u:%s:rwx", username), homeDir},
+		// Grant fastcp execute only (traverse) - no read (can't list files)
+		{"setfacl", "-m", "u:fastcp:--x", homeDir},
+		// Grant root full access
+		{"setfacl", "-m", "u:root:rwx", homeDir},
+		// No group access
+		{"setfacl", "-m", "g::---", homeDir},
+		// No other access
+		{"setfacl", "-m", "o::---", homeDir},
+	}
+
+	for _, cmdArgs := range cmds {
+		cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+		_ = cmd.Run()
+	}
+
+	return nil
 }
 
 // setACL sets POSIX ACLs to restrict access to a directory

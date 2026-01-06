@@ -19,9 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed fallback to `/var/www` in site creation logic
 
 ### Fixed
+- **Critical: PHP 403 Forbidden** - Fixed ACL permissions so fastcp user can traverse user home directories to serve sites
+- Home directory ACLs now set during user creation (grants fastcp execute permission)
+- www directory ACLs now set during user creation (grants fastcp full access for PHP)
 - Disk usage calculations now correctly use `/home/username/www`
 - User permission fixes target correct home directory paths
-- Jail ACL setup no longer creates unnecessary symlinks
+- "Fix Permissions" now also repairs home directory ACLs for existing users
 
 ## [0.2.0] - 2026-01-06
 
