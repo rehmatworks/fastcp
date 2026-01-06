@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-01-06
+
+### Fixed
+- GitHub Actions release workflow syntax errors
+
+## [0.1.8] - 2026-01-06
+
+### Changed
+- **Domain Management UI** - Chip-based interface for managing additional domains (aliases)
+- **Removed Worker Mode** - Disabled PHP worker mode feature (was causing PHP instance crashes)
+
+### Fixed
+- Duplicate domain validation - Frontend now prevents adding primary domain as an alias
+- Domain normalization - Automatic lowercase, trim whitespace, strip http(s):// and paths
+
 ## [0.1.2] - 2026-01-06
 
 ### Added
@@ -58,7 +73,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FrankenPHP for PHP execution
 - Systemd service management
 
-[Unreleased]: https://github.com/rehmatworks/fastcp/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/rehmatworks/fastcp/compare/v0.1.9...HEAD
+[0.1.9]: https://github.com/rehmatworks/fastcp/compare/v0.1.8...v0.1.9
+[0.1.8]: https://github.com/rehmatworks/fastcp/compare/v0.1.2...v0.1.8
 [0.1.2]: https://github.com/rehmatworks/fastcp/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/rehmatworks/fastcp/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/rehmatworks/fastcp/releases/tag/v0.1.0
