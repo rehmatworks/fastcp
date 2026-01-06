@@ -5,7 +5,40 @@
 @tailwind utilities;
 
 @layer base {
+  /* Light Mode (default) */
   :root {
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 158 64% 42%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 158 64% 42%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 158 64% 42%;
+    --radius: 0.75rem;
+
+    /* Light mode specific */
+    --glow-primary: 158 64% 42%;
+    --glass-bg: 0 0% 100% / 0.7;
+    --glass-border: 220 13% 91%;
+    --shadow-color: 220 20% 70%;
+    --gradient-from: 158 64% 90%;
+    --gradient-to: 199 89% 90%;
+  }
+
+  /* Dark Mode */
+  .dark {
     --background: 222 47% 5%;
     --foreground: 210 40% 98%;
     --card: 222 47% 7%;
@@ -25,7 +58,14 @@
     --border: 222 47% 14%;
     --input: 222 47% 14%;
     --ring: 158 64% 52%;
-    --radius: 0.75rem;
+
+    /* Dark mode specific */
+    --glow-primary: 158 64% 52%;
+    --glass-bg: 0 0% 100% / 0.03;
+    --glass-border: 0 0% 100% / 0.08;
+    --shadow-color: 222 47% 2%;
+    --gradient-from: 158 64% 52% / 0.08;
+    --gradient-to: 217 91% 60% / 0.05;
   }
 }
 
@@ -41,13 +81,25 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Outfit', system-ui, sans-serif;
+  }
+
+  /* Light mode background */
+  :root body {
     background-image: 
-      radial-gradient(ellipse 80% 50% at 50% -20%, hsla(158, 64%, 52%, 0.08), transparent),
-      radial-gradient(ellipse 60% 40% at 100% 100%, hsla(217, 91%, 60%, 0.05), transparent);
+      radial-gradient(ellipse 80% 50% at 50% -20%, hsl(var(--gradient-from)), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 100%, hsl(var(--gradient-to)), transparent);
     background-attachment: fixed;
   }
 
-  /* Custom scrollbar */
+  /* Dark mode background */
+  .dark body {
+    background-image: 
+      radial-gradient(ellipse 80% 50% at 50% -20%, hsl(var(--gradient-from)), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 100%, hsl(var(--gradient-to)), transparent);
+    background-attachment: fixed;
+  }
+
+  /* Custom scrollbar - Light mode */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -58,7 +110,7 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted));
+    background: hsl(var(--muted-foreground) / 0.3);
     border-radius: 6px;
   }
 
@@ -68,37 +120,66 @@
 
   /* Selection */
   ::selection {
-    background: hsl(var(--primary) / 0.3);
+    background: hsl(var(--primary) / 0.2);
     color: hsl(var(--foreground));
+  }
+
+  .dark ::selection {
+    background: hsl(var(--primary) / 0.3);
   }
 }
 
 @layer utilities {
   /* Glass effect */
   .glass {
-    @apply bg-white/[0.03] backdrop-blur-xl border border-white/[0.08];
+    background: hsl(var(--glass-bg));
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid hsl(var(--glass-border));
   }
 
   .glass-strong {
-    @apply bg-white/[0.06] backdrop-blur-2xl border border-white/[0.1];
+    background: hsl(var(--card));
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid hsl(var(--border));
   }
 
   /* Gradient text */
   .gradient-text {
-    @apply bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent;
+  }
+
+  .dark .gradient-text {
+    @apply from-emerald-400 via-teal-400 to-cyan-400;
   }
 
   .gradient-text-gold {
-    @apply bg-gradient-to-r from-amber-400 via-orange-400 to-yellow-400 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-amber-600 via-orange-600 to-yellow-600 bg-clip-text text-transparent;
+  }
+
+  .dark .gradient-text-gold {
+    @apply from-amber-400 via-orange-400 to-yellow-400;
   }
 
   /* Glow effects */
   .glow-emerald {
-    box-shadow: 0 0 20px hsla(158, 64%, 52%, 0.15), 0 0 40px hsla(158, 64%, 52%, 0.05);
+    box-shadow: 0 0 20px hsl(var(--glow-primary) / 0.15), 0 0 40px hsl(var(--glow-primary) / 0.05);
   }
 
   .glow-blue {
     box-shadow: 0 0 20px hsla(217, 91%, 60%, 0.15), 0 0 40px hsla(217, 91%, 60%, 0.05);
+  }
+
+  /* Card shadow - adapts to theme */
+  .card-shadow {
+    box-shadow: 0 1px 3px hsl(var(--shadow-color) / 0.1), 
+                0 4px 12px hsl(var(--shadow-color) / 0.05);
+  }
+
+  .card-shadow-lg {
+    box-shadow: 0 4px 12px hsl(var(--shadow-color) / 0.1), 
+                0 12px 32px hsl(var(--shadow-color) / 0.1);
   }
 
   /* Animated gradient border */
@@ -116,10 +197,10 @@
     border-radius: inherit;
     background: linear-gradient(
       135deg,
-      hsla(158, 64%, 52%, 0.5),
-      hsla(217, 91%, 60%, 0.3),
-      hsla(158, 64%, 52%, 0.1),
-      hsla(217, 91%, 60%, 0.5)
+      hsl(var(--primary) / 0.5),
+      hsl(217 91% 60% / 0.3),
+      hsl(var(--primary) / 0.1),
+      hsl(217 91% 60% / 0.5)
     );
     background-size: 300% 300%;
     animation: gradient-shift 8s ease infinite;
@@ -148,9 +229,9 @@
     background: linear-gradient(
       105deg,
       transparent 40%,
-      hsla(0, 0%, 100%, 0.03) 45%,
-      hsla(0, 0%, 100%, 0.05) 50%,
-      hsla(0, 0%, 100%, 0.03) 55%,
+      hsl(var(--foreground) / 0.02) 45%,
+      hsl(var(--foreground) / 0.04) 50%,
+      hsl(var(--foreground) / 0.02) 55%,
       transparent 60%
     );
     transform: translateX(-100%);
@@ -169,10 +250,10 @@
 
   @keyframes pulse-ring {
     0%, 100% {
-      box-shadow: 0 0 0 0 hsla(158, 64%, 52%, 0.4);
+      box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
     }
     50% {
-      box-shadow: 0 0 0 8px hsla(158, 64%, 52%, 0);
+      box-shadow: 0 0 0 8px hsl(var(--primary) / 0);
     }
   }
 
@@ -260,5 +341,16 @@
       transform: scale(2);
       opacity: 0;
     }
+  }
+
+  /* Theme transition */
+  .theme-transition,
+  .theme-transition *,
+  .theme-transition *::before,
+  .theme-transition *::after {
+    transition: background-color 0.3s ease, 
+                border-color 0.3s ease, 
+                color 0.2s ease,
+                box-shadow 0.3s ease !important;
   }
 }

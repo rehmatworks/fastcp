@@ -124,7 +124,7 @@ export function SitesPage() {
 
       {/* Sites List */}
       {filteredSites.length === 0 ? (
-        <div className="bg-card border border-white/[0.06] rounded-2xl p-16 text-center">
+        <div className="bg-card border border-border rounded-2xl p-16 text-center card-shadow">
           <div className="w-20 h-20 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-6">
             {sites.length === 0 ? (
               <FolderOpen className="w-10 h-10 text-emerald-400/50" />
@@ -151,11 +151,11 @@ export function SitesPage() {
           )}
         </div>
       ) : (
-        <div className="bg-card border border-white/[0.06] rounded-2xl overflow-hidden">
+        <div className="bg-card border border-border rounded-2xl overflow-hidden card-shadow">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-white/[0.06]">
+                <tr className="border-b border-border bg-secondary/30">
                   <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Site
                   </th>
@@ -173,9 +173,9 @@ export function SitesPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.04]">
+              <tbody className="divide-y divide-border">
                 {filteredSites.map((site) => (
-                  <tr key={site.id} className="hover:bg-white/[0.02] transition-colors group">
+                  <tr key={site.id} className="hover:bg-secondary/30 transition-colors group">
                     <td className="px-6 py-4">
                       <Link
                         to={`/sites/${site.id}`}
@@ -217,7 +217,7 @@ export function SitesPage() {
                           href={`https://${site.domain}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-2 text-muted-foreground hover:text-foreground hover:bg-white/[0.05] rounded-lg transition-all"
+                          className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-all"
                           title="Visit site"
                         >
                           <ExternalLink className="w-4 h-4" />
@@ -227,7 +227,7 @@ export function SitesPage() {
                             onClick={() =>
                               setOpenMenu(openMenu === site.id ? null : site.id)
                             }
-                            className="p-2 text-muted-foreground hover:text-foreground hover:bg-white/[0.05] rounded-lg transition-all"
+                            className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-all"
                           >
                             <MoreVertical className="w-4 h-4" />
                           </button>
@@ -237,38 +237,38 @@ export function SitesPage() {
                                 className="fixed inset-0 z-10"
                                 onClick={() => setOpenMenu(null)}
                               />
-                              <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-white/[0.1] rounded-xl shadow-2xl shadow-black/50 z-20 overflow-hidden animate-fade-in">
+                              <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border rounded-xl shadow-xl z-20 overflow-hidden animate-fade-in">
                                 <div className="py-1">
                                   {site.status === 'active' ? (
                                     <button
                                       onClick={() => handleSuspend(site.id)}
-                                      className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left hover:bg-white/[0.05] transition-colors"
+                                      className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left hover:bg-secondary transition-colors"
                                     >
-                                      <PauseCircle className="w-4 h-4 text-amber-400" />
+                                      <PauseCircle className="w-4 h-4 text-amber-500" />
                                       Suspend
                                     </button>
                                   ) : (
                                     <button
                                       onClick={() => handleUnsuspend(site.id)}
-                                      className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left hover:bg-white/[0.05] transition-colors"
+                                      className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left hover:bg-secondary transition-colors"
                                     >
-                                      <PlayCircle className="w-4 h-4 text-emerald-400" />
+                                      <PlayCircle className="w-4 h-4 text-emerald-500" />
                                       Activate
                                     </button>
                                   )}
                                   {site.worker_mode && (
                                     <button
                                       onClick={() => handleRestartWorkers(site.id)}
-                                      className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left hover:bg-white/[0.05] transition-colors"
+                                      className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left hover:bg-secondary transition-colors"
                                     >
-                                      <RefreshCw className="w-4 h-4 text-blue-400" />
+                                      <RefreshCw className="w-4 h-4 text-blue-500" />
                                       Restart Workers
                                     </button>
                                   )}
-                                  <div className="my-1 border-t border-white/[0.06]" />
+                                  <div className="my-1 border-t border-border" />
                                   <button
                                     onClick={() => handleDelete(site.id)}
-                                    className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left text-red-400 hover:bg-red-500/10 transition-colors"
+                                    className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left text-red-500 hover:bg-red-500/10 transition-colors"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                     Delete Site

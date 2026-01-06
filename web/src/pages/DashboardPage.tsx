@@ -147,11 +147,11 @@ export function DashboardPage() {
         {statCards.map((stat, index) => (
           <div
             key={stat.name}
-            className="group relative bg-card border border-white/[0.06] rounded-2xl p-5 hover:border-white/[0.1] transition-all duration-300 card-shine overflow-hidden"
+            className="group relative bg-card border border-border rounded-2xl p-5 hover:border-primary/30 transition-all duration-300 card-shine overflow-hidden card-shadow"
             style={{ animationDelay: `${index * 50}ms` }}
           >
             {/* Background gradient */}
-            <div className={`absolute inset-0 bg-gradient-to-br ${stat.bgGradient} opacity-50`} />
+            <div className={`absolute inset-0 bg-gradient-to-br ${stat.bgGradient} opacity-30 dark:opacity-50`} />
             
             <div className="relative flex items-start justify-between">
               <div>
@@ -174,8 +174,8 @@ export function DashboardPage() {
 
       <div className={`grid grid-cols-1 ${isAdmin ? 'lg:grid-cols-2' : ''} gap-6`}>
         {/* Recent Sites */}
-        <div className="bg-card border border-white/[0.06] rounded-2xl overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+        <div className="bg-card border border-border rounded-2xl overflow-hidden card-shadow">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border">
             <h2 className="font-semibold">{isAdmin ? 'Recent Sites' : 'My Sites'}</h2>
             <Link
               to="/sites"
@@ -185,7 +185,7 @@ export function DashboardPage() {
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </Link>
           </div>
-          <div className="divide-y divide-white/[0.04]">
+          <div className="divide-y divide-border">
             {sites.length === 0 ? (
               <div className="px-6 py-12 text-center">
                 <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
@@ -231,8 +231,8 @@ export function DashboardPage() {
 
         {/* PHP Instances - Admin only */}
         {isAdmin && (
-          <div className="bg-card border border-white/[0.06] rounded-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+          <div className="bg-card border border-border rounded-2xl overflow-hidden card-shadow">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <h2 className="font-semibold">PHP Instances</h2>
               <Link
                 to="/php"
@@ -242,7 +242,7 @@ export function DashboardPage() {
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
-            <div className="divide-y divide-white/[0.04]">
+            <div className="divide-y divide-border">
               {phpInstances.length === 0 ? (
                 <div className="px-6 py-12 text-center">
                   <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center mx-auto mb-4">
@@ -260,7 +260,7 @@ export function DashboardPage() {
                       className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
                         instance.status === 'running'
                           ? 'bg-emerald-500/10 border-emerald-500/20'
-                          : 'bg-white/[0.02] border-white/[0.06]'
+                          : 'bg-secondary/50 border-border'
                       }`}
                     >
                       <Server
@@ -298,24 +298,24 @@ export function DashboardPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-card border border-white/[0.06] rounded-2xl p-6">
+      <div className="bg-card border border-border rounded-2xl p-6 card-shadow">
         <h2 className="font-semibold mb-5">Quick Actions</h2>
         <div className={`grid grid-cols-2 ${isAdmin ? 'sm:grid-cols-4' : 'sm:grid-cols-2'} gap-3`}>
           <Link
             to="/sites/new"
-            className="group flex flex-col items-center gap-3 p-5 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-transparent hover:border-emerald-500/20 transition-all duration-200"
+            className="group flex flex-col items-center gap-3 p-5 rounded-xl bg-secondary/30 hover:bg-secondary/50 border border-transparent hover:border-emerald-500/30 transition-all duration-200"
           >
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Plus className="w-6 h-6 text-emerald-400" />
+              <Plus className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
             </div>
             <span className="text-sm font-medium">Add Site</span>
           </Link>
           <Link
             to="/sites"
-            className="group flex flex-col items-center gap-3 p-5 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-transparent hover:border-blue-500/20 transition-all duration-200"
+            className="group flex flex-col items-center gap-3 p-5 rounded-xl bg-secondary/30 hover:bg-secondary/50 border border-transparent hover:border-blue-500/30 transition-all duration-200"
           >
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-indigo-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Globe className="w-6 h-6 text-blue-400" />
+              <Globe className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
             <span className="text-sm font-medium">My Sites</span>
           </Link>
@@ -323,19 +323,19 @@ export function DashboardPage() {
             <>
               <Link
                 to="/php"
-                className="group flex flex-col items-center gap-3 p-5 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-transparent hover:border-purple-500/20 transition-all duration-200"
+                className="group flex flex-col items-center gap-3 p-5 rounded-xl bg-secondary/30 hover:bg-secondary/50 border border-transparent hover:border-purple-500/30 transition-all duration-200"
               >
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Server className="w-6 h-6 text-purple-400" />
+                  <Server className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                 </div>
                 <span className="text-sm font-medium">PHP Manager</span>
               </Link>
               <button
                 onClick={() => api.reloadAll()}
-                className="group flex flex-col items-center gap-3 p-5 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-transparent hover:border-amber-500/20 transition-all duration-200"
+                className="group flex flex-col items-center gap-3 p-5 rounded-xl bg-secondary/30 hover:bg-secondary/50 border border-transparent hover:border-amber-500/30 transition-all duration-200"
               >
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Zap className="w-6 h-6 text-amber-400" />
+                  <Zap className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                 </div>
                 <span className="text-sm font-medium">Reload All</span>
               </button>

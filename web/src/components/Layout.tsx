@@ -17,10 +17,14 @@ import {
   Sparkles,
   ArrowUpRight,
   Zap,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import { useTheme } from '@/hooks/useTheme'
 import { api, VersionCheckResult, UpgradeStatus } from '@/lib/api'
 
 const navigation = [
@@ -36,11 +40,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, realUser, logout, isImpersonating, stopImpersonating } = useAuth()
+  const { theme, resolvedTheme, setTheme } = useTheme()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [versionInfo, setVersionInfo] = useState<VersionCheckResult | null>(null)
   const [upgradeStatus, setUpgradeStatus] = useState<UpgradeStatus | null>(null)
   const [upgrading, setUpgrading] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [showThemeMenu, setShowThemeMenu] = useState(false)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // When impersonating, use realUser for admin checks
@@ -142,7 +148,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-72 bg-card/80 backdrop-blur-xl border-r border-white/[0.06] transform transition-transform duration-300 ease-out lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 w-72 bg-card/95 backdrop-blur-xl border-r border-border transform transition-transform duration-300 ease-out lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -231,10 +237,70 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
           )}
 
+          {/* Theme toggle */}
+          <div className="px-4 pb-2">
+            <div className="relative">
+              <button
+                onClick={() => setShowThemeMenu(!showThemeMenu)}
+                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/50 dark:hover:bg-white/[0.04] transition-all duration-200"
+              >
+                {resolvedTheme === 'dark' ? (
+                  <Moon className="w-5 h-5" />
+                ) : (
+                  <Sun className="w-5 h-5" />
+                )}
+                <span className="capitalize">{theme === 'system' ? `System (${resolvedTheme})` : theme}</span>
+              </button>
+              
+              {showThemeMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowThemeMenu(false)} />
+                  <div className="absolute bottom-full left-0 right-0 mb-2 bg-card border border-border rounded-xl shadow-xl z-20 overflow-hidden animate-fade-in">
+                    <div className="py-1">
+                      <button
+                        onClick={() => { setTheme('light'); setShowThemeMenu(false) }}
+                        className={cn(
+                          "flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left transition-colors",
+                          theme === 'light' ? "bg-primary/10 text-primary" : "hover:bg-secondary/50 dark:hover:bg-white/[0.04]"
+                        )}
+                      >
+                        <Sun className="w-4 h-4" />
+                        Light
+                        {theme === 'light' && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+                      </button>
+                      <button
+                        onClick={() => { setTheme('dark'); setShowThemeMenu(false) }}
+                        className={cn(
+                          "flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left transition-colors",
+                          theme === 'dark' ? "bg-primary/10 text-primary" : "hover:bg-secondary/50 dark:hover:bg-white/[0.04]"
+                        )}
+                      >
+                        <Moon className="w-4 h-4" />
+                        Dark
+                        {theme === 'dark' && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+                      </button>
+                      <button
+                        onClick={() => { setTheme('system'); setShowThemeMenu(false) }}
+                        className={cn(
+                          "flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left transition-colors",
+                          theme === 'system' ? "bg-primary/10 text-primary" : "hover:bg-secondary/50 dark:hover:bg-white/[0.04]"
+                        )}
+                      >
+                        <Monitor className="w-4 h-4" />
+                        System
+                        {theme === 'system' && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
           {/* User section */}
-          <div className="p-4 border-t border-white/[0.06]">
+          <div className="p-4 border-t border-border">
             <div className="flex items-center gap-3 px-2 py-2">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 dark:from-slate-600 dark:to-slate-700 flex items-center justify-center">
                 <span className="text-white text-sm font-semibold">
                   {user?.username?.charAt(0).toUpperCase() || 'A'}
                 </span>
@@ -245,7 +311,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
               <button
                 onClick={handleLogout}
-                className="p-2.5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all duration-200"
+                className="p-2.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all duration-200"
                 title="Sign out"
               >
                 <LogOut className="w-4 h-4" />

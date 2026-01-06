@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Eye, EyeOff, Loader2, Zap, ArrowRight } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Zap, ArrowRight, Sun, Moon } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { useTheme } from '@/hooks/useTheme'
 
 export function LoginPage() {
   const navigate = useNavigate()
   const { login, isAuthenticated } = useAuth()
+  const { resolvedTheme, setTheme } = useTheme()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -33,8 +35,25 @@ export function LoginPage() {
     }
   }
 
+  const toggleTheme = () => {
+    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Theme toggle */}
+      <button
+        onClick={toggleTheme}
+        className="absolute top-4 right-4 p-3 rounded-xl bg-card border border-border hover:bg-secondary transition-all duration-200 z-10"
+        title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
+      >
+        {resolvedTheme === 'dark' ? (
+          <Sun className="w-5 h-5 text-amber-400" />
+        ) : (
+          <Moon className="w-5 h-5 text-slate-600" />
+        )}
+      </button>
+
       {/* Animated background */}
       <div className="absolute inset-0">
         {/* Main gradient orbs */}
@@ -44,9 +63,9 @@ export function LoginPage() {
         
         {/* Grid pattern */}
         <div 
-          className="absolute inset-0 opacity-[0.02]"
+          className="absolute inset-0 opacity-[0.015] dark:opacity-[0.02]"
           style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
+            backgroundImage: `linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)`,
             backgroundSize: '64px 64px',
           }}
         />
@@ -68,8 +87,8 @@ export function LoginPage() {
         {/* Login form */}
         <div className="relative">
           {/* Glass card effect */}
-          <div className="absolute -inset-px bg-gradient-to-b from-white/[0.08] to-white/[0.02] rounded-2xl" />
-          <div className="relative bg-card/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-8 shadow-2xl shadow-black/20">
+          <div className="absolute -inset-px bg-gradient-to-b from-black/[0.02] to-transparent dark:from-white/[0.08] dark:to-white/[0.02] rounded-2xl" />
+          <div className="relative bg-card/95 backdrop-blur-xl border border-border rounded-2xl p-8 shadow-2xl shadow-black/5 dark:shadow-black/20">
             <form onSubmit={handleSubmit} className="space-y-6">
               {error && (
                 <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl text-sm animate-fade-in">
@@ -87,7 +106,7 @@ export function LoginPage() {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/[0.03] border border-white/[0.08] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all duration-200 placeholder:text-muted-foreground/50"
+                  className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200 placeholder:text-muted-foreground/50"
                   placeholder="Enter your username"
                   required
                   autoComplete="username"
@@ -104,7 +123,7 @@ export function LoginPage() {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-3 pr-12 bg-white/[0.03] border border-white/[0.08] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all duration-200 placeholder:text-muted-foreground/50"
+                    className="w-full px-4 py-3 pr-12 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200 placeholder:text-muted-foreground/50"
                     placeholder="Enter your password"
                     required
                     autoComplete="current-password"
@@ -112,7 +131,7 @@ export function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/[0.05] rounded-lg transition-all"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-all"
                   >
                     {showPassword ? (
                       <EyeOff className="w-4 h-4" />
@@ -142,12 +161,12 @@ export function LoginPage() {
               </button>
             </form>
 
-            <div className="mt-8 pt-6 border-t border-white/[0.06]">
+            <div className="mt-8 pt-6 border-t border-border">
               <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                 <span>Default:</span>
-                <code className="px-2 py-1 bg-white/[0.05] rounded-md font-mono">admin</code>
+                <code className="px-2 py-1 bg-secondary rounded-md font-mono">admin</code>
                 <span>/</span>
-                <code className="px-2 py-1 bg-white/[0.05] rounded-md font-mono">fastcp2024!</code>
+                <code className="px-2 py-1 bg-secondary rounded-md font-mono">fastcp2024!</code>
               </div>
             </div>
           </div>
