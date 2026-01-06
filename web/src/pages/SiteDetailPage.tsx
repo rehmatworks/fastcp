@@ -16,6 +16,13 @@ import { api } from '@/lib/api'
 import { formatDate, getStatusBgColor } from '@/lib/utils'
 import type { Site, PHPInstance } from '@/types'
 
+function parseAliases(input: string): string[] {
+  return input
+    .split(',')
+    .map((d) => d.trim())
+    .filter(Boolean)
+}
+
 export function SiteDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -29,6 +36,7 @@ export function SiteDetailPage() {
   const [form, setForm] = useState({
     name: '',
     domain: '',
+    aliases: '',
     php_version: '',
     public_path: '',
     worker_mode: false,
@@ -49,6 +57,7 @@ export function SiteDetailPage() {
         setForm({
           name: siteData.name,
           domain: siteData.domain,
+          aliases: (siteData.aliases || []).join(', '),
           php_version: siteData.php_version,
           public_path: siteData.public_path,
           worker_mode: siteData.worker_mode,
@@ -74,6 +83,7 @@ export function SiteDetailPage() {
       const updated = await api.updateSite(id, {
         name: form.name,
         domain: form.domain,
+        aliases: parseAliases(form.aliases),
         php_version: form.php_version,
         public_path: form.public_path,
         worker_mode: form.worker_mode,
@@ -232,6 +242,25 @@ export function SiteDetailPage() {
                 onChange={(e) => setForm({ ...form, domain: e.target.value })}
                 className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
               />
+              <p className="text-xs text-muted-foreground">
+                Primary domain. All additional domains will permanently redirect to this.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium">
+                Additional Domains <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={form.aliases}
+                onChange={(e) => setForm({ ...form, aliases: e.target.value })}
+                className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
+                placeholder="www.example.com, example.net"
+              />
+              <p className="text-xs text-muted-foreground">
+                Comma-separated. Domains are normalized and must be unique across all sites.
+              </p>
             </div>
 
             <div className="space-y-2">

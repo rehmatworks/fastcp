@@ -20,6 +20,13 @@ const APP_TYPES = [
   },
 ]
 
+function parseAliases(input: string): string[] {
+  return input
+    .split(',')
+    .map((d) => d.trim())
+    .filter(Boolean)
+}
+
 export function CreateSitePage() {
   const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
@@ -30,6 +37,7 @@ export function CreateSitePage() {
   const [form, setForm] = useState({
     name: '',
     domain: '',
+    aliases: '',
     php_version: '8.4',
     public_path: 'public',
     app_type: 'blank',
@@ -69,6 +77,7 @@ export function CreateSitePage() {
       const site = await api.createSite({
         name: form.name || form.domain,
         domain: form.domain,
+        aliases: parseAliases(form.aliases),
         php_version: form.php_version,
         public_path: form.app_type === 'wordpress' ? '' : form.public_path, // WordPress uses root
         app_type: form.app_type as 'blank' | 'wordpress',
@@ -243,6 +252,26 @@ export function CreateSitePage() {
               placeholder="example.com"
               required
             />
+            <p className="text-xs text-muted-foreground">
+              This is the <strong>primary</strong> domain. Any additional domains will permanently redirect to it.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="aliases" className="block text-sm font-medium">
+              Additional Domains <span className="text-muted-foreground font-normal">(optional)</span>
+            </label>
+            <input
+              id="aliases"
+              type="text"
+              value={form.aliases}
+              onChange={(e) => setForm({ ...form, aliases: e.target.value })}
+              className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
+              placeholder="www.example.com, example.net"
+            />
+            <p className="text-xs text-muted-foreground">
+              Comma-separated. FastCP will normalize (trim + lowercase) and enforce global uniqueness.
+            </p>
           </div>
 
           <div className="space-y-2">

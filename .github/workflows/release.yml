@@ -113,100 +113,105 @@ jobs:
             echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Extract changelog for this version
-        id: changelog
+      - name: Generate release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          REPO: ${{ github.repository }}
         run: |
-          VERSION=${{ steps.version.outputs.version }}
           VERSION_NUM=${VERSION#v}
           
-          # Try to extract the section for this version from CHANGELOG.md
-          if [ -f "CHANGELOG.md" ]; then
-            # Extract content between this version header and the next version header
-            CHANGELOG=$(awk -v ver="$VERSION_NUM" '
-              BEGIN { found = 0 }
-              /^## \[/ {
-                if (found) exit
-                if ($0 ~ "\\[" ver "\\]") {
-                  found = 1
-                  next
-                }
-              }
-              found && !/^\[.*\]:/ { print }
-            ' CHANGELOG.md | sed '/^$/N;/^\n$/d')
-            
-            if [ -n "$CHANGELOG" ]; then
-              echo "Found changelog for version $VERSION_NUM"
-              {
-                echo 'content<<EOF'
-                echo "$CHANGELOG"
-                echo 'EOF'
-              } >> $GITHUB_OUTPUT
-            else
-              echo "No changelog found for version $VERSION_NUM"
-              echo "content=" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "No CHANGELOG.md found"
-            echo "content=" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Generate release notes
-        id: release_notes
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          CHANGELOG="${{ steps.changelog.outputs.content }}"
+          echo "Generating release notes for version: $VERSION_NUM"
           
-          {
-            echo 'notes<<EOF'
-            
-            # If we have changelog content, use it
-            if [ -n "$CHANGELOG" ]; then
-              echo "$CHANGELOG"
-              echo ""
-            fi
-            
-            # Add installation section
-            cat << 'INSTALL'
-          ---
-
-          ## Installation
-
-          ```bash
-          # One-line install (recommended)
-          curl -fsSL https://fastcp.org/install.sh | sudo bash
-          ```
-
-          <details>
-          <summary>Manual installation</summary>
-
-          ```bash
-          # Linux x86_64 (Ubuntu, Debian, etc.)
-          curl -L https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/fastcp-linux-x86_64 -o /usr/local/bin/fastcp
-          chmod +x /usr/local/bin/fastcp
-
-          # Linux ARM64 (AWS Graviton, Oracle Ampere, etc.)
-          curl -L https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/fastcp-linux-aarch64 -o /usr/local/bin/fastcp
-          chmod +x /usr/local/bin/fastcp
-          ```
-
-          </details>
-
-          ## Quick Start
-
-          ```bash
-          # Start FastCP
-          sudo systemctl start fastcp
-          sudo systemctl enable fastcp
-          ```
-
-          **Default Credentials:**
-          - URL: `http://YOUR_SERVER_IP:8080`
-          - Username: `admin`
-          - Password: `fastcp2024!`
-          INSTALL
-            
-            echo 'EOF'
-          } >> $GITHUB_OUTPUT
+          # Create Python script for reliable changelog extraction
+          cat > extract_changelog.py << 'PYEOF'
+          import os
+          import re
+          
+          version = os.environ.get('VERSION', '').lstrip('v')
+          repo = os.environ.get('REPO', '')
+          full_version = os.environ.get('VERSION', '')
+          
+          changelog_content = ""
+          
+          # Try to extract from CHANGELOG.md
+          try:
+              with open("CHANGELOG.md", "r") as f:
+                  content = f.read()
+              
+              lines = content.split('\n')
+              in_section = False
+              result = []
+              
+              for line in lines:
+                  if re.match(r'^## \[', line):
+                      if in_section:
+                          break
+                      if f'[{version}]' in line:
+                          in_section = True
+                          continue
+                  elif in_section:
+                      if re.match(r'^\[.*\]:', line):
+                          continue
+                      result.append(line)
+              
+              while result and result[0].strip() == '':
+                  result.pop(0)
+              while result and result[-1].strip() == '':
+                  result.pop()
+              
+              changelog_content = '\n'.join(result)
+              
+              if changelog_content:
+                  print(f"Found changelog for version {version}", file=__import__('sys').stderr)
+              else:
+                  print(f"No changelog found for version {version}", file=__import__('sys').stderr)
+                  
+          except FileNotFoundError:
+              print("CHANGELOG.md not found", file=__import__('sys').stderr)
+          except Exception as e:
+              print(f"Error reading changelog: {e}", file=__import__('sys').stderr)
+          
+          # Generate release notes
+          with open("release_notes.md", "w") as f:
+              if changelog_content:
+                  f.write(changelog_content)
+                  f.write("\n\n")
+              
+              f.write("---\n\n")
+              f.write("## Installation\n\n")
+              f.write("```bash\n")
+              f.write("# One-line install (recommended)\n")
+              f.write("curl -fsSL https://fastcp.org/install.sh | sudo bash\n")
+              f.write("```\n\n")
+              f.write("<details>\n")
+              f.write("<summary>Manual installation</summary>\n\n")
+              f.write("```bash\n")
+              f.write("# Linux x86_64 (Ubuntu, Debian, etc.)\n")
+              f.write(f"curl -L https://github.com/{repo}/releases/download/{full_version}/fastcp-linux-x86_64 -o /usr/local/bin/fastcp\n")
+              f.write("chmod +x /usr/local/bin/fastcp\n\n")
+              f.write("# Linux ARM64 (AWS Graviton, Oracle Ampere, etc.)\n")
+              f.write(f"curl -L https://github.com/{repo}/releases/download/{full_version}/fastcp-linux-aarch64 -o /usr/local/bin/fastcp\n")
+              f.write("chmod +x /usr/local/bin/fastcp\n")
+              f.write("```\n\n")
+              f.write("</details>\n\n")
+              f.write("## Quick Start\n\n")
+              f.write("```bash\n")
+              f.write("# Start FastCP\n")
+              f.write("sudo systemctl start fastcp\n")
+              f.write("sudo systemctl enable fastcp\n")
+              f.write("```\n\n")
+              f.write("**Default Credentials:**\n")
+              f.write("- URL: `http://YOUR_SERVER_IP:8080`\n")
+              f.write("- Username: `admin`\n")
+              f.write("- Password: `fastcp2024!`\n")
+          
+          print("Release notes generated successfully", file=__import__('sys').stderr)
+          PYEOF
+          
+          python3 extract_changelog.py
+          
+          echo "=== Generated release notes ==="
+          cat release_notes.md
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -216,5 +221,4 @@ jobs:
           draft: false
           prerelease: false
           files: release/*
-          generate_release_notes: ${{ steps.changelog.outputs.content == '' }}
-          body: ${{ steps.release_notes.outputs.notes }}
+          body_path: release_notes.md

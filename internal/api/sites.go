@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -44,7 +45,7 @@ type UpdateSiteRequest struct {
 // listSites returns all sites
 func (s *Server) listSites(w http.ResponseWriter, r *http.Request) {
 	claims := middleware.GetClaims(r)
-	
+
 	var sitesList []*models.Site
 	if claims.Role == "admin" {
 		sitesList = s.siteManager.List("")
@@ -105,12 +106,20 @@ func (s *Server) createSite(w http.ResponseWriter, r *http.Request) {
 
 	created, err := s.siteManager.Create(site)
 	if err != nil {
-		if err == sites.ErrDomainExists {
-			s.error(w, http.StatusConflict, "domain already exists")
+		if errors.Is(err, sites.ErrDomainExists) {
+			s.error(w, http.StatusConflict, err.Error())
 			return
 		}
-		if err == sites.ErrInvalidPHPVersion {
-			s.error(w, http.StatusBadRequest, "invalid PHP version")
+		if errors.Is(err, sites.ErrInvalidDomain) || errors.Is(err, sites.ErrInvalidSiteName) {
+			s.error(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if errors.Is(err, sites.ErrInvalidPHPVersion) {
+			s.error(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if errors.Is(err, sites.ErrSiteLimitReached) {
+			s.error(w, http.StatusForbidden, err.Error())
 			return
 		}
 		s.logger.Error("failed to create site", "error", err)
@@ -225,12 +234,16 @@ func (s *Server) updateSite(w http.ResponseWriter, r *http.Request) {
 
 	updated, err := s.siteManager.Update(id, updates)
 	if err != nil {
-		if err == sites.ErrDomainExists {
-			s.error(w, http.StatusConflict, "domain already exists")
+		if errors.Is(err, sites.ErrDomainExists) {
+			s.error(w, http.StatusConflict, err.Error())
 			return
 		}
-		if err == sites.ErrInvalidPHPVersion {
-			s.error(w, http.StatusBadRequest, "invalid PHP version")
+		if errors.Is(err, sites.ErrInvalidDomain) || errors.Is(err, sites.ErrInvalidSiteName) {
+			s.error(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if errors.Is(err, sites.ErrInvalidPHPVersion) {
+			s.error(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		s.logger.Error("failed to update site", "error", err)
@@ -371,4 +384,3 @@ func (s *Server) restartSiteWorkers(w http.ResponseWriter, r *http.Request) {
 	s.logger.Info("workers restarted for site", "id", id, "php_version", site.PHPVersion, "user", claims.Username)
 	s.success(w, map[string]string{"message": "workers restarted"})
 }
-

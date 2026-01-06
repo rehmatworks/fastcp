@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
@@ -37,16 +38,90 @@ var (
 	// Domain validation regex - allows letters, numbers, hyphens, dots
 	// Must start and end with alphanumeric, no consecutive dots/hyphens
 	domainRegex = regexp.MustCompile(`^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$`)
-	
+
 	// Site name validation - alphanumeric, spaces, hyphens, underscores
 	siteNameRegex = regexp.MustCompile(`^[a-zA-Z0-9\s\-_\.]{1,100}$`)
 )
 
+func normalizeDomain(raw string) (string, error) {
+	d := strings.TrimSpace(raw)
+	if d == "" {
+		return "", ErrInvalidDomain
+	}
+
+	// Normalize case
+	d = strings.ToLower(d)
+
+	// If user pasted a URL, extract hostname cleanly (and strip port/path)
+	// Examples handled:
+	// - example.com
+	// - https://Example.com/path
+	// - example.com:8080
+	parsed := d
+	if !strings.Contains(parsed, "://") {
+		parsed = "http://" + parsed
+	}
+	u, err := url.Parse(parsed)
+	if err != nil {
+		return "", ErrInvalidDomain
+	}
+	host := u.Hostname()
+	if host == "" {
+		return "", ErrInvalidDomain
+	}
+
+	// Remove trailing dot if present
+	host = strings.TrimSuffix(host, ".")
+
+	if !isValidDomain(host) {
+		return "", ErrInvalidDomain
+	}
+
+	return host, nil
+}
+
+func normalizeAliases(rawAliases []string, primary string) ([]string, error) {
+	if rawAliases == nil {
+		return nil, nil
+	}
+
+	seen := make(map[string]bool)
+	out := make([]string, 0, len(rawAliases))
+	for _, a := range rawAliases {
+		alias, err := normalizeDomain(a)
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid alias: %s", ErrInvalidDomain, strings.TrimSpace(a))
+		}
+		if alias == primary {
+			continue
+		}
+		if seen[alias] {
+			continue
+		}
+		seen[alias] = true
+		out = append(out, alias)
+	}
+	return out, nil
+}
+
+func uniqueDomains(primary string, aliases []string) []string {
+	out := []string{primary}
+	seen := map[string]bool{primary: true}
+	for _, a := range aliases {
+		if a == "" || seen[a] {
+			continue
+		}
+		seen[a] = true
+		out = append(out, a)
+	}
+	return out
+}
+
 // Manager manages website configurations
 type Manager struct {
 	sites      map[string]*models.Site
-	domains    map[string]string                 // domain -> site ID
-	userLimits map[string]*models.UserLimits     // username -> limits
+	domains    map[string]string             // domain -> site ID
+	userLimits map[string]*models.UserLimits // username -> limits
 	mu         sync.RWMutex
 	dataPath   string
 }
@@ -79,13 +154,36 @@ func (m *Manager) Load() error {
 			return err
 		}
 
+		// Reset maps (Load may be called multiple times)
+		m.sites = make(map[string]*models.Site)
+		m.domains = make(map[string]string)
+
 		for _, site := range sites {
+			// Normalize primary domain and aliases on load (case-insensitive uniqueness)
+			primary, err := normalizeDomain(site.Domain)
+			if err != nil {
+				return fmt.Errorf("invalid site domain for site %s: %w", site.ID, err)
+			}
+			aliases, err := normalizeAliases(site.Aliases, primary)
+			if err != nil {
+				return fmt.Errorf("invalid aliases for site %s: %w", site.ID, err)
+			}
+
+			site.Domain = primary
+			site.Aliases = aliases
+
 			m.sites[site.ID] = site
-			m.domains[site.Domain] = site.ID
-			for _, alias := range site.Aliases {
-				m.domains[alias] = site.ID
+
+			for _, d := range uniqueDomains(site.Domain, site.Aliases) {
+				if existingID, exists := m.domains[d]; exists && existingID != site.ID {
+					return fmt.Errorf("domain conflict while loading sites: %s belongs to multiple sites (%s, %s)", d, existingID, site.ID)
+				}
+				m.domains[d] = site.ID
 			}
 		}
+
+		// Persist normalized values back to disk (best-effort)
+		_ = m.saveUnlocked()
 	}
 
 	// Load user limits
@@ -130,28 +228,30 @@ func (m *Manager) Create(site *models.Site) (*models.Site, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Validate domain name
-	if !isValidDomain(site.Domain) {
+	// Normalize + validate primary domain and aliases
+	primary, err := normalizeDomain(site.Domain)
+	if err != nil {
 		return nil, ErrInvalidDomain
 	}
-	for _, alias := range site.Aliases {
-		if !isValidDomain(alias) {
-			return nil, fmt.Errorf("invalid alias: %s", alias)
-		}
+	aliases, err := normalizeAliases(site.Aliases, primary)
+	if err != nil {
+		return nil, err
 	}
+	site.Domain = primary
+	site.Aliases = aliases
 
 	// Validate site name (prevent XSS)
 	if site.Name != "" && !isValidSiteName(site.Name) {
 		return nil, ErrInvalidSiteName
 	}
 
-	// Check if domain already exists
-	if _, exists := m.domains[site.Domain]; exists {
-		return nil, ErrDomainExists
-	}
-	for _, alias := range site.Aliases {
-		if _, exists := m.domains[alias]; exists {
-			return nil, fmt.Errorf("alias %s already exists", alias)
+	// Check if any domain already exists (case-insensitive, normalized)
+	for _, d := range uniqueDomains(site.Domain, site.Aliases) {
+		if _, exists := m.domains[d]; exists {
+			if d == site.Domain {
+				return nil, ErrDomainExists
+			}
+			return nil, fmt.Errorf("%w: alias %s already exists", ErrDomainExists, d)
 		}
 	}
 
@@ -189,7 +289,7 @@ func (m *Manager) Create(site *models.Site) (*models.Site, error) {
 	if site.PublicPath == "" {
 		site.PublicPath = "public"
 	}
-	
+
 	// Set root path based on user ownership
 	// Structure: /var/www/{username}/{domain}/
 	if site.RootPath == "" {
@@ -213,9 +313,8 @@ func (m *Manager) Create(site *models.Site) (*models.Site, error) {
 
 	// Add to maps
 	m.sites[site.ID] = site
-	m.domains[site.Domain] = site.ID
-	for _, alias := range site.Aliases {
-		m.domains[alias] = site.ID
+	for _, d := range uniqueDomains(site.Domain, site.Aliases) {
+		m.domains[d] = site.ID
 	}
 
 	// Save to disk
@@ -244,7 +343,12 @@ func (m *Manager) GetByDomain(domain string) (*models.Site, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	id, ok := m.domains[domain]
+	normalized, err := normalizeDomain(domain)
+	if err != nil {
+		return nil, ErrSiteNotFound
+	}
+
+	id, ok := m.domains[normalized]
 	if !ok {
 		return nil, ErrSiteNotFound
 	}
@@ -290,15 +394,17 @@ func (m *Manager) Update(id string, updates *models.Site) (*models.Site, error) 
 		return nil, ErrSiteNotFound
 	}
 
-	// Check if new domain conflicts with existing
-	if updates.Domain != "" && updates.Domain != site.Domain {
-		if _, exists := m.domains[updates.Domain]; exists {
-			return nil, ErrDomainExists
+	oldPrimary := site.Domain
+	oldAliases := append([]string{}, site.Aliases...)
+
+	// Compute new primary
+	newPrimary := site.Domain
+	if strings.TrimSpace(updates.Domain) != "" {
+		normalized, err := normalizeDomain(updates.Domain)
+		if err != nil {
+			return nil, ErrInvalidDomain
 		}
-		// Remove old domain mapping
-		delete(m.domains, site.Domain)
-		site.Domain = updates.Domain
-		m.domains[updates.Domain] = id
+		newPrimary = normalized
 	}
 
 	// Update fields
@@ -320,20 +426,47 @@ func (m *Manager) Update(id string, updates *models.Site) (*models.Site, error) 
 		}
 		site.PHPVersion = updates.PHPVersion
 	}
+	newAliases := site.Aliases
 	if updates.Aliases != nil {
-		// Remove old alias mappings
-		for _, alias := range site.Aliases {
-			delete(m.domains, alias)
+		aliases, err := normalizeAliases(updates.Aliases, newPrimary)
+		if err != nil {
+			return nil, err
 		}
-		// Add new alias mappings
-		for _, alias := range updates.Aliases {
-			if existingID, exists := m.domains[alias]; exists && existingID != id {
-				return nil, fmt.Errorf("alias %s already exists", alias)
-			}
-			m.domains[alias] = id
-		}
-		site.Aliases = updates.Aliases
+		newAliases = aliases
 	}
+
+	// If primary is changing and caller did not explicitly update aliases,
+	// keep the old primary as an alias so it redirects to the new primary.
+	if newPrimary != oldPrimary && updates.Aliases == nil {
+		newAliases = append(newAliases, oldPrimary)
+		aliases, err := normalizeAliases(newAliases, newPrimary)
+		if err != nil {
+			return nil, err
+		}
+		newAliases = aliases
+	}
+
+	// Validate conflicts against global domain map BEFORE mutating it.
+	for _, d := range uniqueDomains(newPrimary, newAliases) {
+		if existingID, exists := m.domains[d]; exists && existingID != id {
+			if d == newPrimary {
+				return nil, ErrDomainExists
+			}
+			return nil, fmt.Errorf("%w: alias %s already exists", ErrDomainExists, d)
+		}
+	}
+
+	// Apply domain map changes: remove old mappings, then add new mappings.
+	for _, d := range uniqueDomains(oldPrimary, oldAliases) {
+		delete(m.domains, d)
+	}
+	for _, d := range uniqueDomains(newPrimary, newAliases) {
+		m.domains[d] = id
+	}
+
+	site.Domain = newPrimary
+	site.Aliases = newAliases
+
 	if updates.PublicPath != "" {
 		site.PublicPath = updates.PublicPath
 	}
@@ -385,9 +518,8 @@ func (m *Manager) Delete(id string) error {
 	}
 
 	// Remove domain mappings
-	delete(m.domains, site.Domain)
-	for _, alias := range site.Aliases {
-		delete(m.domains, alias)
+	for _, d := range uniqueDomains(site.Domain, site.Aliases) {
+		delete(m.domains, d)
 	}
 
 	// Remove site
@@ -451,7 +583,7 @@ func (m *Manager) createSiteDirectories(site *models.Site) error {
 			// Non-jailed user - www is in /var/www
 			userBaseDir = filepath.Join(cfg.SitesDir, username)
 		}
-		
+
 		if err := os.MkdirAll(userBaseDir, 0755); err != nil {
 			return err
 		}
@@ -748,7 +880,7 @@ func setOwnershipRecursive(path string, uid, gid int) error {
 	if uid <= 0 {
 		return nil
 	}
-	
+
 	return filepath.Walk(path, func(name string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -1155,17 +1287,17 @@ func isValidDomain(domain string) bool {
 	if domain == "" || len(domain) > 253 {
 		return false
 	}
-	
+
 	// Allow localhost for development
 	if domain == "localhost" {
 		return true
 	}
-	
+
 	// Check for path traversal attempts
 	if strings.Contains(domain, "..") || strings.Contains(domain, "/") || strings.Contains(domain, "\\") {
 		return false
 	}
-	
+
 	// Check for shell metacharacters
 	dangerousChars := []string{";", "|", "&", "$", "`", "(", ")", "{", "}", "[", "]", "<", ">", "!", "~", "*", "?", "'", "\"", "\n", "\r", "\t"}
 	for _, char := range dangerousChars {
@@ -1173,7 +1305,7 @@ func isValidDomain(domain string) bool {
 			return false
 		}
 	}
-	
+
 	// Validate domain format
 	return domainRegex.MatchString(domain) || strings.HasSuffix(domain, ".test") || strings.HasSuffix(domain, ".local")
 }
@@ -1183,7 +1315,7 @@ func isValidSiteName(name string) bool {
 	if name == "" || len(name) > 100 {
 		return false
 	}
-	
+
 	// Check for dangerous characters that could cause XSS or injection
 	dangerousChars := []string{"<", ">", "\"", "'", "&", ";", "|", "$", "`", "\\", "\n", "\r"}
 	for _, char := range dangerousChars {
@@ -1191,7 +1323,6 @@ func isValidSiteName(name string) bool {
 			return false
 		}
 	}
-	
+
 	return siteNameRegex.MatchString(name)
 }
-

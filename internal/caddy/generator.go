@@ -189,21 +189,41 @@ func (g *Generator) GenerateMainProxy(sites []models.Site, phpVersions []models.
 		// Get Unix socket path for this PHP version
 		socketPath := GetPHPSocketPath(site.PHPVersion)
 
-		// Domain(s) for this site
-		domains := []string{site.Domain}
-		domains = append(domains, site.Aliases...)
+		primary := site.Domain
+		aliases := site.Aliases
 
+		// Alias redirect blocks (aliases -> primary)
+		if len(aliases) > 0 {
+			aliasAddrs := make([]string, 0, len(aliases))
+			for _, a := range aliases {
+				if isDevMode {
+					aliasAddrs = append(aliasAddrs, "http://"+a)
+				} else {
+					aliasAddrs = append(aliasAddrs, a)
+				}
+			}
+
+			targetScheme := "https://"
+			if isDevMode {
+				targetScheme = "http://"
+			}
+
+			buf.WriteString(fmt.Sprintf("# Site aliases -> primary: %s -> %s\n", strings.Join(aliases, ", "), primary))
+			buf.WriteString(strings.Join(aliasAddrs, ", "))
+			buf.WriteString(" {\n")
+			buf.WriteString(fmt.Sprintf("\tredir %s%s{uri} permanent\n", targetScheme, primary))
+			buf.WriteString("}\n\n")
+		}
+
+		// Primary domain block (serves the site)
 		buf.WriteString(fmt.Sprintf("# Site: %s (PHP %s)\n", site.Name, site.PHPVersion))
 
+		primaryAddr := primary
 		if isDevMode {
-			// Development: Use http:// prefix to disable automatic HTTPS
-			for i, d := range domains {
-				domains[i] = "http://" + d
-			}
+			primaryAddr = "http://" + primary
 		}
-		// Production: Just use domain names, Caddy will auto-provision SSL
 
-		buf.WriteString(strings.Join(domains, ", "))
+		buf.WriteString(primaryAddr)
 		buf.WriteString(" {\n")
 
 		// Reverse proxy to PHP instance via Unix socket with error handling
@@ -464,7 +484,7 @@ func (g *Generator) GeneratePHPInstance(version string, port, adminPort int, sit
 			if !filepath.IsAbs(workerPath) {
 				workerPath = filepath.Join(rootPath, workerPath)
 			}
-			
+
 			// Safety check: verify worker file exists to prevent breaking all sites
 			if _, err := os.Stat(workerPath); err != nil {
 				// Worker file doesn't exist - fall back to regular php_server
@@ -582,4 +602,3 @@ func (g *Generator) writeFile(path, content string) error {
 func sanitizeName(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(s, "-", "_"), ".", "_")
 }
-
