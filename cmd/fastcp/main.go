@@ -339,16 +339,11 @@ func main() {
 	}
 
 	// Print startup message with security-conscious information
-	// Note: Default credentials are intentionally NOT displayed here to prevent
-	// accidental exposure in logs, screenshots, or screen recordings.
 	var sslNote string
-	var securityNote string
 	if useHTTPS {
 		sslNote = "TLS enabled (self-signed certificate)"
-		securityNote = "Change default credentials after first login!"
 	} else {
 		sslNote = "WARNING: TLS disabled - use only behind reverse proxy"
-		securityNote = "INSECURE: Enable TLS or use reverse proxy!"
 	}
 
 	fmt.Printf(`
@@ -366,16 +361,57 @@ func main() {
 ║                                                               ║
 ║   Admin Panel: %s://localhost:%-27s ║
 ║   Sites Proxy: http://localhost:%-28d ║
-║                                                               ║
-║   Security: %-51s ║
-║   Status:   %-51s ║
+║   Status:      %-47s ║
 ║                                                               ║
 ║   Run 'fastcp -help' for configuration options                ║
 ║   Documentation: https://github.com/rehmatworks/fastcp        ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
+`, version, protocol, port, cfg.ProxyPort, sslNote)
 
-`, version, protocol, port, cfg.ProxyPort, securityNote, sslNote)
+	// Display generated credentials for new installations or upgrades
+	// This is shown ONCE and must be saved by the administrator
+	if creds := config.GetGeneratedCredentials(); creds != nil {
+		if creds.IsNewInstall {
+			fmt.Printf(`
+╔═══════════════════════════════════════════════════════════════╗
+║                    NEW INSTALLATION DETECTED                  ║
+╠═══════════════════════════════════════════════════════════════╣
+║                                                               ║
+║   Secure credentials have been generated for this             ║
+║   installation. SAVE THESE NOW - they will not be shown       ║
+║   again after restart!                                        ║
+║                                                               ║
+║   Username: admin                                             ║
+║   Password: %-51s ║
+║                                                               ║
+║   Config:   %-51s ║
+║                                                               ║
+║   ⚠️  Change these credentials after first login!              ║
+║   ⚠️  Store the password in a secure password manager!         ║
+║                                                               ║
+╚═══════════════════════════════════════════════════════════════╝
+`, creds.AdminPassword, cfgPath)
+		} else {
+			// Upgrade from insecure defaults
+			fmt.Printf(`
+╔═══════════════════════════════════════════════════════════════╗
+║                   SECURITY UPGRADE APPLIED                    ║
+╠═══════════════════════════════════════════════════════════════╣
+║                                                               ║
+║   Insecure default credentials were detected and have been    ║
+║   replaced with secure random values.                         ║
+║                                                               ║
+║   New Password: %-46s ║
+║                                                               ║
+║   The configuration file has been updated automatically.      ║
+║   SAVE THIS PASSWORD NOW - it will not be shown again!        ║
+║                                                               ║
+╚═══════════════════════════════════════════════════════════════╝
+`, creds.AdminPassword)
+		}
+		logger.Warn("Generated credentials displayed - ensure they are saved securely")
+	}
 
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
