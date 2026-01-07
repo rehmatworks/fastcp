@@ -1,6 +1,15 @@
+// Package config handles application configuration management.
+//
+// Configuration is stored in a JSON file and includes settings for
+// authentication, server addresses, PHP versions, and directory paths.
+//
+// On first run, secure random credentials are generated automatically
+// to prevent the use of default passwords in production environments.
 package config
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -10,10 +19,22 @@ import (
 	"github.com/rehmatworks/fastcp/internal/models"
 )
 
+// GeneratedCredentials holds the credentials generated during first installation.
+// These are displayed to the user once and should be saved securely.
+type GeneratedCredentials struct {
+	AdminPassword string // The generated admin password
+	JWTSecret     string // The generated JWT signing secret
+	IsNewInstall  bool   // True if this is a fresh installation
+}
+
 var (
 	cfg     *models.Config
 	cfgOnce sync.Once
 	cfgMu   sync.RWMutex
+
+	// generatedCreds stores credentials generated during first installation.
+	// This is only populated when a new config file is created.
+	generatedCreds *GeneratedCredentials
 )
 
 // Environment variable names
@@ -52,6 +73,49 @@ func getEnvIntOrDefault(key string, defaultVal int) int {
 	return defaultVal
 }
 
+// generateSecurePassword creates a cryptographically secure random password.
+// The password contains a mix of uppercase, lowercase, numbers, and special characters.
+// Length should be at least 16 characters for adequate security.
+func generateSecurePassword(length int) string {
+	// Character set excluding ambiguous characters (0, O, l, 1, I)
+	const charset = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#$%^&*"
+
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback to a less secure but still random method
+		// This should never happen in practice
+		return "ChangeMe!" + base64.StdEncoding.EncodeToString(bytes)[:length-9]
+	}
+
+	for i := range bytes {
+		bytes[i] = charset[int(bytes[i])%len(charset)]
+	}
+	return string(bytes)
+}
+
+// generateSecureSecret creates a cryptographically secure random string for JWT signing.
+// Returns a base64-encoded string suitable for use as a secret key.
+// The resulting secret has high entropy (256 bits) for security.
+func generateSecureSecret(byteLength int) string {
+	bytes := make([]byte, byteLength)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback - this should never happen
+		return "insecure-fallback-change-immediately-" + generateSecurePassword(32)
+	}
+	return base64.URLEncoding.EncodeToString(bytes)
+}
+
+// GetGeneratedCredentials returns the credentials that were generated during
+// first installation. Returns nil if this is not a new installation or if
+// the config was loaded from an existing file.
+//
+// IMPORTANT: These credentials are only available once. After the application
+// restarts, this function will return nil. Users must save these credentials
+// securely during initial setup.
+func GetGeneratedCredentials() *GeneratedCredentials {
+	return generatedCreds
+}
+
 // getDefaultPaths returns paths based on environment and mode
 func getDefaultPaths() (dataDir, sitesDir, logDir, configDir, binaryPath string, proxyPort, proxySSLPort int) {
 	if IsDevMode() {
@@ -67,7 +131,7 @@ func getDefaultPaths() (dataDir, sitesDir, logDir, configDir, binaryPath string,
 	} else {
 		// Production mode: use standard Linux system paths
 		dataDir = getEnvOrDefault(EnvDataDir, "/var/lib/fastcp")
-		sitesDir = getEnvOrDefault(EnvSitesDir, "/home")  // Sites are at /home/{user}/www/{domain}
+		sitesDir = getEnvOrDefault(EnvSitesDir, "/home") // Sites are at /home/{user}/www/{domain}
 		logDir = getEnvOrDefault(EnvLogDir, "/var/log/fastcp")
 		configDir = getEnvOrDefault(EnvConfigDir, "/etc/fastcp")
 		binaryPath = getEnvOrDefault(EnvBinaryPath, "/usr/local/bin/frankenphp")
@@ -83,15 +147,22 @@ func DefaultConfigPath() string {
 	return filepath.Join(configDir, "config.json")
 }
 
-// DefaultConfig returns the default configuration
+// DefaultConfig returns the default configuration with secure generated credentials.
+// Each new installation gets unique, cryptographically secure passwords and secrets.
 func DefaultConfig() *models.Config {
 	dataDir, sitesDir, logDir, _, binaryPath, proxyPort, proxySSLPort := getDefaultPaths()
 
+	// Generate secure credentials for new installations
+	// Password: 20 characters with mixed case, numbers, and symbols
+	// JWT Secret: 32 bytes (256 bits) of entropy, base64 encoded
+	adminPassword := generateSecurePassword(20)
+	jwtSecret := generateSecureSecret(32)
+
 	return &models.Config{
 		AdminUser:     "admin",
-		AdminPassword: "fastcp2024!", // Default password - should be changed
-		AdminEmail:    "support@fastcp.org",
-		JWTSecret:     "change-this-secret-in-production-please",
+		AdminPassword: adminPassword,
+		AdminEmail:    "admin@localhost",
+		JWTSecret:     jwtSecret,
 		DataDir:       dataDir,
 		SitesDir:      sitesDir,
 		LogDir:        logDir,
@@ -130,7 +201,15 @@ func DefaultConfig() *models.Config {
 	}
 }
 
-// Load loads configuration from file or creates default
+// Load loads configuration from file or creates a new one with secure credentials.
+//
+// On first run (when no config file exists), this function:
+//  1. Generates a secure random admin password
+//  2. Generates a secure random JWT signing secret
+//  3. Creates the config file with these credentials
+//  4. Stores the credentials for one-time display to the user
+//
+// The generated credentials can be retrieved via GetGeneratedCredentials().
 func Load(configPath string) (*models.Config, error) {
 	cfgOnce.Do(func() {
 		cfg = DefaultConfig()
@@ -142,15 +221,43 @@ func Load(configPath string) (*models.Config, error) {
 		data, err := os.ReadFile(configPath)
 		if err != nil {
 			if os.IsNotExist(err) {
-				// Create default config file
+				// New installation - store generated credentials for display
+				generatedCreds = &GeneratedCredentials{
+					AdminPassword: cfg.AdminPassword,
+					JWTSecret:     cfg.JWTSecret,
+					IsNewInstall:  true,
+				}
+				// Create config file with secure credentials
 				_ = Save(configPath)
 				return
 			}
 			return
 		}
 
+		// Existing config file - parse it
 		if err := json.Unmarshal(data, cfg); err != nil {
 			return
+		}
+
+		// Check if the config has insecure default values that need updating
+		// This handles upgrades from older versions with hardcoded defaults
+		needsSave := false
+		if cfg.JWTSecret == "change-this-secret-in-production-please" {
+			cfg.JWTSecret = generateSecureSecret(32)
+			needsSave = true
+		}
+		if cfg.AdminPassword == "fastcp2024!" {
+			newPassword := generateSecurePassword(20)
+			cfg.AdminPassword = newPassword
+			generatedCreds = &GeneratedCredentials{
+				AdminPassword: newPassword,
+				JWTSecret:     cfg.JWTSecret,
+				IsNewInstall:  false, // This is an upgrade, not fresh install
+			}
+			needsSave = true
+		}
+		if needsSave {
+			_ = Save(configPath)
 		}
 	})
 
@@ -193,4 +300,3 @@ func Update(newCfg *models.Config) {
 	defer cfgMu.Unlock()
 	cfg = newCfg
 }
-

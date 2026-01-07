@@ -1,3 +1,33 @@
+// Package main is the entry point for the FastCP control panel application.
+//
+// FastCP is a modern PHP hosting control panel built with Go and React.
+// It provides a web-based interface for managing PHP websites, databases,
+// and system users on Linux servers.
+//
+// # Security Considerations
+//
+// This application runs with elevated privileges and manages system resources.
+// Important security practices:
+//
+//   - Always change the default admin password after installation
+//   - Configure a unique JWT secret in the configuration file
+//   - Use HTTPS in production (enabled by default)
+//   - Restrict network access to the admin panel port
+//   - Regularly update to the latest version for security patches
+//
+// # Configuration
+//
+// The application reads its configuration from a JSON file. The default
+// location depends on the runtime mode:
+//
+//   - Production: /etc/fastcp/config.json
+//   - Development: ./.fastcp/config.json
+//
+// A default configuration file is created on first run if none exists.
+//
+// # Usage
+//
+// Run 'fastcp -help' for available command-line options.
 package main
 
 import (
@@ -24,16 +54,103 @@ import (
 	"github.com/rehmatworks/fastcp/internal/upgrade"
 )
 
+// Application version - updated during release process
+var version = "0.2.6"
+
+// Command-line flags for runtime configuration
 var (
-	version    = "0.2.6"
-	configPath = flag.String("config", "", "Path to configuration file (default: OS-appropriate path)")
+	// configPath specifies the path to the JSON configuration file.
+	// If not provided, the application uses OS-appropriate defaults:
+	//   - Linux (production): /etc/fastcp/config.json
+	//   - Development mode:   ./.fastcp/config.json
+	configPath = flag.String("config", "", "Path to configuration file")
+
+	// listenAddr overrides the default listen address from config.
+	// Format: [host]:port (e.g., ":8080", "127.0.0.1:8080", "0.0.0.0:443")
+	// Warning: Binding to 0.0.0.0 exposes the panel to all network interfaces.
 	listenAddr = flag.String("listen", "", "Override listen address (e.g., :8080)")
-	devMode    = flag.Bool("dev", false, "Enable development mode")
-	noSSL      = flag.Bool("no-ssl", false, "Disable HTTPS and use HTTP instead")
+
+	// devMode enables development mode with relaxed security settings.
+	// In development mode:
+	//   - Uses local ./.fastcp/ directory for all data
+	//   - Enables verbose debug logging
+	//   - Disables HTTPS by default
+	// WARNING: Never use development mode in production environments.
+	devMode = flag.Bool("dev", false, "Enable development mode (NOT for production)")
+
+	// noSSL disables HTTPS and runs the admin panel over HTTP.
+	// WARNING: This exposes credentials and session tokens in plaintext.
+	// Only use this behind a reverse proxy that handles TLS termination.
+	noSSL = flag.Bool("no-ssl", false, "Disable HTTPS (use only behind TLS-terminating proxy)")
+
+	// showVersion prints the version number and exits.
+	showVersion = flag.Bool("version", false, "Print version information and exit")
+
+	// showHelp displays usage information.
+	showHelp = flag.Bool("help", false, "Show this help message")
 )
+
+// printUsage displays detailed usage information with security notes.
+func printUsage() {
+	fmt.Printf(`FastCP - Modern PHP Hosting Control Panel (v%s)
+
+USAGE:
+    fastcp [OPTIONS]
+
+OPTIONS:
+    -config string
+        Path to configuration file.
+        Default: /etc/fastcp/config.json (production)
+                 ./.fastcp/config.json (development)
+
+    -listen string
+        Override the listen address for the admin panel.
+        Examples: ":8080", "127.0.0.1:8080", "0.0.0.0:443"
+
+    -dev
+        Enable development mode. Uses local directories and
+        enables debug logging. NOT FOR PRODUCTION USE.
+
+    -no-ssl
+        Disable HTTPS for the admin panel. Only use this when
+        running behind a reverse proxy that handles TLS.
+
+    -version
+        Print version information and exit.
+
+    -help
+        Show this help message.
+
+SECURITY NOTES:
+    * Change the default admin password immediately after installation
+    * Change the JWT secret in the configuration file
+    * Use HTTPS in production (enabled by default)
+    * Restrict network access to the admin panel port
+
+CONFIGURATION:
+    On first run, a default configuration file is created.
+    Edit this file to customize settings before starting the server.
+
+DOCUMENTATION:
+    https://github.com/rehmatworks/fastcp
+
+`, version)
+}
 
 func main() {
 	flag.Parse()
+
+	// Handle --version flag
+	if *showVersion {
+		fmt.Printf("FastCP version %s\n", version)
+		os.Exit(0)
+	}
+
+	// Handle --help flag
+	if *showHelp {
+		printUsage()
+		os.Exit(0)
+	}
 
 	// Setup logger
 	logLevel := slog.LevelInfo
@@ -221,12 +338,12 @@ func main() {
 		port = port[1:]
 	}
 
-	// Print startup message
+	// Print startup message with security-conscious information
 	var sslNote string
 	if useHTTPS {
-		sslNote = "⚠️  Self-signed certificate - accept browser warning"
+		sslNote = "TLS enabled (self-signed certificate)"
 	} else {
-		sslNote = "⚠️  Running in HTTP mode (use --no-ssl=false for HTTPS)"
+		sslNote = "WARNING: TLS disabled - use only behind reverse proxy"
 	}
 
 	fmt.Printf(`
@@ -244,13 +361,57 @@ func main() {
 ║                                                               ║
 ║   Admin Panel: %s://localhost:%-27s ║
 ║   Sites Proxy: http://localhost:%-28d ║
-║   Default Login: admin / fastcp2024!                          ║
+║   Status:      %-47s ║
 ║                                                               ║
-║   %-61s ║
+║   Run 'fastcp -help' for configuration options                ║
+║   Documentation: https://github.com/rehmatworks/fastcp        ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
-
 `, version, protocol, port, cfg.ProxyPort, sslNote)
+
+	// Display generated credentials for new installations or upgrades
+	// This is shown ONCE and must be saved by the administrator
+	if creds := config.GetGeneratedCredentials(); creds != nil {
+		if creds.IsNewInstall {
+			fmt.Printf(`
+╔═══════════════════════════════════════════════════════════════╗
+║                    NEW INSTALLATION DETECTED                  ║
+╠═══════════════════════════════════════════════════════════════╣
+║                                                               ║
+║   Secure credentials have been generated for this             ║
+║   installation. SAVE THESE NOW - they will not be shown       ║
+║   again after restart!                                        ║
+║                                                               ║
+║   Username: admin                                             ║
+║   Password: %-51s ║
+║                                                               ║
+║   Config:   %-51s ║
+║                                                               ║
+║   ⚠️  Change these credentials after first login!              ║
+║   ⚠️  Store the password in a secure password manager!         ║
+║                                                               ║
+╚═══════════════════════════════════════════════════════════════╝
+`, creds.AdminPassword, cfgPath)
+		} else {
+			// Upgrade from insecure defaults
+			fmt.Printf(`
+╔═══════════════════════════════════════════════════════════════╗
+║                   SECURITY UPGRADE APPLIED                    ║
+╠═══════════════════════════════════════════════════════════════╣
+║                                                               ║
+║   Insecure default credentials were detected and have been    ║
+║   replaced with secure random values.                         ║
+║                                                               ║
+║   New Password: %-46s ║
+║                                                               ║
+║   The configuration file has been updated automatically.      ║
+║   SAVE THIS PASSWORD NOW - it will not be shown again!        ║
+║                                                               ║
+╚═══════════════════════════════════════════════════════════════╝
+`, creds.AdminPassword)
+		}
+		logger.Warn("Generated credentials displayed - ensure they are saved securely")
+	}
 
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
