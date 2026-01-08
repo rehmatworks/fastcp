@@ -59,6 +59,10 @@ fmt:
 test:
 	go test -v ./...
 
+# Run tests with PAM build tag (requires system PAM dev headers like libpam0g-dev)
+test-pam:
+	go test -v -tags pam ./...
+
 # Build for Linux (cross-compile from any OS)
 build-linux: build-frontend
 	@echo "Building for Linux x86_64..."
