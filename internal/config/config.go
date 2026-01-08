@@ -77,6 +77,15 @@ func getDefaultPaths() (dataDir, sitesDir, logDir, configDir, binaryPath string,
 	return
 }
 
+// Environment variable name for runtime socket directory (/var/run/fastcp)
+const EnvRunDir = "FASTCP_RUN_DIR"
+
+// RuntimeDir returns the directory used for runtime sockets and PIDs.
+// Defaults to /var/run/fastcp unless overridden by $FASTCP_RUN_DIR.
+func RuntimeDir() string {
+	return getEnvOrDefault(EnvRunDir, "/var/run/fastcp")
+}
+
 // DefaultConfigPath returns the default config path based on mode
 func DefaultConfigPath() string {
 	_, _, _, configDir, _, _, _ := getDefaultPaths()

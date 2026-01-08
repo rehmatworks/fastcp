@@ -481,7 +481,7 @@ func (m *Manager) startInstance(version string) error {
 	}
 
 	// Create socket directory with proper permissions for fastcp user
-	socketDir := "/var/run/fastcp"
+	socketDir := config.RuntimeDir()
 	if err := os.MkdirAll(socketDir, 0755); err != nil {
 		return err
 	}
@@ -637,7 +637,7 @@ func (m *Manager) reloadInstance(version string) error {
 	}
 
 	// Use Unix socket for admin API
-	adminSocketPath := fmt.Sprintf("/var/run/fastcp/php-%s-admin.sock", version)
+	adminSocketPath := filepath.Join(config.RuntimeDir(), fmt.Sprintf("php-%s-admin.sock", version))
 
 	// Create HTTP client that uses Unix socket
 	client := &http.Client{

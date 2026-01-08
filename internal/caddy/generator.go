@@ -404,9 +404,9 @@ func (g *Generator) GenerateMainProxy(sites []models.Site, phpVersions []models.
 	return buf.String(), nil
 }
 
-// GetPHPSocketPath returns the Unix socket path for a PHP version (legacy - global)
+// GetPHPSocketPath returns the Unix socket path for a PHP version
 func GetPHPSocketPath(version string) string {
-	return fmt.Sprintf("/var/run/fastcp/php-%s.sock", version)
+	return filepath.Join(config.RuntimeDir(), fmt.Sprintf("php-%s.sock", version))
 }
 
 // GetUserPHPSocketPath returns the Unix socket path for a user's PHP version

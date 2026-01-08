@@ -22,15 +22,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.24'
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Build frontend
+        working-directory: ./web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Lint frontend
+        working-directory: ./web
+        run: npm run lint
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
 
       - name: Install apt packages (only for pam=true)
         if: matrix.pam == 'true'
@@ -46,15 +56,6 @@ jobs:
         run: |
           go test -tags pam ./...
 
-      - name: Build frontend
-        working-directory: ./web
-        run: |
-          npm ci
-          npm run build
-
-      - name: Lint frontend
-        working-directory: ./web
-        run: npm run lint
 
   e2e-tests:
     runs-on: ubuntu-latest
@@ -84,6 +85,12 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps
+
+      - name: Build frontend (for embedding)
+        working-directory: ./web
+        run: |
+          npm ci
+          npm run build
 
       - name: Build backend
         run: go build -o bin/fastcp ./cmd/fastcp

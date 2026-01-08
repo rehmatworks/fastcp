@@ -27,6 +27,10 @@ func TestStartInstanceNonRoot(t *testing.T) {
 	// Create a fake 'franken' script that accepts 'run' and sleeps
 	tmpdir := t.TempDir()
 	script := filepath.Join(tmpdir, "fakefranken")
+
+	// Use a temp runtime dir so tests do not attempt to create /var/run
+	os.Setenv("FASTCP_RUN_DIR", t.TempDir())
+	defer os.Unsetenv("FASTCP_RUN_DIR")
 	content := "#!/bin/sh\nif [ \"$1\" = \"run\" ]; then sleep 10; else echo ok; fi"
 	if err := os.WriteFile(script, []byte(content), 0755); err != nil {
 		t.Fatalf("failed to write script: %v", err)
