@@ -73,6 +73,16 @@ type Config struct {
 	PHPVersions  []PHPVersionConfig `json:"php_versions"`
 	ProxyPort    int                `json:"proxy_port"`
 	ProxySSLPort int                `json:"proxy_ssl_port"`
+
+	// Development-only admin credentials. When running with FASTCP_DEV=1,
+	// setting these in `.fastcp/config.json` allows logging in with a
+	// non-system admin account for local development.
+	AdminUser     string `json:"admin_user,omitempty"`
+	AdminPassword string `json:"admin_password,omitempty"`
+	// AllowAdminPasswordLogin must be explicitly enabled (in config) to
+	// permit admin username/password login from `.fastcp/config.json`.
+	// This defaults to false and is only intended for local development.
+	AllowAdminPasswordLogin bool `json:"allow_admin_password_login,omitempty"`
 }
 
 // APIKey represents an API key for external integrations (WHMCS, etc.)

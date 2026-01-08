@@ -145,6 +145,9 @@ Development mode (`FASTCP_DEV=1`) uses local directories:
 
 1. Open `https://localhost:8080` in your browser
 2. Login with your Unix system credentials (users in `root`, `sudo`, `wheel`, `admin`, or `fastcp` groups)
+
+> Tip (development only): when running in dev mode (`FASTCP_DEV=1`) you can configure a temporary admin account by setting `admin_user`, `admin_password` and `allow_admin_password_login: true` in `./.fastcp/config.json`. **Do not enable `allow_admin_password_login` in production.**
+
 3. Create your first site!
 
 ## Configuration
@@ -185,6 +188,10 @@ curl -X POST https://localhost:8080/api/v1/auth/login \
 curl https://localhost:8080/api/v1/sites \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
+
+> On Linux the server authenticates against system user accounts. To enable PAM-based
+> authentication when building from source, install the system PAM development headers
+> (e.g., `libpam0g-dev`) and build with the `pam` build tag: `go build -tags pam`.
 
 ### Sites
 

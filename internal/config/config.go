@@ -125,6 +125,12 @@ func DefaultConfig() *models.Config {
 				MaxThreads: 0,
 			},
 		},
+
+		// Default development admin user (no password by default)
+		AdminUser:     "admin",
+		AdminPassword: "",
+		// Disabled by default; requires explicit opt-in for safety
+		AllowAdminPasswordLogin: false,
 	}
 }
 

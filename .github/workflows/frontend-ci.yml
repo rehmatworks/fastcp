@@ -1,0 +1,110 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-frontend:
+    name: Build frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install frontend dependencies
+        run: cd web && npm ci
+
+      - name: Build frontend
+        run: cd web && npm run build
+
+  backend-test:
+    name: Run Go tests
+    runs-on: ubuntu-latest
+    needs: build-frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ${{ github.workspace }}/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+      - name: Run Go tests
+        run: go test ./...
+
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    needs: backend-test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install frontend and Playwright deps
+        run: |
+          cd web
+          npm ci
+          npx playwright install --with-deps
+
+      - name: Prepare dev config (.fastcp/config.json)
+        run: |
+          mkdir -p .fastcp
+          cat > .fastcp/config.json <<'JSON'
+          {
+            "admin_user": "testadmin",
+            "admin_password": "secret123",
+            "allow_admin_password_login": true,
+            "admin_email": "ci@fastcp.local",
+            "jwt_secret": "ci-secret",
+            "data_dir": "./.fastcp/data",
+            "sites_dir": "./.fastcp/sites",
+            "log_dir": "./.fastcp/logs",
+            "listen_addr": ":8080",
+            "proxy_port": 8000,
+            "proxy_ssl_port": 8443
+          }
+          JSON
+
+      - name: Start backend (dev)
+        run: |
+          env PATH=/usr/local/go/bin:$PATH FASTCP_DEV=1 make dev &
+          # Wait for HTTPS to be up
+          for i in {1..30}; do
+            if curl -k -sS https://localhost:8080/ >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+
+      - name: Run Playwright tests
+        env:
+          E2E_USERNAME: testadmin
+          E2E_PASSWORD: secret123
+        run: |
+          cd web
+          npm run test:e2e

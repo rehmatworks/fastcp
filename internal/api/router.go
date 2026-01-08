@@ -441,7 +441,7 @@ func (s *Server) serveFrontend(w http.ResponseWriter, r *http.Request) {
                 </button>
             </form>
             <div class="footer">
-                <p>Default: <code>admin</code> / <code>fastcp2024!</code></p>
+                <p>Use your system account (recommended), or configure a development admin login in <code>./.fastcp/config.json</code> (dev mode only).</p>
             </div>
         </div>
         <p class="version">FastCP v1.0.0</p>

@@ -11,6 +11,8 @@ require (
 	github.com/google/uuid v1.6.0
 )
 
+require github.com/msteinert/pam v1.2.0 // indirect
+
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/go-acme/lego/v4 v4.30.1

@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"os/exec"
 	"os/user"
 	"runtime"
@@ -56,6 +55,26 @@ type Claims struct {
 // Authenticate authenticates a user with username and password
 // Uses Unix/PAM authentication on Linux systems
 func Authenticate(username, password string) (*models.User, error) {
+	// Development fallback: if running in dev mode and an admin username/password
+	// is configured in `.fastcp/config.json`, allow login with those credentials.
+	// This is intended for local development only and requires FASTCP_DEV=1.
+	if config.IsDevMode() {
+		cfg := config.Get()
+		// Only allow explicitly when configured for dev mode
+		if cfg != nil && cfg.AllowAdminPasswordLogin && cfg.AdminUser != "" && cfg.AdminPassword != "" {
+			if username == cfg.AdminUser && password == cfg.AdminPassword {
+				return &models.User{
+					ID:        "admin",
+					Username:  username,
+					Email:     username + "@localhost",
+					Role:      "admin",
+					CreatedAt: time.Now(),
+					UpdatedAt: time.Now(),
+				}, nil
+			}
+		}
+	}
+
 	// Use Unix authentication (Linux only)
 	if runtime.GOOS == "linux" {
 		return authenticateUnix(username, password)
@@ -136,52 +155,10 @@ func isUserInGroup(username, groupName string) bool {
 	return false
 }
 
-// verifyPassword verifies a user's password against the system
-func verifyPassword(username, password string) bool {
-	// Use Python to verify password against shadow file
-	// This is more reliable than using su which doesn't require password when run as root
-	script := `
-import crypt
-import spwd
-try:
-    shadow = spwd.getspnam('%s')
-    if crypt.crypt('%s', shadow.sp_pwdp) == shadow.sp_pwdp:
-        print('OK')
-    else:
-        print('FAIL')
-except:
-    print('FAIL')
-`
-	// Escape single quotes in username and password
-	safeUsername := strings.ReplaceAll(username, "'", "\\'")
-	safePassword := strings.ReplaceAll(password, "'", "\\'")
-
-	cmd := exec.Command("python3", "-c", fmt.Sprintf(script, safeUsername, safePassword))
-	output, err := cmd.Output()
-	if err != nil {
-		// Fallback: try using chpasswd --check (available on some systems)
-		return verifyPasswordFallback(username, password)
-	}
-
-	return strings.TrimSpace(string(output)) == "OK"
-}
-
-// verifyPasswordFallback uses an alternative method to verify password
-func verifyPasswordFallback(username, password string) bool {
-	// Try using login command with expect-like behavior
-	// Use timeout to prevent hanging
-	script := fmt.Sprintf(`#!/bin/bash
-echo '%s' | timeout 5 su -c 'exit 0' %s 2>/dev/null
-exit $?
-`, strings.ReplaceAll(password, "'", "'\\''"), username)
-
-	cmd := exec.Command("bash", "-c", script)
-	err := cmd.Run()
-
-	// If running as non-root, su will ask for password
-	// If running as root, this won't work - rely on Python method
-	return err == nil
-}
+// Password verification is platform-specific. Implementations live in:
+//   - verify_password_linux.go (uses PAM on Linux)
+//   - verify_password_nonlinux.go (fallback using shadow file / scripts on other platforms)
+// The actual `verifyPassword` function is defined in those files.
 
 // GenerateToken generates a JWT token for a user
 func GenerateToken(user *models.User) (string, error) {

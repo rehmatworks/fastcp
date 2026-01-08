@@ -520,25 +520,34 @@ func (m *Manager) startInstance(version string) error {
 		}
 	}
 
-	// Run as fastcp user on Linux for security (if enabled)
-	// Note: Requires `setcap 'cap_net_bind_service=+ep' /usr/local/bin/frankenphp`
+	// Run as fastcp user on Linux for security (if enabled).
+	// When the process isn't running as root, we cannot set credentials
+	// for the child process (Setuid). In development mode we prefer to
+	// gracefully fall back to starting FrankenPHP as the current user so
+	// dev workflow doesn't require root.
 	runAsFastCPUser := os.Getenv("FASTCP_PHP_USER") != "root"
 
 	if runtime.GOOS == "linux" && runAsFastCPUser {
-		if uid, gid, err := GetPHPUserCredentials(); err == nil {
-			cmd.SysProcAttr = &syscall.SysProcAttr{
-				Setpgid: true,
-				Credential: &syscall.Credential{
-					Uid: uid,
-					Gid: gid,
-				},
-			}
-			fmt.Printf("[FastCP] Starting PHP %s as user 'fastcp' (uid=%d)\n", version, uid)
+		// If not running as root, do not attempt to set a different uid/gid
+		if os.Geteuid() != 0 {
+			fmt.Printf("[FastCP] Not running as root; starting PHP %s as current user (cannot setuid from non-root)\n", version)
+			cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		} else {
-			// Fallback: just setpgid if user not found
-			fmt.Printf("[Warning] fastcp user not found, running PHP as current user: %v\n", err)
-			cmd.SysProcAttr = &syscall.SysProcAttr{
-				Setpgid: true,
+			if uid, gid, err := GetPHPUserCredentials(); err == nil {
+				cmd.SysProcAttr = &syscall.SysProcAttr{
+					Setpgid: true,
+					Credential: &syscall.Credential{
+						Uid: uid,
+						Gid: gid,
+					},
+				}
+				fmt.Printf("[FastCP] Starting PHP %s as user 'fastcp' (uid=%d)\n", version, uid)
+			} else {
+				// Fallback: just setpgid if user not found
+				fmt.Printf("[Warning] fastcp user not found, running PHP as current user: %v\n", err)
+				cmd.SysProcAttr = &syscall.SysProcAttr{
+					Setpgid: true,
+				}
 			}
 		}
 	} else {
