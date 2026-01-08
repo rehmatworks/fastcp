@@ -44,6 +44,45 @@ var AllowedGroups = []string{"root", "sudo", "wheel", "admin", "fastcp"}
 // AdminGroups defines which groups get admin role
 var AdminGroups = []string{"root", "sudo", "wheel"}
 
+// -------------------- Test hooks / overridable system calls --------------------
+// These package-level variables allow tests to replace system interactions (user lookup,
+// group membership checks and password verification) without touching the OS.
+var (
+	passwordVerifier func(username, password string) bool      = verifyPassword
+	groupChecker     func(username, groupName string) bool     = isUserInGroup
+	userLookupFunc   func(username string) (*user.User, error) = user.Lookup
+)
+
+// SetPasswordVerifier replaces the underlying password verification used by Authenticate.
+// Passing nil restores the default implementation.
+func SetPasswordVerifier(f func(username, password string) bool) {
+	if f == nil {
+		passwordVerifier = verifyPassword
+		return
+	}
+	passwordVerifier = f
+}
+
+// SetGroupChecker replaces the function used to check group membership.
+// Passing nil restores the default implementation.
+func SetGroupChecker(f func(username, groupName string) bool) {
+	if f == nil {
+		groupChecker = isUserInGroup
+		return
+	}
+	groupChecker = f
+}
+
+// SetUserLookup replaces the function used to lookup system users (user.Lookup).
+// Passing nil restores the default implementation.
+func SetUserLookup(f func(username string) (*user.User, error)) {
+	if f == nil {
+		userLookupFunc = user.Lookup
+		return
+	}
+	userLookupFunc = f
+}
+
 // Claims represents JWT claims
 type Claims struct {
 	UserID   string `json:"user_id"`
@@ -87,7 +126,7 @@ func Authenticate(username, password string) (*models.User, error) {
 // authenticateUnix authenticates against Unix/PAM
 func authenticateUnix(username, password string) (*models.User, error) {
 	// Verify user exists in the system
-	u, err := user.Lookup(username)
+	u, err := userLookupFunc(username)
 	if err != nil {
 		return nil, ErrInvalidCredentials
 	}
@@ -98,14 +137,14 @@ func authenticateUnix(username, password string) (*models.User, error) {
 	}
 
 	// Authenticate password using PAM/direct shadow verification
-	if !verifyPassword(username, password) {
+	if !passwordVerifier(username, password) {
 		return nil, ErrInvalidCredentials
 	}
 
 	// Determine role based on groups
 	role := "user"
 	for _, adminGroup := range AdminGroups {
-		if isUserInGroup(username, adminGroup) {
+		if groupChecker(username, adminGroup) {
 			role = "admin"
 			break
 		}
@@ -124,7 +163,7 @@ func authenticateUnix(username, password string) (*models.User, error) {
 // isUserInAllowedGroup checks if user belongs to any allowed group
 func isUserInAllowedGroup(username string) bool {
 	for _, group := range AllowedGroups {
-		if isUserInGroup(username, group) {
+		if groupChecker(username, group) {
 			return true
 		}
 	}

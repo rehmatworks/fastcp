@@ -167,9 +167,7 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Change password using chpasswd
-	cmd := exec.Command("chpasswd")
-	cmd.Stdin = strings.NewReader(fmt.Sprintf("%s:%s", claims.Username, req.NewPassword))
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if output, err := runCommandWithInput(fmt.Sprintf("%s:%s", claims.Username, req.NewPassword), "chpasswd"); err != nil {
 		s.logger.Error("failed to change password", "error", err, "output", string(output))
 		s.error(w, http.StatusInternalServerError, "failed to change password")
 		return
@@ -355,9 +353,7 @@ func isValidSSHKey(key string) bool {
 
 func getSSHKeyFingerprint(publicKey string) (string, error) {
 	// Use ssh-keygen to get fingerprint
-	cmd := exec.Command("ssh-keygen", "-lf", "-")
-	cmd.Stdin = strings.NewReader(publicKey)
-	output, err := cmd.Output()
+	output, err := runCommandWithInput(publicKey, "ssh-keygen", "-lf", "-")
 	if err != nil {
 		return "", fmt.Errorf("invalid SSH key")
 	}
@@ -374,7 +370,7 @@ func (s *Server) readUserSSHKeys(username string) ([]SSHKey, error) {
 	homeDir := fmt.Sprintf("/home/%s", username)
 	authKeysPath := fmt.Sprintf("%s/.ssh/authorized_keys", homeDir)
 
-	data, err := exec.Command("cat", authKeysPath).Output()
+	data, err := runCommand("cat", authKeysPath)
 	if err != nil {
 		return []SSHKey{}, nil // File doesn't exist or can't read
 	}
@@ -412,9 +408,9 @@ func (s *Server) addToAuthorizedKeys(username, publicKey, name string) error {
 	authKeysPath := fmt.Sprintf("%s/authorized_keys", sshDir)
 
 	// Ensure .ssh directory exists with correct permissions
-	_ = exec.Command("mkdir", "-p", sshDir).Run()
-	_ = exec.Command("chmod", "700", sshDir).Run()
-	_ = exec.Command("chown", fmt.Sprintf("%s:%s", username, username), sshDir).Run()
+	_, _ = runCommand("mkdir", "-p", sshDir)
+	_, _ = runCommand("chmod", "700", sshDir)
+	_, _ = runCommand("chown", fmt.Sprintf("%s:%s", username, username), sshDir)
 
 	// Append to authorized_keys
 	keyLine := strings.TrimSpace(publicKey)
@@ -424,14 +420,13 @@ func (s *Server) addToAuthorizedKeys(username, publicKey, name string) error {
 		keyLine = keyLine + " " + name
 	}
 
-	cmd := exec.Command("bash", "-c", fmt.Sprintf("echo '%s' >> %s", keyLine, authKeysPath))
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if output, err := runCommand("bash", "-c", fmt.Sprintf("echo '%s' >> %s", keyLine, authKeysPath)); err != nil {
 		return fmt.Errorf("failed to write key: %s", string(output))
 	}
 
 	// Fix permissions
-	_ = exec.Command("chmod", "600", authKeysPath).Run()
-	_ = exec.Command("chown", fmt.Sprintf("%s:%s", username, username), authKeysPath).Run()
+	_, _ = runCommand("chmod", "600", authKeysPath)
+	_, _ = runCommand("chown", fmt.Sprintf("%s:%s", username, username), authKeysPath)
 
 	return nil
 }
@@ -457,14 +452,13 @@ func (s *Server) removeFromAuthorizedKeys(username, fingerprint string) error {
 		content += "\n"
 	}
 
-	cmd := exec.Command("bash", "-c", fmt.Sprintf("echo -n '%s' > %s", content, authKeysPath))
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if output, err := runCommand("bash", "-c", fmt.Sprintf("echo -n '%s' > %s", content, authKeysPath)); err != nil {
 		return fmt.Errorf("failed to write keys: %s", string(output))
 	}
 
 	// Fix permissions
-	_ = exec.Command("chmod", "600", authKeysPath).Run()
-	_ = exec.Command("chown", fmt.Sprintf("%s:%s", username, username), authKeysPath).Run()
+	_, _ = runCommand("chmod", "600", authKeysPath)
+	_, _ = runCommand("chown", fmt.Sprintf("%s:%s", username, username), authKeysPath)
 
 	return nil
 }
