@@ -166,10 +166,10 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Change password using chpasswd
-	if output, err := runCommandWithInput(fmt.Sprintf("%s:%s", claims.Username, req.NewPassword), "chpasswd"); err != nil {
-		s.logger.Error("failed to change password", "error", err, "output", string(output))
-		s.error(w, http.StatusInternalServerError, "failed to change password")
+	// Change password using chpasswd or sudo chpasswd when configured
+	if out, err := runChpasswd(claims.Username, req.NewPassword); err != nil {
+		s.logger.Error("failed to change password", "error", err, "output", string(out))
+		s.error(w, http.StatusInternalServerError, fmt.Sprintf("failed to change password: %v", err))
 		return
 	}
 

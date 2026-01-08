@@ -139,8 +139,9 @@ func DefaultConfig() *models.Config {
 		AdminUser:     "admin",
 		AdminPassword: "",
 		// Disabled by default; requires explicit opt-in for safety
-		AllowAdminPasswordLogin: false,
-	}
+		AllowAdminPasswordLogin: false, // Disabled by default; if enabled and sudo is configured accordingly, the
+		// server will attempt to run `sudo chpasswd` when not running as root.
+		AllowSudoPasswordChange: false}
 }
 
 // Load loads configuration from file or creates default

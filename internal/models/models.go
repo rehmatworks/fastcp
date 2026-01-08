@@ -83,6 +83,12 @@ type Config struct {
 	// permit admin username/password login from `.fastcp/config.json`.
 	// This defaults to false and is only intended for local development.
 	AllowAdminPasswordLogin bool `json:"allow_admin_password_login,omitempty"`
+	// AllowSudoPasswordChange enables an opt-in path where FastCP will use
+	// `sudo chpasswd` for password changes if the server process is not running
+	// as root. This requires a sudoers entry allowing non-interactive running
+	// of /usr/sbin/chpasswd (e.g., `fastcpuser ALL=(root) NOPASSWD: /usr/sbin/chpasswd`).
+	// Default: false (disabled)
+	AllowSudoPasswordChange bool `json:"allow_sudo_password_change,omitempty"`
 }
 
 // APIKey represents an API key for external integrations (WHMCS, etc.)

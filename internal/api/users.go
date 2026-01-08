@@ -137,19 +137,12 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set password (requires root privileges)
-	if os.Geteuid() != 0 {
-		s.logger.Warn("cannot set password: server not running as root", "user", req.Username)
+	// Set password (requires root privileges or configured sudo fallback)
+	if out, err := runChpasswd(req.Username, req.Password); err != nil {
+		s.logger.Error("failed to set password", "error", err, "output", string(out))
 		// Cleanup: delete the user to avoid partial state
 		_ = exec.Command("userdel", "-r", req.Username).Run()
-		s.error(w, http.StatusInternalServerError, "cannot set password: server not running as root")
-		return
-	}
-	if out, err := runCommandWithInput(fmt.Sprintf("%s:%s", req.Username, req.Password), "chpasswd"); err != nil {
-		s.logger.Error("failed to set password", "error", err, "output", string(out))
-		// Cleanup: delete the user
-		_ = exec.Command("userdel", "-r", req.Username).Run()
-		s.error(w, http.StatusInternalServerError, fmt.Sprintf("failed to set password: %s", strings.TrimSpace(string(out))))
+		s.error(w, http.StatusInternalServerError, fmt.Sprintf("failed to set password: %v", err))
 		return
 	}
 
