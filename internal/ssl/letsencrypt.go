@@ -264,6 +264,7 @@ func (m *Manager) IssueLetsEncryptCertificate(siteID, domain, email string, prov
 		Status:     "active",
 		Provider:   providerStr,
 		AutoRenew:  true,
+		Email:      email,
 		CertPath:   certPath,
 		KeyPath:    keyPath,
 		ChainPath:  chainPath,
@@ -307,9 +308,10 @@ func (m *Manager) RenewCertificate(certID string) (*models.SSLCertificate, error
 	}
 
 	// For renewal, we need the email used for registration
-	// In a real implementation, you would store this with the certificate
-	// For now, we'll use a placeholder
-	email := "admin@example.com" // TODO: Store email with certificate
+	email := cert.Email
+	if email == "" {
+		return nil, fmt.Errorf("certificate email not found - cannot renew")
+	}
 
 	provider := ProviderLetsEncrypt
 	if cert.Provider == string(ProviderZeroSSL) {

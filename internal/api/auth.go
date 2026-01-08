@@ -14,6 +14,7 @@ import (
 
 	"github.com/rehmatworks/fastcp/internal/auth"
 	"github.com/rehmatworks/fastcp/internal/middleware"
+	"github.com/rehmatworks/fastcp/internal/models"
 )
 
 // LoginRequest represents a login request
@@ -90,21 +91,28 @@ func (s *Server) refreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create a new token with refreshed expiry
-	user := &struct {
-		ID       string
-		Username string
-		Role     string
-	}{
+	user := &models.User{
 		ID:       claims.UserID,
 		Username: claims.Username,
 		Role:     claims.Role,
 	}
 
-	// For now, just return a success message
-	// Full implementation would generate a new token
-	s.success(w, map[string]string{
+	// Generate new token with refreshed expiry
+	token, err := auth.GenerateToken(user)
+	if err != nil {
+		s.logger.Error("failed to generate refreshed token", "error", err)
+		s.error(w, http.StatusInternalServerError, "failed to refresh token")
+		return
+	}
+
+	s.success(w, map[string]interface{}{
 		"message": "token refreshed",
-		"user_id": user.ID,
+		"token":   token,
+		"user": map[string]interface{}{
+			"id":       user.ID,
+			"username": user.Username,
+			"role":     user.Role,
+		},
 	})
 }
 

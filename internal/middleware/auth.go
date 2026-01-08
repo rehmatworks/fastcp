@@ -82,14 +82,20 @@ func APIKeyMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// TODO: Validate API key from storage
-		// For now, we'll just check if it starts with "fcp_"
-		if !strings.HasPrefix(apiKey, "fcp_") {
+		// Validate API key from storage
+		validatedKey, err := auth.ValidateAPIKey(apiKey)
+		if err != nil {
+			if err == auth.ErrAPIKeyExpired {
+				http.Error(w, `{"error": "API key expired"}`, http.StatusUnauthorized)
+				return
+			}
 			http.Error(w, `{"error": "invalid API key"}`, http.StatusUnauthorized)
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		// Store validated key info in context for later use
+		ctx := context.WithValue(r.Context(), "api_key", validatedKey)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 

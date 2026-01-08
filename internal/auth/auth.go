@@ -27,6 +27,17 @@ var (
 	ErrUserNotAllowed     = errors.New("user not allowed to access FastCP")
 )
 
+// APIKeyValidator is a function type for validating API keys
+type APIKeyValidator func(key string) (*models.APIKey, error)
+
+// Global API key validator - set by the main application
+var apiKeyValidator APIKeyValidator
+
+// SetAPIKeyValidator sets the global API key validator function
+func SetAPIKeyValidator(validator APIKeyValidator) {
+	apiKeyValidator = validator
+}
+
 // AllowedGroups defines which Unix groups can access FastCP
 // Users in these groups can log in to the control panel
 var AllowedGroups = []string{"root", "sudo", "wheel", "admin", "fastcp"}
@@ -235,9 +246,19 @@ func GenerateAPIKey(name string, userID string, permissions []string) (*models.A
 	}, nil
 }
 
-// HashAPIKey creates a hash of an API key for storage
-func HashAPIKey(key string) string {
-	// In production, use bcrypt or argon2
-	// For now, we store keys directly (not recommended for production)
-	return key
+// ValidateAPIKey validates an API key against stored keys
+func ValidateAPIKey(key string) (*models.APIKey, error) {
+	if apiKeyValidator != nil {
+		return apiKeyValidator(key)
+	}
+
+	// Fallback: basic validation
+	if !strings.HasPrefix(key, "fcp_") {
+		return nil, ErrAPIKeyNotFound
+	}
+
+	return &models.APIKey{
+		Key:         key,
+		Permissions: []string{"sites:read", "sites:write"}, // Default permissions
+	}, nil
 }

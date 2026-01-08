@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/rehmatworks/fastcp/internal/api"
+	"github.com/rehmatworks/fastcp/internal/auth"
 	"github.com/rehmatworks/fastcp/internal/caddy"
 	"github.com/rehmatworks/fastcp/internal/config"
 	"github.com/rehmatworks/fastcp/internal/database"
@@ -171,6 +172,9 @@ func main() {
 		upgradeManager,
 		logger,
 	)
+
+	// Set API key validator
+	auth.SetAPIKeyValidator(api.ValidateAPIKey)
 
 	// Setup HTTP server
 	server := &http.Server{

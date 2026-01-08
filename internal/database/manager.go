@@ -431,7 +431,8 @@ func (m *Manager) InstallDatabaseAsync(dbType string) error {
 
 		// Check if already installed - if so, just adopt it
 		var isInstalled bool
-		if dbType == "mysql" {
+		switch dbType {
+		case "mysql":
 			isInstalled = m.IsMySQLInstalled()
 			if isInstalled {
 				m.updateInstallStatus("Adopting existing MySQL installation...", false, nil, dbType)
@@ -439,7 +440,7 @@ func (m *Manager) InstallDatabaseAsync(dbType string) error {
 			} else {
 				finalErr = m.InstallMySQL()
 			}
-		} else if dbType == "postgresql" {
+		case "postgresql":
 			isInstalled = m.IsPostgreSQLInstalled()
 			if isInstalled {
 				m.updateInstallStatus("Adopting existing PostgreSQL installation...", false, nil, dbType)
@@ -447,7 +448,7 @@ func (m *Manager) InstallDatabaseAsync(dbType string) error {
 			} else {
 				finalErr = m.InstallPostgreSQL()
 			}
-		} else {
+		default:
 			finalErr = ErrUnsupportedDatabaseType
 		}
 

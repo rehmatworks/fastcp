@@ -180,6 +180,7 @@ type SSLCertificate struct {
 	Status      string    `json:"status"`             // active, pending, expired, failed
 	Provider    string    `json:"provider,omitempty"` // letsencrypt, zerossl
 	AutoRenew   bool      `json:"auto_renew"`
+	Email       string    `json:"email,omitempty"` // Contact email for Let's Encrypt
 	CertPath    string    `json:"cert_path"`
 	KeyPath     string    `json:"key_path"`
 	ChainPath   string    `json:"chain_path,omitempty"`

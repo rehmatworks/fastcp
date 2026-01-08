@@ -166,6 +166,30 @@ func (s *Server) reloadAll(w http.ResponseWriter, r *http.Request) {
 // In-memory API keys storage (replace with database in production)
 var apiKeys = make(map[string]*models.APIKey)
 
+// GetAPIKeys returns a copy of all API keys (for validation)
+func GetAPIKeys() map[string]*models.APIKey {
+	keys := make(map[string]*models.APIKey)
+	for k, v := range apiKeys {
+		keys[k] = v
+	}
+	return keys
+}
+
+// ValidateAPIKey validates an API key and returns the key info if valid
+func ValidateAPIKey(key string) (*models.APIKey, error) {
+	// Find the key by its value (not ID)
+	for _, apiKey := range apiKeys {
+		if apiKey.Key == key {
+			// Check if expired
+			if !apiKey.ExpiresAt.IsZero() && apiKey.ExpiresAt.Before(time.Now()) {
+				return nil, auth.ErrAPIKeyExpired
+			}
+			return apiKey, nil
+		}
+	}
+	return nil, auth.ErrAPIKeyNotFound
+}
+
 // listAPIKeys returns all API keys (admin only)
 func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request) {
 	keys := make([]*models.APIKey, 0, len(apiKeys))
