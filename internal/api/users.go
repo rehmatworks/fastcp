@@ -137,14 +137,19 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set password
-	cmd = exec.Command("chpasswd")
-	cmd.Stdin = strings.NewReader(fmt.Sprintf("%s:%s", req.Username, req.Password))
-	if output, err := cmd.CombinedOutput(); err != nil {
-		s.logger.Error("failed to set password", "error", err, "output", string(output))
+	// Set password (requires root privileges)
+	if os.Geteuid() != 0 {
+		s.logger.Warn("cannot set password: server not running as root", "user", req.Username)
+		// Cleanup: delete the user to avoid partial state
+		_ = exec.Command("userdel", "-r", req.Username).Run()
+		s.error(w, http.StatusInternalServerError, "cannot set password: server not running as root")
+		return
+	}
+	if out, err := runCommandWithInput(fmt.Sprintf("%s:%s", req.Username, req.Password), "chpasswd"); err != nil {
+		s.logger.Error("failed to set password", "error", err, "output", string(out))
 		// Cleanup: delete the user
 		_ = exec.Command("userdel", "-r", req.Username).Run()
-		s.error(w, http.StatusInternalServerError, "failed to set password")
+		s.error(w, http.StatusInternalServerError, fmt.Sprintf("failed to set password: %s", strings.TrimSpace(string(out))))
 		return
 	}
 
@@ -261,11 +266,14 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
 			s.error(w, http.StatusBadRequest, "password must be at least 8 characters")
 			return
 		}
-		cmd := exec.Command("chpasswd")
-		cmd.Stdin = strings.NewReader(fmt.Sprintf("%s:%s", username, req.Password))
-		if output, err := cmd.CombinedOutput(); err != nil {
-			s.logger.Error("failed to set password", "error", err, "output", string(output))
-			s.error(w, http.StatusInternalServerError, "failed to update password")
+		if os.Geteuid() != 0 {
+			s.logger.Warn("cannot update password: server not running as root", "user", username)
+			s.error(w, http.StatusInternalServerError, "cannot update password: server not running as root")
+			return
+		}
+		if out, err := runCommandWithInput(fmt.Sprintf("%s:%s", username, req.Password), "chpasswd"); err != nil {
+			s.logger.Error("failed to set password", "error", err, "output", string(out))
+			s.error(w, http.StatusInternalServerError, fmt.Sprintf("failed to update password: %s", strings.TrimSpace(string(out))))
 			return
 		}
 	}
