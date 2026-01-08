@@ -50,3 +50,59 @@ jobs:
       - name: Lint frontend
         working-directory: ./web
         run: npm run lint
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install system deps for browsers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libnss3 libatk1.0-0 libgtk-3-0 libxss1 libasound2 libgbm1
+
+      - name: Install Playwright browsers
+        working-directory: ./web
+        run: |
+          npm ci
+          npx playwright install --with-deps
+
+      - name: Build backend
+        run: go build -o bin/fastcp ./cmd/fastcp
+
+      - name: Start backend (background)
+        run: |
+          nohup bash -c 'FASTCP_DEV=1 ./bin/fastcp > /tmp/fastcp.log 2>&1 &' || true
+
+      - name: Wait for backend to become ready
+        run: |
+          for i in {1..30}; do
+            if curl -k -s -f https://localhost:8080/ >/dev/null; then
+              echo "backend ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "backend did not become ready"
+          cat /tmp/fastcp.log || true
+          exit 1
+
+      - name: Run Playwright E2E tests
+        working-directory: ./web
+        env:
+          CI: 'true'
+        run: npm run test:e2e
+

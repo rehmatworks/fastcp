@@ -63,6 +63,20 @@ test:
 test-pam:
 	go test -v -tags pam ./...
 
+# Run Playwright E2E tests locally (requires Playwright deps & backend)
+# Example: `make test-e2e-ci`
+test-e2e-ci:
+	@echo "Installing web deps..."
+	cd web && npm ci
+	@echo "Building backend..."
+	go build -o bin/fastcp ./cmd/fastcp
+	@echo "Starting backend in background..."
+	FASTCP_DEV=1 ./bin/fastcp > /tmp/fastcp.log 2>&1 &
+	@echo "Waiting for backend to be ready..."
+	n=0; until [ $$n -ge 30 ] || curl -k -s -f https://localhost:8080/ >/dev/null; do n=$$((n+1)); sleep 2; done; if [ $$n -ge 30 ]; then echo "backend did not start; see /tmp/fastcp.log"; exit 1; fi
+	@echo "Running Playwright tests..."
+	cd web && npm run test:e2e
+
 # Build for Linux (cross-compile from any OS)
 build-linux: build-frontend
 	@echo "Building for Linux x86_64..."
