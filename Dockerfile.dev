@@ -14,7 +14,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs
 
 # Install Air for Go hot reload
-RUN go install github.com/air-verse/air@latest
+RUN go install github.com/air-verse/air@v1.61.5
 
 # Create directories
 RUN mkdir -p /var/lib/fastcp /var/www /var/log/fastcp /etc/fastcp
@@ -28,6 +28,9 @@ RUN cd web && npm install
 
 # Copy source
 COPY . .
+
+# Build frontend
+RUN cd web && npm run build
 
 EXPOSE 8080 8000 8443
 
