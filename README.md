@@ -127,6 +127,25 @@ Development mode (`FASTCP_DEV=1`) uses local directories:
 - Binary: `./.fastcp/bin/frankenphp`
 - Ports: `8000` (HTTP), `8443` (HTTPS)
 
+### Password change considerations
+
+FastCP supports changing system passwords via `chpasswd` (requires root). For safer non-root deployments, enable the opt-in sudo fallback by setting `"allow_sudo_password_change": true` in your config and adding the following sudoers entry (via `visudo -f /etc/sudoers.d/fastcp-chpasswd`):
+
+```
+# Allow the fastcp user to run chpasswd as root without a password
+fastcpuser ALL=(root) NOPASSWD: /usr/sbin/chpasswd
+```
+
+After adding the sudoers rule, verify with the helper tool:
+
+```
+cd tools/check_sudo_chpasswd
+go build -o check_sudo_chpasswd
+./check_sudo_chpasswd
+```
+
+See `docs/SUDO_PASSWORD_CHANGE.md` for full instructions and security notes.
+
 ### Environment Variables
 
 | Variable | Description | Default (Dev) | Default (Prod) |

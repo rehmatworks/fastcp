@@ -1,0 +1,35 @@
+package checksudochpasswd
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}	os.Exit(1)	fmt.Println("sudo is available non-interactively, but chpasswd was not found in 'sudo -l' output. Please add a sudoers rule to allow /usr/sbin/chpasswd as described in docs/SUDO_PASSWORD_CHANGE.md")	}		os.Exit(0)		fmt.Println("sudo can run chpasswd (non-interactive): OK")	if strings.Contains(s, "chpasswd") {	s := string(out)	}		os.Exit(3)		fmt.Fprintln(os.Stderr, "failed to list sudo privileges:", err)		// Some sudoers configurations may still allow running specific commands	if err != nil {	out, err := exec.Command("sudo", "-n", "-l").CombinedOutput()	// List allowed commands for current user	}		os.Exit(2)		fmt.Fprintln(os.Stderr, "sudo not available non-interactively (requires password or not installed)")	if err := exec.Command("sudo", "-n", "true").Run(); err != nil {	// Check sudo is available non-interactivelyfunc main() {)	"strings"	"os/exec"	"os"	"fmt"import (package main

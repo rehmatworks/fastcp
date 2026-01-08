@@ -40,6 +40,11 @@ dev:
 dev-frontend:
 	cd web && npm run dev
 
+# Check that sudo is configured to allow chpasswd (useful for password changes)
+check-sudo:
+	@echo "Building and running sudo chpasswd checker..."
+	cd tools/check_sudo_chpasswd && go build -o check_sudo_chpasswd && ./check_sudo_chpasswd
+
 # Run production binary
 run: build
 	./bin/$(BINARY_NAME)
