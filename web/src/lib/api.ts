@@ -248,6 +248,14 @@ class APIClient {
     return this.request('/databases/install/status')
   }
 
+  async installPostgreSQL(): Promise<{ message: string; status: string }> {
+    return this.request('/databases/install/postgresql', { method: 'POST' })
+  }
+
+  async getPostgreSQLInstallStatus(): Promise<MySQLInstallStatus> {
+    return this.request('/databases/install/postgresql/status')
+  }
+
   // Version & Upgrade
   async getVersion(): Promise<VersionCheckResult> {
     return this.request('/version')
@@ -289,6 +297,33 @@ class APIClient {
     return this.request(`/me/ssh-keys/${encodeURIComponent(fingerprint)}`, { method: 'DELETE' })
   }
 
+  // File Manager
+  async getFiles(siteId: string, path: string = '.'): Promise<FileListResponse> {
+    return this.request(`/sites/${siteId}/files?path=${encodeURIComponent(path)}`)
+  }
+
+  async getFileContent(siteId: string, path: string): Promise<FileContent> {
+    return this.request(`/sites/${siteId}/files/content?path=${encodeURIComponent(path)}`)
+  }
+
+  async saveFileContent(siteId: string, path: string, content: string): Promise<{ message: string }> {
+    return this.request(`/sites/${siteId}/files/content`, {
+      method: 'PUT',
+      body: JSON.stringify({ path, content }),
+    })
+  }
+
+  async createDirectory(siteId: string, path: string, dirName: string): Promise<{ message: string }> {
+    return this.request(`/sites/${siteId}/files/directory`, {
+      method: 'POST',
+      body: JSON.stringify({ path, dir_name: dirName }),
+    })
+  }
+
+  async deleteFile(siteId: string, path: string): Promise<{ message: string }> {
+    return this.request(`/sites/${siteId}/files?path=${encodeURIComponent(path)}`, { method: 'DELETE' })
+  }
+
   // SSH Server Settings (Admin only)
   async getSSHSettings(): Promise<SSHServerSettings> {
     return this.request('/ssh-settings')
@@ -298,6 +333,38 @@ class APIClient {
     return this.request('/ssh-settings', {
       method: 'PUT',
       body: JSON.stringify(settings),
+    })
+  }
+
+  // SSL Certificate methods
+  async getCertificates(): Promise<{ certificates: SSLCertificate[] }> {
+    return this.request('/certificates')
+  }
+
+  async getCertificate(id: string): Promise<SSLCertificate> {
+    return this.request(`/certificates/${id}`)
+  }
+
+  async getSiteCertificates(siteId: string): Promise<{ certificates: SSLCertificate[] }> {
+    return this.request(`/sites/${siteId}/certificates`)
+  }
+
+  async issueCertificate(request: SSLCertificateRequest): Promise<SSLCertificate> {
+    return this.request('/certificates', {
+      method: 'POST',
+      body: JSON.stringify(request)
+    })
+  }
+
+  async deleteCertificate(id: string): Promise<void> {
+    await this.request(`/certificates/${id}`, {
+      method: 'DELETE'
+    })
+  }
+
+  async renewCertificate(id: string): Promise<SSLCertificate> {
+    return this.request(`/certificates/${id}/renew`, {
+      method: 'POST'
     })
   }
 }
@@ -312,6 +379,7 @@ export interface DatabaseItem {
   password?: string
   host: string
   port: number
+  type: string
   created_at: string
 }
 
@@ -319,14 +387,20 @@ export interface CreateDatabaseRequest {
   name: string
   username?: string
   password?: string
+  type: string
   site_id?: string
 }
 
-export interface DatabaseStatus {
+export interface DatabaseServerInfo {
   installed: boolean
   running: boolean
   version?: string
   database_count: number
+}
+
+export interface DatabaseStatus {
+  mysql: DatabaseServerInfo
+  postgresql: DatabaseServerInfo
 }
 
 export interface MySQLInstallStatus {
@@ -422,5 +496,65 @@ export interface SSHServerSettings {
   password_auth_enabled: boolean
 }
 
-export const api = new APIClient()
+// File Manager types
+export interface FileInfo {
+  name: string
+  path: string
+  size: number
+  is_dir: boolean
+  mod_time: string
+  perm: string
+}
+
+export interface FileListResponse {
+  path: string
+  files: FileInfo[]
+  can_read: boolean
+  can_write: boolean
+}
+
+export interface FileContent {
+  path: string
+  content: string
+  size: number
+  can_edit: boolean
+}
+
+// SSL Certificate types
+export interface SSLCertificate {
+  id: string
+  site_id: string
+  domain: string
+  type: 'letsencrypt' | 'custom' | 'self-signed'
+  status: 'active' | 'pending' | 'expired' | 'failed'
+  provider?: string
+  auto_renew: boolean
+  cert_path: string
+  key_path: string
+  chain_path?: string
+  issuer?: string
+  subject?: string
+  valid_from: string
+  valid_until: string
+  last_renewed?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface SSLCertificateRequest {
+  site_id: string
+  domain: string
+  type: 'letsencrypt' | 'custom' | 'self-signed'
+  provider?: 'letsencrypt' | 'zerossl'
+  auto_renew: boolean
+  email?: string
+  custom_cert?: string
+  custom_key?: string
+  custom_ca?: string
+}
+
+const apiClient = new APIClient()
+
+export default apiClient
+export { apiClient as api }
 

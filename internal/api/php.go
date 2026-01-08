@@ -22,13 +22,13 @@ var (
 
 // DownloadState tracks the state of a PHP version download
 type DownloadState struct {
-	Version    string    `json:"version"`
-	Status     string    `json:"status"` // "pending", "downloading", "completed", "failed"
-	Progress   float64   `json:"progress"`
-	Downloaded int64     `json:"downloaded"`
-	Total      int64     `json:"total"`
-	Error      string    `json:"error,omitempty"`
-	StartedAt  time.Time `json:"started_at"`
+	Version     string     `json:"version"`
+	Status      string     `json:"status"` // "pending", "downloading", "completed", "failed"
+	Progress    float64    `json:"progress"`
+	Downloaded  int64      `json:"downloaded"`
+	Total       int64      `json:"total"`
+	Error       string     `json:"error,omitempty"`
+	StartedAt   time.Time  `json:"started_at"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
 }
 
@@ -311,4 +311,3 @@ func (s *Server) installPHPVersion(w http.ResponseWriter, r *http.Request) {
 		"note":        "Use POST /api/v1/php/{version}/download to download the binary",
 	})
 }
-

@@ -73,4 +73,3 @@ func (s *Server) getUpgradeStatus(w http.ResponseWriter, r *http.Request) {
 	status := s.upgradeManager.GetUpgradeStatus()
 	s.success(w, status)
 }
-

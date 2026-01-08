@@ -139,10 +139,7 @@ export function LoginPage() {
 
           <div className="mt-6 pt-5 border-t border-border">
             <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-              <span>Default:</span>
-              <code className="px-1.5 py-0.5 bg-secondary rounded font-mono text-foreground">admin</code>
-              <span>/</span>
-              <code className="px-1.5 py-0.5 bg-secondary rounded font-mono text-foreground">fastcp2024!</code>
+              <span>Use your Unix system credentials to sign in</span>
             </div>
           </div>
         </div>

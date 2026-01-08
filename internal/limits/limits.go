@@ -104,7 +104,6 @@ func (m *Manager) applyCgroupLimits(limits *models.UserLimits) error {
 	return nil
 }
 
-
 // GetUsage returns current resource usage for a user
 func (m *Manager) GetUsage(username string) (*ResourceUsage, error) {
 	usage := &ResourceUsage{
@@ -250,4 +249,3 @@ func (m *Manager) getDiskUsage(username string) (int64, error) {
 
 	return 0, nil
 }
-

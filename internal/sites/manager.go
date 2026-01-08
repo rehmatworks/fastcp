@@ -583,15 +583,15 @@ func (m *Manager) createSiteDirectories(site *models.Site) error {
 	// PHP runs as the user, so no ACLs needed - simple Unix permissions
 	if username != "" && runtime.GOOS == "linux" {
 		homeDir := filepath.Join("/home", username)
-		
+
 		// Create all user directories
 		userDirs := []string{
 			homeDir,
-			filepath.Join(homeDir, "www"),  // Web root
-			filepath.Join(homeDir, "run"),  // PHP sockets and PIDs
-			filepath.Join(homeDir, "log"),  // PHP logs
+			filepath.Join(homeDir, "www"), // Web root
+			filepath.Join(homeDir, "run"), // PHP sockets and PIDs
+			filepath.Join(homeDir, "log"), // PHP logs
 		}
-		
+
 		for _, dir := range userDirs {
 			if err := os.MkdirAll(dir, 0755); err != nil {
 				return err

@@ -31,12 +31,12 @@ type Platform struct {
 
 // PHPBinary represents a downloadable FrankenPHP binary
 type PHPBinary struct {
-	PHPVersion     string `json:"php_version"`      // "8.4", "8.3", "8.2"
-	FrankenVersion string `json:"franken_version"`  // "1.11.1"
-	Platform       string `json:"platform"`         // "linux-x86_64", "darwin-arm64"
-	URL            string `json:"url"`              // Download URL
-	Checksum       string `json:"checksum"`         // SHA256 checksum (optional)
-	Size           int64  `json:"size"`             // File size in bytes
+	PHPVersion     string `json:"php_version"`     // "8.4", "8.3", "8.2"
+	FrankenVersion string `json:"franken_version"` // "1.11.1"
+	Platform       string `json:"platform"`        // "linux-x86_64", "darwin-arm64"
+	URL            string `json:"url"`             // Download URL
+	Checksum       string `json:"checksum"`        // SHA256 checksum (optional)
+	Size           int64  `json:"size"`            // File size in bytes
 }
 
 // DownloadProgress reports download progress
@@ -400,4 +400,3 @@ func (m *Manager) InstallPHPVersion(ctx context.Context, phpVersion string, dest
 	// Download
 	return m.Download(ctx, *binary, destPath, progress)
 }
-

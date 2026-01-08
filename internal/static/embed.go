@@ -31,15 +31,15 @@ func Handler() http.Handler {
 		path := r.URL.Path
 
 		// Serve static assets directly
-		if strings.HasPrefix(path, "/assets/") || 
-		   strings.HasSuffix(path, ".js") || 
-		   strings.HasSuffix(path, ".css") || 
-		   strings.HasSuffix(path, ".svg") ||
-		   strings.HasSuffix(path, ".ico") ||
-		   strings.HasSuffix(path, ".png") ||
-		   strings.HasSuffix(path, ".jpg") ||
-		   strings.HasSuffix(path, ".woff") ||
-		   strings.HasSuffix(path, ".woff2") {
+		if strings.HasPrefix(path, "/assets/") ||
+			strings.HasSuffix(path, ".js") ||
+			strings.HasSuffix(path, ".css") ||
+			strings.HasSuffix(path, ".svg") ||
+			strings.HasSuffix(path, ".ico") ||
+			strings.HasSuffix(path, ".png") ||
+			strings.HasSuffix(path, ".jpg") ||
+			strings.HasSuffix(path, ".woff") ||
+			strings.HasSuffix(path, ".woff2") {
 			fileServer.ServeHTTP(w, r)
 			return
 		}
@@ -50,9 +50,8 @@ func Handler() http.Handler {
 			http.Error(w, "index.html not found", http.StatusInternalServerError)
 			return
 		}
-		
+
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(indexHTML)
 	})
 }
-

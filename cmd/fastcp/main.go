@@ -148,6 +148,10 @@ func main() {
 	dbManager := database.NewManager()
 	logger.Info("Database manager initialized")
 
+	// Initialize SSL manager (always needed, even in dev mode)
+	sslManager := ssl.NewManager(cfg.DataDir)
+	logger.Info("SSL certificate manager initialized")
+
 	// Initialize upgrade manager
 	upgradeManager := upgrade.NewManager(version, cfg.DataDir)
 	if upgradeManager.CheckLockFile() {
@@ -162,6 +166,7 @@ func main() {
 		phpManager,
 		userPHPManager,
 		dbManager,
+		sslManager,
 		caddyGen,
 		upgradeManager,
 		logger,
@@ -179,18 +184,16 @@ func main() {
 	// Determine if we should use HTTPS
 	useHTTPS := !*devMode && !*noSSL
 
-	// Initialize SSL if needed
-	var sslManager *ssl.Manager
+	// Setup SSL certificate for admin panel if needed
 	var protocol string
 	if useHTTPS {
-		sslManager = ssl.NewManager(cfg.DataDir)
 		if err := sslManager.EnsureCertificate(); err != nil {
 			logger.Error("Failed to generate SSL certificate", "error", err)
 			logger.Warn("Falling back to HTTP")
 			useHTTPS = false
 			protocol = "http"
 		} else {
-			logger.Info("SSL certificate ready")
+			logger.Info("SSL certificate ready for admin panel")
 			protocol = "https"
 		}
 	} else {
@@ -216,10 +219,7 @@ func main() {
 	}()
 
 	// Extract port from listen address for display
-	port := cfg.ListenAddr
-	if strings.HasPrefix(port, ":") {
-		port = port[1:]
-	}
+	port := strings.TrimPrefix(cfg.ListenAddr, ":")
 
 	// Print startup message
 	var sslNote string
@@ -244,7 +244,7 @@ func main() {
 ║                                                               ║
 ║   Admin Panel: %s://localhost:%-27s ║
 ║   Sites Proxy: http://localhost:%-28d ║
-║   Default Login: admin / fastcp2024!                          ║
+║   Login with Unix system credentials                        ║
 ║                                                               ║
 ║   %-61s ║
 ║                                                               ║

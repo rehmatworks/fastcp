@@ -217,4 +217,3 @@ func (s *Server) whmcsStatus(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 }
-

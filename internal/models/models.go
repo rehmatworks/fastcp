@@ -64,17 +64,15 @@ type PHPVersionConfig struct {
 
 // Config represents the main application configuration
 type Config struct {
-	AdminUser     string             `json:"admin_user"`
-	AdminPassword string             `json:"admin_password"`
-	AdminEmail    string             `json:"admin_email"` // Used for Let's Encrypt SSL
-	JWTSecret     string             `json:"jwt_secret"`
-	DataDir       string             `json:"data_dir"`
-	SitesDir      string             `json:"sites_dir"`
-	LogDir        string             `json:"log_dir"`
-	ListenAddr    string             `json:"listen_addr"`
-	PHPVersions   []PHPVersionConfig `json:"php_versions"`
-	ProxyPort     int                `json:"proxy_port"`
-	ProxySSLPort  int                `json:"proxy_ssl_port"`
+	AdminEmail   string             `json:"admin_email"` // Used for Let's Encrypt SSL
+	JWTSecret    string             `json:"jwt_secret"`
+	DataDir      string             `json:"data_dir"`
+	SitesDir     string             `json:"sites_dir"`
+	LogDir       string             `json:"log_dir"`
+	ListenAddr   string             `json:"listen_addr"`
+	PHPVersions  []PHPVersionConfig `json:"php_versions"`
+	ProxyPort    int                `json:"proxy_port"`
+	ProxySSLPort int                `json:"proxy_ssl_port"`
 }
 
 // APIKey represents an API key for external integrations (WHMCS, etc.)
@@ -91,14 +89,14 @@ type APIKey struct {
 
 // WHMCSProvisionRequest represents a WHMCS provisioning request
 type WHMCSProvisionRequest struct {
-	Action      string `json:"action"` // create, suspend, unsuspend, terminate
-	ServiceID   string `json:"service_id"`
-	Username    string `json:"username"`
-	Domain      string `json:"domain"`
-	Package     string `json:"package"`
-	PHPVersion  string `json:"php_version"`
-	DiskLimit   int64  `json:"disk_limit"`
-	BWLimit     int64  `json:"bandwidth_limit"`
+	Action      string            `json:"action"` // create, suspend, unsuspend, terminate
+	ServiceID   string            `json:"service_id"`
+	Username    string            `json:"username"`
+	Domain      string            `json:"domain"`
+	Package     string            `json:"package"`
+	PHPVersion  string            `json:"php_version"`
+	DiskLimit   int64             `json:"disk_limit"`
+	BWLimit     int64             `json:"bandwidth_limit"`
 	CustomField map[string]string `json:"custom_fields,omitempty"`
 }
 
@@ -111,28 +109,28 @@ type WHMCSResponse struct {
 
 // Stats represents system statistics
 type Stats struct {
-	TotalSites      int     `json:"total_sites"`
-	ActiveSites     int     `json:"active_sites"`
-	TotalUsers      int     `json:"total_users"`
-	PHPInstances    int     `json:"php_instances"`
-	DiskUsage       int64   `json:"disk_usage"`
-	DiskTotal       int64   `json:"disk_total"`
-	MemoryUsage     int64   `json:"memory_usage"`
-	MemoryTotal     int64   `json:"memory_total"`
-	CPUUsage        float64 `json:"cpu_usage"`
-	Uptime          int64   `json:"uptime"`
+	TotalSites   int     `json:"total_sites"`
+	ActiveSites  int     `json:"active_sites"`
+	TotalUsers   int     `json:"total_users"`
+	PHPInstances int     `json:"php_instances"`
+	DiskUsage    int64   `json:"disk_usage"`
+	DiskTotal    int64   `json:"disk_total"`
+	MemoryUsage  int64   `json:"memory_usage"`
+	MemoryTotal  int64   `json:"memory_total"`
+	CPUUsage     float64 `json:"cpu_usage"`
+	Uptime       int64   `json:"uptime"`
 }
 
 // AuditLog represents an audit log entry
 type AuditLog struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"user_id"`
-	Action    string    `json:"action"`
-	Resource  string    `json:"resource"`
-	ResourceID string   `json:"resource_id"`
-	Details   string    `json:"details"`
-	IP        string    `json:"ip"`
-	CreatedAt time.Time `json:"created_at"`
+	ID         string    `json:"id"`
+	UserID     string    `json:"user_id"`
+	Action     string    `json:"action"`
+	Resource   string    `json:"resource"`
+	ResourceID string    `json:"resource_id"`
+	Details    string    `json:"details"`
+	IP         string    `json:"ip"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 // UserLimits represents resource limits for a user
@@ -144,7 +142,7 @@ type UserLimits struct {
 	MaxProcesses  int    `json:"max_processes"`   // 0 = unlimited, max concurrent processes
 }
 
-// Database represents a MySQL database
+// Database represents a MySQL or PostgreSQL database
 type Database struct {
 	ID        string    `json:"id"`
 	UserID    string    `json:"user_id"`
@@ -154,15 +152,65 @@ type Database struct {
 	Password  string    `json:"password,omitempty"` // Only returned on create
 	Host      string    `json:"host"`
 	Port      int       `json:"port"`
+	Type      string    `json:"type"` // mysql or postgresql
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// DatabaseServerStatus represents the MySQL server status
+// DatabaseServerStatus represents the database server status
 type DatabaseServerStatus struct {
+	MySQL      DatabaseServerInfo `json:"mysql"`
+	PostgreSQL DatabaseServerInfo `json:"postgresql"`
+}
+
+// DatabaseServerInfo represents status for a specific database server
+type DatabaseServerInfo struct {
 	Installed     bool   `json:"installed"`
 	Running       bool   `json:"running"`
 	Version       string `json:"version,omitempty"`
 	DatabaseCount int    `json:"database_count"`
 }
 
+// SSLCertificate represents an SSL certificate for a domain
+type SSLCertificate struct {
+	ID          string    `json:"id"`
+	SiteID      string    `json:"site_id"`
+	Domain      string    `json:"domain"`
+	Type        string    `json:"type"`               // letsencrypt, custom, self-signed
+	Status      string    `json:"status"`             // active, pending, expired, failed
+	Provider    string    `json:"provider,omitempty"` // letsencrypt, zerossl
+	AutoRenew   bool      `json:"auto_renew"`
+	CertPath    string    `json:"cert_path"`
+	KeyPath     string    `json:"key_path"`
+	ChainPath   string    `json:"chain_path,omitempty"`
+	Issuer      string    `json:"issuer,omitempty"`
+	Subject     string    `json:"subject,omitempty"`
+	ValidFrom   time.Time `json:"valid_from"`
+	ValidUntil  time.Time `json:"valid_until"`
+	LastRenewed time.Time `json:"last_renewed,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// SSLCertificateRequest represents a request to issue/upload a certificate
+type SSLCertificateRequest struct {
+	SiteID     string `json:"site_id"`
+	Domain     string `json:"domain"`
+	Type       string `json:"type"`               // letsencrypt, custom
+	Provider   string `json:"provider,omitempty"` // letsencrypt (default), zerossl
+	AutoRenew  bool   `json:"auto_renew"`
+	Email      string `json:"email,omitempty"`       // For Let's Encrypt
+	CustomCert string `json:"custom_cert,omitempty"` // PEM encoded certificate
+	CustomKey  string `json:"custom_key,omitempty"`  // PEM encoded private key
+	CustomCA   string `json:"custom_ca,omitempty"`   // PEM encoded CA chain (optional)
+}
+
+// SSLRenewalJob represents a scheduled SSL renewal task
+type SSLRenewalJob struct {
+	ID            string    `json:"id"`
+	CertificateID string    `json:"certificate_id"`
+	NextRun       time.Time `json:"next_run"`
+	Status        string    `json:"status"` // pending, running, completed, failed
+	LastRun       time.Time `json:"last_run,omitempty"`
+	ErrorMessage  string    `json:"error_message,omitempty"`
+}

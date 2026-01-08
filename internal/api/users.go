@@ -21,22 +21,22 @@ import (
 
 // FastCPUser represents a FastCP user with limits and usage
 type FastCPUser struct {
-	Username     string `json:"username"`
-	UID          int    `json:"uid"`
-	GID          int    `json:"gid"`
-	HomeDir      string `json:"home_dir"`
-	IsAdmin      bool   `json:"is_admin"`
-	Enabled      bool   `json:"enabled"`
+	Username string `json:"username"`
+	UID      int    `json:"uid"`
+	GID      int    `json:"gid"`
+	HomeDir  string `json:"home_dir"`
+	IsAdmin  bool   `json:"is_admin"`
+	Enabled  bool   `json:"enabled"`
 
 	// Jail/SSH settings
-	IsJailed     bool   `json:"is_jailed"`     // SFTP-only, chrooted
-	ShellAccess  bool   `json:"shell_access"`  // Can use SSH shell (not jailed)
+	IsJailed    bool `json:"is_jailed"`    // SFTP-only, chrooted
+	ShellAccess bool `json:"shell_access"` // Can use SSH shell (not jailed)
 
 	// Limits
-	SiteLimit    int   `json:"site_limit"`     // 0 = unlimited
-	RAMLimitMB   int64 `json:"ram_limit_mb"`   // 0 = unlimited
-	CPUPercent   int   `json:"cpu_percent"`    // 0 = unlimited (100 = 1 core)
-	MaxProcesses int   `json:"max_processes"`  // 0 = unlimited
+	SiteLimit    int   `json:"site_limit"`    // 0 = unlimited
+	RAMLimitMB   int64 `json:"ram_limit_mb"`  // 0 = unlimited
+	CPUPercent   int   `json:"cpu_percent"`   // 0 = unlimited (100 = 1 core)
+	MaxProcesses int   `json:"max_processes"` // 0 = unlimited
 
 	// Usage
 	SiteCount    int   `json:"site_count"`
@@ -47,10 +47,10 @@ type FastCPUser struct {
 
 // CreateUserRequest represents a request to create a user
 type CreateUserRequest struct {
-	Username     string `json:"username"`
-	Password     string `json:"password"`
-	IsAdmin      bool   `json:"is_admin"`      // Add to sudo group
-	ShellAccess  bool   `json:"shell_access"`  // Allow SSH shell (false = SFTP only, jailed)
+	Username    string `json:"username"`
+	Password    string `json:"password"`
+	IsAdmin     bool   `json:"is_admin"`     // Add to sudo group
+	ShellAccess bool   `json:"shell_access"` // Allow SSH shell (false = SFTP only, jailed)
 
 	// Resource limits
 	SiteLimit    int   `json:"site_limit"`    // 0 = unlimited
@@ -61,9 +61,9 @@ type CreateUserRequest struct {
 
 // UpdateUserRequest represents a request to update a user
 type UpdateUserRequest struct {
-	Password     string `json:"password,omitempty"`
-	Enabled      bool   `json:"enabled"`
-	ShellAccess  bool   `json:"shell_access"`  // Allow SSH shell (false = SFTP only, jailed)
+	Password    string `json:"password,omitempty"`
+	Enabled     bool   `json:"enabled"`
+	ShellAccess bool   `json:"shell_access"` // Allow SSH shell (false = SFTP only, jailed)
 
 	// Resource limits
 	SiteLimit    int   `json:"site_limit"`
@@ -155,8 +155,8 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 	// Create directories for per-user PHP instances
 	// PHP runs as the user, so no ACLs needed - simple Unix permissions
 	phpDirs := []string{
-		filepath.Join(homeDir, "run"),  // PHP sockets and PIDs
-		filepath.Join(homeDir, "log"),  // PHP logs
+		filepath.Join(homeDir, "run"), // PHP sockets and PIDs
+		filepath.Join(homeDir, "log"), // PHP logs
 	}
 	for _, dir := range phpDirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -196,7 +196,7 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 	// All users have their sites in /home/username/www
 	// Since PHP runs as the user, no ACLs needed - just set ownership
 	userWebDir := filepath.Join(homeDir, "www")
-	
+
 	if err := os.MkdirAll(userWebDir, 0755); err != nil {
 		s.logger.Warn("failed to create user web directory", "error", err)
 	}
@@ -334,7 +334,7 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
 	if !req.Enabled && currentEnabled {
 		// Disabling user - lock account and suspend all their sites
 		_ = exec.Command("usermod", "-L", username).Run()
-		
+
 		// Suspend all user's sites
 		userSites := s.siteManager.List(u.Uid)
 		for _, site := range userSites {
@@ -348,11 +348,11 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
 		}
 		// Reload PHP to apply suspension
 		s.phpManager.Reload()
-		
+
 	} else if req.Enabled && !currentEnabled {
 		// Enabling user - unlock account and unsuspend all their sites
 		_ = exec.Command("usermod", "-U", username).Run()
-		
+
 		// Unsuspend all user's sites
 		userSites := s.siteManager.List(u.Uid)
 		for _, site := range userSites {
@@ -424,7 +424,7 @@ func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request) {
 	// Kill all user's processes
 	s.logger.Info("killing user processes", "user", username)
 	_ = exec.Command("pkill", "-9", "-u", username).Run()
-	
+
 	// Wait a moment for processes to die
 	exec.Command("sleep", "1").Run()
 
@@ -538,16 +538,16 @@ func (s *Server) getFastCPUser(username string) (*FastCPUser, error) {
 	isJailed := jail.IsUserJailed(username)
 
 	fastcpUser := &FastCPUser{
-		Username:     username,
-		UID:          uid,
-		GID:          gid,
-		HomeDir:      u.HomeDir,
-		IsAdmin:      isAdmin,
-		Enabled:      enabled,
+		Username: username,
+		UID:      uid,
+		GID:      gid,
+		HomeDir:  u.HomeDir,
+		IsAdmin:  isAdmin,
+		Enabled:  enabled,
 
 		// Jail status
-		IsJailed:     isJailed,
-		ShellAccess:  !isJailed || isAdmin,
+		IsJailed:    isJailed,
+		ShellAccess: !isJailed || isAdmin,
 
 		// Limits
 		SiteLimit:    userLimits.MaxSites,
@@ -556,7 +556,7 @@ func (s *Server) getFastCPUser(username string) (*FastCPUser, error) {
 		MaxProcesses: userLimits.MaxProcesses,
 
 		// Current usage
-		SiteCount:    siteCount,
+		SiteCount: siteCount,
 	}
 
 	// Add usage stats if available
@@ -667,4 +667,3 @@ func (s *Server) fixUserPermissions(w http.ResponseWriter, r *http.Request) {
 
 // Note: ACL functions removed - PHP now runs as the user, so no ACLs needed
 // Simple Unix permissions are sufficient since the user owns all files
-

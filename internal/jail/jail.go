@@ -108,8 +108,8 @@ func SetupUserJail(username string) error {
 	// The home directory must be owned by root for chroot to work
 	// Create subdirectories for user content
 	dirs := []string{
-		filepath.Join(homeDir, "www"),      // Web root for user's sites
-		filepath.Join(homeDir, ".ssh"),     // For SSH keys
+		filepath.Join(homeDir, "www"),  // Web root for user's sites
+		filepath.Join(homeDir, ".ssh"), // For SSH keys
 	}
 
 	// Ensure home directory exists and is owned by root
@@ -180,11 +180,11 @@ func IsUserJailed(username string) bool {
 
 // GetJailStatus returns jail status for a user
 type JailStatus struct {
-	IsJailed     bool   `json:"is_jailed"`
-	HomeDir      string `json:"home_dir"`
-	WWWDir       string `json:"www_dir"`
-	CanSSH       bool   `json:"can_ssh"`
-	SFTPOnly     bool   `json:"sftp_only"`
+	IsJailed bool   `json:"is_jailed"`
+	HomeDir  string `json:"home_dir"`
+	WWWDir   string `json:"www_dir"`
+	CanSSH   bool   `json:"can_ssh"`
+	SFTPOnly bool   `json:"sftp_only"`
 }
 
 func GetJailStatus(username string) *JailStatus {
@@ -225,4 +225,3 @@ func FixJailPermissions(username string) error {
 
 	return nil
 }
-

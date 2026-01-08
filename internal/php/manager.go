@@ -32,11 +32,11 @@ const (
 
 // Manager manages PHP FrankenPHP instances and the main proxy
 type Manager struct {
-	instances    map[string]*Instance
-	proxy        *ProxyInstance
-	mu           sync.RWMutex
-	generator    *caddy.Generator
-	sitesFunc    func() []models.Site // Function to get current sites
+	instances map[string]*Instance
+	proxy     *ProxyInstance
+	mu        sync.RWMutex
+	generator *caddy.Generator
+	sitesFunc func() []models.Site // Function to get current sites
 }
 
 // Instance represents a running FrankenPHP instance
@@ -83,19 +83,19 @@ func EnsurePHPUser() error {
 	if groupExists {
 		// Group exists, create user and add to existing group
 		cmd = exec.Command("useradd",
-			"--system",                       // System account
-			"--no-create-home",               // No home directory
-			"--shell", "/usr/sbin/nologin",   // No login
-			"-g", PHPGroup,                   // Use existing group
+			"--system",                     // System account
+			"--no-create-home",             // No home directory
+			"--shell", "/usr/sbin/nologin", // No login
+			"-g", PHPGroup, // Use existing group
 			PHPUser,
 		)
 	} else {
 		// Create user with matching group
 		cmd = exec.Command("useradd",
-			"--system",                       // System account
-			"--no-create-home",               // No home directory
-			"--shell", "/usr/sbin/nologin",   // No login
-			"--user-group",                   // Create matching group
+			"--system",                     // System account
+			"--no-create-home",             // No home directory
+			"--shell", "/usr/sbin/nologin", // No login
+			"--user-group", // Create matching group
 			PHPUser,
 		)
 	}
@@ -300,7 +300,7 @@ func (m *Manager) RestartWorkers(version string) error {
 
 	// Call the FrankenPHP admin API to restart workers
 	url := fmt.Sprintf("http://localhost:%d/frankenphp/workers/restart", instance.Config.AdminPort)
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -494,7 +494,7 @@ func (m *Manager) startInstance(version string) error {
 			os.Chown(logDir, int(uid), int(gid))
 			os.Chown(configPath, int(uid), int(gid))
 			os.Chown(socketDir, int(uid), int(gid))
-			
+
 			// Create and own the PHP log file
 			phpLogFile := filepath.Join(cfg.LogDir, fmt.Sprintf("php-%s.log", version))
 			if f, err := os.OpenFile(phpLogFile, os.O_CREATE|os.O_WRONLY, 0644); err == nil {
@@ -506,7 +506,7 @@ func (m *Manager) startInstance(version string) error {
 
 	// Start FrankenPHP process
 	cmd := exec.Command(instance.Config.BinaryPath, "run", "--config", configPath)
-	
+
 	// Log output to file for debugging
 	logFile := filepath.Join(logDir, "frankenphp.log")
 	if f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
@@ -523,7 +523,7 @@ func (m *Manager) startInstance(version string) error {
 	// Run as fastcp user on Linux for security (if enabled)
 	// Note: Requires `setcap 'cap_net_bind_service=+ep' /usr/local/bin/frankenphp`
 	runAsFastCPUser := os.Getenv("FASTCP_PHP_USER") != "root"
-	
+
 	if runtime.GOOS == "linux" && runAsFastCPUser {
 		if uid, gid, err := GetPHPUserCredentials(); err == nil {
 			cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -629,7 +629,7 @@ func (m *Manager) reloadInstance(version string) error {
 
 	// Use Unix socket for admin API
 	adminSocketPath := fmt.Sprintf("/var/run/fastcp/php-%s-admin.sock", version)
-	
+
 	// Create HTTP client that uses Unix socket
 	client := &http.Client{
 		Transport: &http.Transport{
@@ -787,7 +787,7 @@ func (m *Manager) reloadProxy() error {
 
 	// Call Caddy admin API to reload
 	url := "http://localhost:2019/load"
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -820,7 +820,7 @@ type threadInfo struct {
 // getThreadInfo gets thread information from the admin API
 func (m *Manager) getThreadInfo(instance *Instance) (*threadInfo, error) {
 	url := fmt.Sprintf("http://localhost:%d/frankenphp/threads", instance.Config.AdminPort)
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -851,4 +851,3 @@ func (m *Manager) getThreadInfo(instance *Instance) (*threadInfo, error) {
 
 	return info, nil
 }
-

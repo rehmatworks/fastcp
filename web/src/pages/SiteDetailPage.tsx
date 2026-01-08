@@ -12,6 +12,7 @@ import {
   X,
   Plus,
   AlertCircle,
+  Shield,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate, getStatusBgColor } from '@/lib/utils'
@@ -250,7 +251,7 @@ export function SiteDetailPage() {
               <label className="block text-sm font-medium">
                 Additional Domains <span className="text-muted-foreground font-normal">(optional)</span>
               </label>
-              
+
               {/* Alias chips */}
               {aliases.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-2">
@@ -272,7 +273,7 @@ export function SiteDetailPage() {
                   ))}
                 </div>
               )}
-              
+
               {/* Add alias input */}
               <div className="flex gap-2">
                 <input
@@ -300,14 +301,14 @@ export function SiteDetailPage() {
                   Add
                 </button>
               </div>
-              
+
               {aliasError && (
                 <p className="text-xs text-red-400 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" />
                   {aliasError}
                 </p>
               )}
-              
+
               <p className="text-xs text-muted-foreground">
                 These domains will permanently redirect to the primary domain.
               </p>
@@ -374,8 +375,8 @@ export function SiteDetailPage() {
                 <FolderOpen className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <p className="text-muted-foreground">Root Path</p>
-                  <p 
-                    className="font-mono text-xs break-all" 
+                  <p
+                    className="font-mono text-xs break-all"
                     title={site.root_path}
                   >
                     {site.root_path}
@@ -406,6 +407,22 @@ export function SiteDetailPage() {
             <h3 className="font-semibold">Quick Actions</h3>
 
             <div className="space-y-2">
+              <Link
+                to={`/sites/${site.id}/files`}
+                className="flex items-center gap-2 px-3 py-2 bg-secondary hover:bg-secondary/80 rounded-lg transition-colors text-sm"
+              >
+                <FolderOpen className="w-4 h-4" />
+                File Manager
+              </Link>
+
+              <Link
+                to="/ssl"
+                className="flex items-center gap-2 px-3 py-2 bg-secondary hover:bg-secondary/80 rounded-lg transition-colors text-sm"
+              >
+                <Shield className="w-4 h-4" />
+                SSL Certificate
+              </Link>
+
               <a
                 href={`https://${site.domain}`}
                 target="_blank"

@@ -47,7 +47,7 @@ export function CreateSitePage() {
   const [aliasInput, setAliasInput] = useState('')
   const [aliasError, setAliasError] = useState('')
 
-  const isMySQLReady = mysqlStatus?.installed && mysqlStatus?.running
+  const isMySQLReady = mysqlStatus?.mysql?.installed && mysqlStatus?.mysql?.running
 
   const addAlias = useCallback(() => {
     setAliasError('')
@@ -149,7 +149,7 @@ export function CreateSitePage() {
               const isSelected = form.app_type === appType.id
               const isWordPress = appType.id === 'wordpress'
               const isDisabled = isWordPress && !isMySQLReady
-              
+
               return (
                 <button
                   key={appType.id}
@@ -174,16 +174,16 @@ export function CreateSitePage() {
                       "w-10 h-10 rounded-lg flex items-center justify-center",
                       isDisabled
                         ? "bg-muted/50"
-                        : isSelected 
-                          ? "bg-emerald-500/20" 
+                        : isSelected
+                          ? "bg-emerald-500/20"
                           : "bg-muted"
                     )}>
                       <Icon className={cn(
                         "w-5 h-5",
                         isDisabled
                           ? "text-muted-foreground/50"
-                          : isSelected 
-                            ? "text-emerald-400" 
+                          : isSelected
+                            ? "text-emerald-400"
                             : "text-muted-foreground"
                       )} />
                     </div>
@@ -208,15 +208,15 @@ export function CreateSitePage() {
               )
             })}
           </div>
-          
+
           {/* MySQL not ready warning */}
           {!isMySQLReady && (
             <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 px-4 py-3 rounded-lg text-sm flex items-start gap-3">
               <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
               <div>
                 <strong>MySQL Required for WordPress:</strong> To create WordPress sites, you need to set up MySQL first.
-                <Link 
-                  to="/databases" 
+                <Link
+                  to="/databases"
                   className="ml-2 inline-flex items-center gap-1 text-amber-300 hover:text-amber-200 underline underline-offset-2"
                 >
                   <Database className="w-4 h-4" />
@@ -225,7 +225,7 @@ export function CreateSitePage() {
               </div>
             </div>
           )}
-          
+
           {form.app_type === 'wordpress' && isMySQLReady && (
             <div className="bg-blue-500/10 border border-blue-500/20 text-blue-400 px-4 py-3 rounded-lg text-sm">
               <strong>WordPress:</strong> A database will be automatically created and configured. You'll complete the WordPress installation in your browser after creation.
@@ -283,7 +283,7 @@ export function CreateSitePage() {
             <label className="block text-sm font-medium">
               Additional Domains <span className="text-muted-foreground font-normal">(optional)</span>
             </label>
-            
+
             {/* Alias chips */}
             {aliases.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2">
@@ -305,7 +305,7 @@ export function CreateSitePage() {
                 ))}
               </div>
             )}
-            
+
             {/* Add alias input */}
             <div className="flex gap-2">
               <input
@@ -333,14 +333,14 @@ export function CreateSitePage() {
                 Add
               </button>
             </div>
-            
+
             {aliasError && (
               <p className="text-xs text-red-400 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" />
                 {aliasError}
               </p>
             )}
-            
+
             <p className="text-xs text-muted-foreground">
               These domains will permanently redirect to the primary domain.
             </p>

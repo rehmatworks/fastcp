@@ -50,13 +50,13 @@ type UpgradeStatus struct {
 
 // VersionCheckResult represents the result of a version check
 type VersionCheckResult struct {
-	CurrentVersion  string       `json:"current_version"`
-	LatestVersion   string       `json:"latest_version"`
-	UpdateAvailable bool         `json:"update_available"`
-	ReleaseName     string       `json:"release_name,omitempty"`
-	ReleaseURL      string       `json:"release_url,omitempty"`
-	Changelog       string       `json:"changelog,omitempty"`
-	PublishedAt     string       `json:"published_at,omitempty"`
+	CurrentVersion  string `json:"current_version"`
+	LatestVersion   string `json:"latest_version"`
+	UpdateAvailable bool   `json:"update_available"`
+	ReleaseName     string `json:"release_name,omitempty"`
+	ReleaseURL      string `json:"release_url,omitempty"`
+	Changelog       string `json:"changelog,omitempty"`
+	PublishedAt     string `json:"published_at,omitempty"`
 }
 
 // Manager handles version checking and upgrades
@@ -429,4 +429,3 @@ func (m *Manager) CleanupLockFile() {
 	lockFile := filepath.Join(m.dataDir, ".upgrading")
 	os.Remove(lockFile)
 }
-

@@ -64,11 +64,18 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	resp := LoginResponse{
 		Token:     token,
 		ExpiresIn: 86400, // 24 hours
+		User: struct {
+			ID       string `json:"id"`
+			Username string `json:"username"`
+			Email    string `json:"email"`
+			Role     string `json:"role"`
+		}{
+			ID:       user.ID,
+			Username: user.Username,
+			Email:    user.Email,
+			Role:     user.Role,
+		},
 	}
-	resp.User.ID = user.ID
-	resp.User.Username = user.Username
-	resp.User.Email = user.Email
-	resp.User.Role = user.Role
 
 	s.logger.Info("user logged in", "username", user.Username)
 	s.success(w, resp)
@@ -346,7 +353,7 @@ func getSSHKeyFingerprint(publicKey string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("invalid SSH key")
 	}
-	
+
 	// Output format: "256 SHA256:xxxxx comment (TYPE)"
 	parts := strings.Fields(string(output))
 	if len(parts) >= 2 {
@@ -540,4 +547,3 @@ func isPrivateIP(ip net.IP) bool {
 	}
 	return false
 }
-

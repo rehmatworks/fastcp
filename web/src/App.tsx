@@ -10,6 +10,8 @@ import { PHPPage } from '@/pages/PHPPage'
 import { DatabasesPage } from '@/pages/DatabasesPage'
 import { UsersPage } from '@/pages/UsersPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import FileManagerPage from '@/pages/FileManagerPage'
+import SSLPage from '@/pages/SSLPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
@@ -65,8 +67,10 @@ function App() {
                 <Route path="/sites" element={<SitesPage />} />
                 <Route path="/sites/new" element={<CreateSitePage />} />
                 <Route path="/sites/:id" element={<SiteDetailPage />} />
+                <Route path="/sites/:siteId/files" element={<FileManagerPage />} />
                 <Route path="/php" element={<PHPPage />} />
                 <Route path="/databases" element={<DatabasesPage />} />
+                <Route path="/ssl" element={<SSLPage />} />
                 <Route path="/users" element={<AdminRoute><UsersPage /></AdminRoute>} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Routes>

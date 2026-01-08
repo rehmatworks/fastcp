@@ -214,7 +214,7 @@ func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
 	apiKeys[apiKey.ID] = apiKey
 
 	s.logger.Info("API key created", "id", apiKey.ID, "name", apiKey.Name, "user", claims.Username)
-	
+
 	// Return the full key only on creation
 	s.json(w, http.StatusCreated, apiKey)
 }
@@ -369,4 +369,3 @@ func setSSHPasswordAuth(enabled bool) error {
 
 	return nil
 }
-

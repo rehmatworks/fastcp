@@ -551,4 +551,3 @@ func (m *UserPHPManager) GetStatus() []InstanceStatus {
 	}
 	return result
 }
-

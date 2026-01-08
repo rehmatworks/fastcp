@@ -67,7 +67,7 @@ func getDefaultPaths() (dataDir, sitesDir, logDir, configDir, binaryPath string,
 	} else {
 		// Production mode: use standard Linux system paths
 		dataDir = getEnvOrDefault(EnvDataDir, "/var/lib/fastcp")
-		sitesDir = getEnvOrDefault(EnvSitesDir, "/home")  // Sites are at /home/{user}/www/{domain}
+		sitesDir = getEnvOrDefault(EnvSitesDir, "/home") // Sites are at /home/{user}/www/{domain}
 		logDir = getEnvOrDefault(EnvLogDir, "/var/log/fastcp")
 		configDir = getEnvOrDefault(EnvConfigDir, "/etc/fastcp")
 		binaryPath = getEnvOrDefault(EnvBinaryPath, "/usr/local/bin/frankenphp")
@@ -88,16 +88,14 @@ func DefaultConfig() *models.Config {
 	dataDir, sitesDir, logDir, _, binaryPath, proxyPort, proxySSLPort := getDefaultPaths()
 
 	return &models.Config{
-		AdminUser:     "admin",
-		AdminPassword: "fastcp2024!", // Default password - should be changed
-		AdminEmail:    "support@fastcp.org",
-		JWTSecret:     "change-this-secret-in-production-please",
-		DataDir:       dataDir,
-		SitesDir:      sitesDir,
-		LogDir:        logDir,
-		ListenAddr:    ":8080",
-		ProxyPort:     proxyPort,
-		ProxySSLPort:  proxySSLPort,
+		AdminEmail:   "support@fastcp.org",
+		JWTSecret:    "change-this-secret-in-production-please",
+		DataDir:      dataDir,
+		SitesDir:     sitesDir,
+		LogDir:       logDir,
+		ListenAddr:   ":8080",
+		ProxyPort:    proxyPort,
+		ProxySSLPort: proxySSLPort,
 		PHPVersions: []models.PHPVersionConfig{
 			{
 				Version:    "8.4",
@@ -193,4 +191,3 @@ func Update(newCfg *models.Config) {
 	defer cfgMu.Unlock()
 	cfg = newCfg
 }
-

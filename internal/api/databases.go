@@ -17,6 +17,7 @@ type CreateDatabaseRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password,omitempty"` // Optional: auto-generated if not provided
 	SiteID   string `json:"site_id,omitempty"`  // Optional: link to a site
+	Type     string `json:"type,omitempty"`     // mysql or postgresql, defaults to mysql
 }
 
 // listDatabases returns all databases for the current user
@@ -78,8 +79,8 @@ func (s *Server) createDatabase(w http.ResponseWriter, r *http.Request) {
 		Name:     req.Name,
 		Username: req.Username,
 		Password: req.Password,
+		Type:     req.Type,
 		Host:     "localhost",
-		Port:     3306,
 	}
 
 	created, err := s.dbManager.Create(db)
@@ -218,7 +219,7 @@ func (s *Server) installMySQL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if installation is already in progress
-	if s.dbManager.IsInstalling() {
+	if s.dbManager.IsInstalling("mysql") {
 		s.error(w, http.StatusConflict, "MySQL installation already in progress")
 		return
 	}
@@ -245,7 +246,7 @@ func (s *Server) installMySQL(w http.ResponseWriter, r *http.Request) {
 	// Start async installation
 	s.logger.Info("starting MySQL installation", "user", claims.Username)
 
-	if err := s.dbManager.InstallMySQLAsync(); err != nil {
+	if err := s.dbManager.InstallDatabaseAsync("mysql"); err != nil {
 		s.logger.Error("failed to start MySQL installation", "error", err)
 		s.error(w, http.StatusInternalServerError, "failed to start MySQL installation: "+err.Error())
 		return
@@ -257,9 +258,64 @@ func (s *Server) installMySQL(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// installPostgreSQL starts PostgreSQL installation asynchronously
+func (s *Server) installPostgreSQL(w http.ResponseWriter, r *http.Request) {
+	claims := middleware.GetClaims(r)
+
+	if claims.Role != "admin" {
+		s.error(w, http.StatusForbidden, "admin access required")
+		return
+	}
+
+	// Check if installation is already in progress
+	if s.dbManager.IsInstalling("postgresql") {
+		s.error(w, http.StatusConflict, "PostgreSQL installation already in progress")
+		return
+	}
+
+	// Check if PostgreSQL is already installed and running
+	if s.dbManager.IsPostgreSQLInstalled() && s.dbManager.IsPostgreSQLRunning() {
+		s.logger.Info("PostgreSQL already installed, attempting to adopt", "user", claims.Username)
+
+		// Try to adopt the existing installation (this is quick, can be sync)
+		if err := s.dbManager.AdoptPostgreSQL(); err != nil {
+			s.logger.Error("failed to adopt existing PostgreSQL", "error", err)
+			s.error(w, http.StatusInternalServerError, "PostgreSQL is installed but FastCP cannot connect to it. Please ensure PostgreSQL is running and accessible: "+err.Error())
+			return
+		}
+
+		s.logger.Info("PostgreSQL adopted successfully", "user", claims.Username)
+		s.success(w, map[string]interface{}{
+			"message": "Existing PostgreSQL installation configured successfully",
+			"status":  "completed",
+		})
+		return
+	}
+
+	// Start async installation
+	s.logger.Info("starting PostgreSQL installation", "user", claims.Username)
+
+	if err := s.dbManager.InstallDatabaseAsync("postgresql"); err != nil {
+		s.logger.Error("failed to start PostgreSQL installation", "error", err)
+		s.error(w, http.StatusInternalServerError, "failed to start PostgreSQL installation: "+err.Error())
+		return
+	}
+
+	s.json(w, http.StatusAccepted, map[string]interface{}{
+		"message": "PostgreSQL installation started",
+		"status":  "installing",
+	})
+}
+
 // getMySQLInstallStatus returns the current MySQL installation status
 func (s *Server) getMySQLInstallStatus(w http.ResponseWriter, r *http.Request) {
-	status := s.dbManager.GetInstallStatus()
+	status := s.dbManager.GetInstallStatus("mysql")
+	s.success(w, status)
+}
+
+// getPostgreSQLInstallStatus returns the current PostgreSQL installation status
+func (s *Server) getPostgreSQLInstallStatus(w http.ResponseWriter, r *http.Request) {
+	status := s.dbManager.GetInstallStatus("postgresql")
 	s.success(w, status)
 }
 
@@ -275,4 +331,3 @@ func isValidDatabaseName(name string) bool {
 	}
 	return true
 }
-

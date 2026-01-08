@@ -144,9 +144,7 @@ Development mode (`FASTCP_DEV=1`) uses local directories:
 ## Usage
 
 1. Open `https://localhost:8080` in your browser
-2. Login with default credentials:
-   - Username: `admin`
-   - Password: `fastcp2024!`
+2. Login with your Unix system credentials (users in `root`, `sudo`, `wheel`, `admin`, or `fastcp` groups)
 3. Create your first site!
 
 ## Configuration
@@ -155,8 +153,7 @@ Configuration file: `/etc/fastcp/config.json`
 
 ```json
 {
-  "admin_user": "admin",
-  "admin_password": "fastcp2024!",
+  "admin_email": "support@fastcp.org",
   "jwt_secret": "change-this-in-production",
   "data_dir": "/var/lib/fastcp",
   "sites_dir": "/var/www",
@@ -182,7 +179,7 @@ Configuration file: `/etc/fastcp/config.json`
 # Login
 curl -X POST https://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "fastcp2024!"}'
+  -d '{"username": "your-username", "password": "your-password"}'
 
 # Use token in subsequent requests
 curl https://localhost:8080/api/v1/sites \
@@ -293,7 +290,7 @@ fastcp/
 
 ## Roadmap
 
-- [ ] Unix user authentication
+- [x] Unix user authentication
 - [ ] File manager
 - [ ] SSL certificate management
 - [ ] Backup & restore

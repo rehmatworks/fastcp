@@ -27,14 +27,23 @@ interface DatabaseItem {
   password?: string
   host: string
   port: number
+  type: string
   created_at: string
 }
 
 interface DatabaseStatus {
-  installed: boolean
-  running: boolean
-  version?: string
-  database_count: number
+  mysql: {
+    installed: boolean
+    running: boolean
+    version?: string
+    database_count: number
+  }
+  postgresql: {
+    installed: boolean
+    running: boolean
+    version?: string
+    database_count: number
+  }
 }
 
 interface ConfirmModalProps {
@@ -139,7 +148,7 @@ export function DatabasesPage() {
   const [newPassword, setNewPassword] = useState('')
   const [showNewPassword, setShowNewPassword] = useState<{ db: DatabaseItem; password: string } | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<DatabaseItem | null>(null)
-  const [installConfirm, setInstallConfirm] = useState(false)
+  const [installConfirm, setInstallConfirm] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -147,26 +156,49 @@ export function DatabasesPage() {
     name: '',
     username: '',
     password: '',
+    type: 'mysql',
   })
 
-  const pollInstallStatus = useCallback(async () => {
+  const pollInstallStatus = useCallback(async (dbType: string) => {
     try {
-      const status = await api.getMySQLInstallStatus()
-      setInstallStatus(status)
+      let response
+      if (dbType === 'mysql') {
+        response = await api.getMySQLInstallStatus()
+      } else if (dbType === 'postgresql') {
+        response = await api.getPostgreSQLInstallStatus()
+      }
 
-      if (!status.in_progress) {
+      if (!response) {
+        setInstalling(false)
+        setInstallStatus({ in_progress: false, success: false, error: 'Failed to get installation status' })
         if (pollIntervalRef.current) {
           clearInterval(pollIntervalRef.current)
-          pollIntervalRef.current = null
         }
-        setInstalling(false)
-
-        if (status.success) {
-          fetchData()
-        }
+        return
       }
-    } catch (error) {
-      console.error('Failed to get install status:', error)
+
+      if (!response.in_progress && response.success) {
+        setInstalling(false)
+        setInstallStatus({ in_progress: false, success: true, message: response.message })
+        fetchData()
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current)
+        }
+      } else if (!response.in_progress && !response.success) {
+        setInstalling(false)
+        setInstallStatus({ in_progress: false, success: false, error: response.error || response.message })
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current)
+        }
+      } else {
+        setInstallStatus({ in_progress: true, success: false, message: response.message })
+      }
+    } catch (error: any) {
+      setInstalling(false)
+      setInstallStatus({ in_progress: false, success: false, error: error.message || 'Unknown error' })
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+      }
     }
   }, [])
 
@@ -207,10 +239,11 @@ export function DatabasesPage() {
         name: form.name,
         username: form.username || form.name,
         password: form.password || undefined,
+        type: form.type,
       })
       setNewDatabase(created)
       setShowCreateModal(false)
-      setForm({ name: '', username: '', password: '' })
+      setForm({ name: '', username: '', password: '', type: 'mysql' })
       fetchData()
     } catch (err: any) {
       setError(err.message || 'Failed to create database')
@@ -234,22 +267,27 @@ export function DatabasesPage() {
     }
   }
 
-  async function handleInstall() {
-    setInstallConfirm(false)
+  async function handleInstall(dbType: string) {
+    setInstallConfirm(null)
     setInstalling(true)
-    setInstallStatus({ in_progress: true, success: false, message: 'Starting installation...' })
+    setInstallStatus({ in_progress: true, success: false, message: `Starting ${dbType} installation...` })
 
     try {
-      const response = await api.installMySQL()
+      let response
+      if (dbType === 'mysql') {
+        response = await api.installMySQL()
+      } else if (dbType === 'postgresql') {
+        response = await api.installPostgreSQL()
+      }
 
-      if (response.status === 'completed') {
+      if (response && response.status === 'completed') {
         setInstalling(false)
         setInstallStatus({ in_progress: false, success: true, message: response.message })
         fetchData()
         return
       }
 
-      pollIntervalRef.current = setInterval(pollInstallStatus, 2000)
+      pollIntervalRef.current = setInterval(() => pollInstallStatus(dbType), 2000)
     } catch (error: any) {
       setInstalling(false)
       setInstallStatus({ in_progress: false, success: false, error: error.message || 'Unknown error' })
@@ -310,7 +348,8 @@ export function DatabasesPage() {
   const filteredDatabases = databases.filter(
     (db) =>
       db.name.toLowerCase().includes(search.toLowerCase()) ||
-      db.username.toLowerCase().includes(search.toLowerCase())
+      db.username.toLowerCase().includes(search.toLowerCase()) ||
+      db.type.toLowerCase().includes(search.toLowerCase())
   )
 
   if (isLoading) {
@@ -321,22 +360,22 @@ export function DatabasesPage() {
     )
   }
 
-  // MySQL not installed
-  if (status && !status.installed) {
+  // Database servers not installed
+  if (status && !status.mysql.installed && !status.postgresql.installed) {
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Databases</h1>
-          <p className="text-muted-foreground mt-1">Manage MySQL databases</p>
+          <p className="text-muted-foreground mt-1">Manage MySQL and PostgreSQL databases</p>
         </div>
 
         <div className="bg-card border border-border rounded-2xl p-12 text-center card-shadow">
           <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center mx-auto mb-5">
             <Server className="w-8 h-8 text-blue-600 dark:text-blue-400" />
           </div>
-          <h2 className="text-xl font-semibold mb-2">MySQL Not Installed</h2>
+          <h2 className="text-xl font-semibold mb-2">Database Servers Not Installed</h2>
           <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-            MySQL server is not installed. Install it to start creating databases.
+            No database servers are installed. Install MySQL or PostgreSQL to start creating databases.
           </p>
 
           {installing && installStatus?.in_progress && (
@@ -344,7 +383,7 @@ export function DatabasesPage() {
               <div className="flex items-center gap-3">
                 <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
                 <div className="text-left">
-                  <p className="text-blue-700 dark:text-blue-400 font-medium">Installing MySQL...</p>
+                  <p className="text-blue-700 dark:text-blue-400 font-medium">Installing database server...</p>
                   <p className="text-sm text-muted-foreground">
                     {installStatus.message || 'This may take a few minutes...'}
                   </p>
@@ -370,7 +409,7 @@ export function DatabasesPage() {
               <div className="flex items-center gap-3">
                 <Check className="w-5 h-5 text-emerald-500" />
                 <div className="text-left">
-                  <p className="text-emerald-700 dark:text-emerald-400 font-medium">MySQL Installed!</p>
+                  <p className="text-emerald-700 dark:text-emerald-400 font-medium">Database Server Installed!</p>
                   <p className="text-sm text-muted-foreground">{installStatus.message}</p>
                 </div>
               </div>
@@ -378,27 +417,36 @@ export function DatabasesPage() {
           )}
 
           {!installing && user?.role === 'admin' && (
-            <button
-              onClick={() => setInstallConfirm(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-xl transition-colors"
-            >
-              <Server className="w-5 h-5" />
-              Install MySQL
-            </button>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setInstallConfirm('mysql')}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-xl transition-colors"
+              >
+                <Server className="w-5 h-5" />
+                Install MySQL
+              </button>
+              <button
+                onClick={() => setInstallConfirm('postgresql')}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-secondary hover:bg-secondary/80 text-secondary-foreground font-medium rounded-xl transition-colors"
+              >
+                <Server className="w-5 h-5" />
+                Install PostgreSQL
+              </button>
+            </div>
           )}
           {!installing && user?.role !== 'admin' && (
-            <p className="text-amber-600 dark:text-amber-400">Contact an administrator to install MySQL.</p>
+            <p className="text-amber-600 dark:text-amber-400">Contact an administrator to install database servers.</p>
           )}
         </div>
 
         <ConfirmModal
-          isOpen={installConfirm}
-          title="Install MySQL Server"
-          message="This will download and configure MySQL on your server. The process may take a few minutes."
-          confirmLabel="Install MySQL"
+          isOpen={installConfirm !== null}
+          title={`Install ${installConfirm === 'mysql' ? 'MySQL' : 'PostgreSQL'} Server`}
+          message={`This will download and configure ${installConfirm === 'mysql' ? 'MySQL' : 'PostgreSQL'} on your server. The process may take a few minutes.`}
+          confirmLabel={`Install ${installConfirm === 'mysql' ? 'MySQL' : 'PostgreSQL'}`}
           confirmVariant="primary"
-          onConfirm={handleInstall}
-          onCancel={() => setInstallConfirm(false)}
+          onConfirm={installConfirm === 'mysql' ? () => handleInstall('mysql') : () => handleInstall('postgresql')}
+          onCancel={() => setInstallConfirm(null)}
         />
       </div>
     )
@@ -411,7 +459,7 @@ export function DatabasesPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Databases</h1>
           <p className="text-muted-foreground mt-1">
-            Manage your MySQL databases
+            Manage your MySQL and PostgreSQL databases
           </p>
         </div>
         <button
@@ -538,6 +586,9 @@ export function DatabasesPage() {
                     Database
                   </th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Username
                   </th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -561,6 +612,14 @@ export function DatabasesPage() {
                         </div>
                         <span className="font-medium font-mono">{db.name}</span>
                       </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${db.type === 'mysql'
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+                        : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300'
+                        }`}>
+                        {db.type === 'mysql' ? 'MySQL' : 'PostgreSQL'}
+                      </span>
                     </td>
                     <td className="px-5 py-4">
                       <code className="text-sm bg-secondary px-2 py-1 rounded">
@@ -676,7 +735,7 @@ export function DatabasesPage() {
                 onClick={() => {
                   setShowCreateModal(false)
                   setError('')
-                  setForm({ name: '', username: '', password: '' })
+                  setForm({ name: '', username: '', password: '', type: 'mysql' })
                 }}
                 className="p-2 hover:bg-secondary rounded-lg transition-colors"
               >
@@ -719,17 +778,15 @@ export function DatabasesPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Password <span className="text-muted-foreground font-normal">(optional)</span></label>
-                <input
-                  type="text"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary font-mono transition-colors"
-                  placeholder="Auto-generated if empty"
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  Leave empty to generate a secure password
-                </p>
+                <label className="block text-sm font-medium mb-2">Database Type</label>
+                <select
+                  value={form.type}
+                  onChange={(e) => setForm({ ...form, type: e.target.value as 'mysql' | 'postgresql' })}
+                  className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                >
+                  <option value="mysql">MySQL</option>
+                  <option value="postgresql">PostgreSQL</option>
+                </select>
               </div>
 
               <div className="flex gap-3 pt-2">
@@ -738,7 +795,7 @@ export function DatabasesPage() {
                   onClick={() => {
                     setShowCreateModal(false)
                     setError('')
-                    setForm({ name: '', username: '', password: '' })
+                    setForm({ name: '', username: '', password: '', type: 'mysql' })
                   }}
                   className="flex-1 px-4 py-2.5 bg-secondary hover:bg-secondary/80 rounded-xl font-medium transition-colors"
                 >

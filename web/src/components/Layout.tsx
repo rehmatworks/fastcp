@@ -20,6 +20,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  Shield,
 } from 'lucide-react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { cn } from '@/lib/utils'
@@ -31,6 +32,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Sites', href: '/sites', icon: Globe },
   { name: 'Databases', href: '/databases', icon: Database },
+  { name: 'SSL Certificates', href: '/ssl', icon: Shield },
   { name: 'PHP', href: '/php', icon: Server, adminOnly: true },
   { name: 'Users', href: '/users', icon: Users, adminOnly: true },
   { name: 'Settings', href: '/settings', icon: Settings },  // All users can access (SSH keys, password)
@@ -176,7 +178,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             {navigation
               .filter((item) => !item.adminOnly || effectiveRole === 'admin')
               .map((item) => {
-                const isActive = location.pathname === item.href || 
+                const isActive = location.pathname === item.href ||
                   (item.href !== '/' && location.pathname.startsWith(item.href))
                 return (
                   <Link
@@ -231,7 +233,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 )}
                 <span className="capitalize">{theme === 'system' ? `System` : theme}</span>
               </button>
-              
+
               {showThemeMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowThemeMenu(false)} />

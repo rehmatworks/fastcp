@@ -11,8 +11,8 @@ import (
 type contextKey string
 
 const (
-	UserContextKey         contextKey = "user"
-	ClaimsContextKey       contextKey = "claims"
+	UserContextKey          contextKey = "user"
+	ClaimsContextKey        contextKey = "claims"
 	ImpersonatingContextKey contextKey = "impersonating"
 )
 
@@ -126,4 +126,3 @@ func IsImpersonating(r *http.Request) bool {
 	_, ok := r.Context().Value(ImpersonatingContextKey).(*auth.Claims)
 	return ok
 }
-

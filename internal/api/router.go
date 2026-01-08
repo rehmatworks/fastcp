@@ -15,6 +15,7 @@ import (
 	"github.com/rehmatworks/fastcp/internal/middleware"
 	"github.com/rehmatworks/fastcp/internal/php"
 	"github.com/rehmatworks/fastcp/internal/sites"
+	"github.com/rehmatworks/fastcp/internal/ssl"
 	"github.com/rehmatworks/fastcp/internal/static"
 	"github.com/rehmatworks/fastcp/internal/upgrade"
 )
@@ -26,8 +27,10 @@ type Server struct {
 	phpManager     *php.Manager
 	userPHPManager *php.UserPHPManager
 	dbManager      *database.Manager
+	sslManager     *ssl.Manager
 	caddyGen       *caddy.Generator
 	upgradeManager *upgrade.Manager
+	fileManager    *FileManager
 	logger         *slog.Logger
 }
 
@@ -37,6 +40,7 @@ func NewServer(
 	phpManager *php.Manager,
 	userPHPManager *php.UserPHPManager,
 	dbManager *database.Manager,
+	sslManager *ssl.Manager,
 	caddyGen *caddy.Generator,
 	upgradeManager *upgrade.Manager,
 	logger *slog.Logger,
@@ -46,8 +50,10 @@ func NewServer(
 		phpManager:     phpManager,
 		userPHPManager: userPHPManager,
 		dbManager:      dbManager,
+		sslManager:     sslManager,
 		caddyGen:       caddyGen,
 		upgradeManager: upgradeManager,
+		fileManager:    NewFileManager(siteManager),
 		logger:         logger,
 	}
 
@@ -119,6 +125,17 @@ func (s *Server) setupRoutes() {
 				r.Post("/{id}/suspend", s.suspendSite)
 				r.Post("/{id}/unsuspend", s.unsuspendSite)
 				r.Post("/{id}/restart-workers", s.restartSiteWorkers)
+
+				// File Manager
+				r.Route("/{site_id}/files", func(r chi.Router) {
+					r.Get("/", s.listFiles)
+					r.Get("/content", s.getFileContent)
+					r.Put("/content", s.saveFileContent)
+					r.Post("/directory", s.createDirectory)
+					r.Delete("/", s.deleteFile)
+					r.Post("/upload", s.uploadFile)
+					r.Get("/download", s.downloadFile)
+				})
 			})
 
 			// PHP Instances
@@ -140,12 +157,26 @@ func (s *Server) setupRoutes() {
 				r.Get("/", s.listDatabases)
 				r.Post("/", s.createDatabase)
 				r.Get("/status", s.getDatabaseStatus)
-				r.Post("/install", s.installMySQL)
-				r.Get("/install/status", s.getMySQLInstallStatus)
+				r.Post("/install/mysql", s.installMySQL)
+				r.Get("/install/mysql/status", s.getMySQLInstallStatus)
+				r.Post("/install/postgresql", s.installPostgreSQL)
+				r.Get("/install/postgresql/status", s.getPostgreSQLInstallStatus)
 				r.Get("/{id}", s.getDatabase)
 				r.Delete("/{id}", s.deleteDatabase)
 				r.Post("/{id}/reset-password", s.resetDatabasePassword)
 			})
+
+			// SSL Certificates
+			r.Route("/certificates", func(r chi.Router) {
+				r.Get("/", s.listCertificates)
+				r.Post("/", s.issueCertificate)
+				r.Get("/{id}", s.getCertificate)
+				r.Delete("/{id}", s.deleteCertificate)
+				r.Post("/{id}/renew", s.renewCertificate)
+			})
+
+			// Site certificates
+			r.Get("/sites/{siteId}/certificates", s.getSiteCertificates)
 
 			// Dashboard stats
 			r.Get("/stats", s.getStats)
@@ -455,7 +486,7 @@ func (s *Server) serveFrontend(w http.ResponseWriter, r *http.Request) {
 
 	// Check if this is a dashboard request (user is logged in)
 	if r.URL.Path == "/dashboard" || r.URL.Path == "/sites" || r.URL.Path == "/php" || r.URL.Path == "/settings" || (len(r.URL.Path) > 7 && r.URL.Path[:7] == "/sites/") {
-		s.serveDashboard(w, r)
+		s.serveDashboard(w)
 		return
 	}
 
@@ -464,7 +495,7 @@ func (s *Server) serveFrontend(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveDashboard serves a basic dashboard when React app is not built
-func (s *Server) serveDashboard(w http.ResponseWriter, r *http.Request) {
+func (s *Server) serveDashboard(w http.ResponseWriter) {
 	html := `<!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -765,4 +796,3 @@ func (s *Server) serveDashboard(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	w.Write([]byte(html))
 }
-

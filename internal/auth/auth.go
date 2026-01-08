@@ -2,7 +2,6 @@ package auth
 
 import (
 	"crypto/rand"
-	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -44,17 +43,15 @@ type Claims struct {
 }
 
 // Authenticate authenticates a user with username and password
-// Uses Unix/PAM authentication on Linux, falls back to config-based auth
+// Uses Unix/PAM authentication on Linux systems
 func Authenticate(username, password string) (*models.User, error) {
-	// First try Unix authentication (Linux only)
+	// Use Unix authentication (Linux only)
 	if runtime.GOOS == "linux" {
-		if user, err := authenticateUnix(username, password); err == nil {
-			return user, nil
-		}
+		return authenticateUnix(username, password)
 	}
 
-	// Fallback to config-based authentication (for dev mode or non-Linux)
-	return authenticateConfig(username, password)
+	// For non-Linux systems (development), return error
+	return nil, ErrInvalidCredentials
 }
 
 // authenticateUnix authenticates against Unix/PAM
@@ -70,7 +67,7 @@ func authenticateUnix(username, password string) (*models.User, error) {
 		return nil, ErrUserNotAllowed
 	}
 
-	// Authenticate password using pamtester or shadow verification
+	// Authenticate password using PAM/direct shadow verification
 	if !verifyPassword(username, password) {
 		return nil, ErrInvalidCredentials
 	}
@@ -92,28 +89,6 @@ func authenticateUnix(username, password string) (*models.User, error) {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}, nil
-}
-
-// authenticateConfig authenticates against config file (fallback)
-func authenticateConfig(username, password string) (*models.User, error) {
-	cfg := config.Get()
-
-	// Constant-time comparison to prevent timing attacks
-	usernameMatch := subtle.ConstantTimeCompare([]byte(username), []byte(cfg.AdminUser)) == 1
-	passwordMatch := subtle.ConstantTimeCompare([]byte(password), []byte(cfg.AdminPassword)) == 1
-
-	if usernameMatch && passwordMatch {
-		return &models.User{
-			ID:        "admin",
-			Username:  cfg.AdminUser,
-			Email:     cfg.AdminEmail,
-			Role:      "admin",
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		}, nil
-	}
-
-	return nil, ErrInvalidCredentials
 }
 
 // isUserInAllowedGroup checks if user belongs to any allowed group
@@ -169,7 +144,7 @@ except:
 	// Escape single quotes in username and password
 	safeUsername := strings.ReplaceAll(username, "'", "\\'")
 	safePassword := strings.ReplaceAll(password, "'", "\\'")
-	
+
 	cmd := exec.Command("python3", "-c", fmt.Sprintf(script, safeUsername, safePassword))
 	output, err := cmd.Output()
 	if err != nil {
@@ -191,7 +166,7 @@ exit $?
 
 	cmd := exec.Command("bash", "-c", script)
 	err := cmd.Run()
-	
+
 	// If running as non-root, su will ask for password
 	// If running as root, this won't work - rely on Python method
 	return err == nil
@@ -266,4 +241,3 @@ func HashAPIKey(key string) string {
 	// For now, we store keys directly (not recommended for production)
 	return key
 }
-

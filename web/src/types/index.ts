@@ -74,3 +74,59 @@ export interface APIResponse<T> {
   error?: string
 }
 
+// File Manager types
+export interface FileInfo {
+  name: string
+  path: string
+  size: number
+  is_dir: boolean
+  mod_time: string
+  perm: string
+}
+
+export interface FileListResponse {
+  path: string
+  files: FileInfo[]
+  can_read: boolean
+  can_write: boolean
+}
+
+export interface FileContent {
+  path: string
+  content: string
+  size: number
+  can_edit: boolean
+}
+
+// SSL Certificate types
+export interface SSLCertificate {
+  id: string
+  site_id: string
+  domain: string
+  type: 'letsencrypt' | 'custom' | 'self-signed'
+  status: 'active' | 'pending' | 'expired' | 'failed'
+  provider?: string
+  auto_renew: boolean
+  cert_path: string
+  key_path: string
+  chain_path?: string
+  issuer?: string
+  subject?: string
+  valid_from: string
+  valid_until: string
+  last_renewed?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface SSLCertificateRequest {
+  site_id: string
+  domain: string
+  type: 'letsencrypt' | 'custom' | 'self-signed'
+  provider?: 'letsencrypt' | 'zerossl'
+  auto_renew: boolean
+  email?: string
+  custom_cert?: string
+  custom_key?: string
+  custom_ca?: string
+}
