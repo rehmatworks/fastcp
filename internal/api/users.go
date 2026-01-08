@@ -582,10 +582,10 @@ func (s *Server) isUserInGroup(username, groupName string) bool {
 // fixUserPermissions fixes SSH and directory permissions for all users
 func (s *Server) fixUserPermissions(w http.ResponseWriter, r *http.Request) {
 	claims := middleware.GetClaims(r)
-
-	results := make(map[string]interface{})
-	fixed := 0
-	errors := 0
+	by := ""
+	if claims != nil {
+		by = claims.Username
+	}
 
 	// Get all FastCP users
 	users, err := s.getFastCPUsers()
@@ -594,68 +594,15 @@ func (s *Server) fixUserPermissions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, u := range users {
-		if u.Username == "root" {
-			continue
-		}
+	results, fixed, errors := s.fixUserPermissionsForUsers(users)
 
-		userResults := map[string]string{}
-
-		// Fix home directory permissions
-		homeDir := fmt.Sprintf("/home/%s", u.Username)
-		if err := exec.Command("chmod", "750", homeDir).Run(); err == nil {
-			userResults["home_chmod"] = "fixed"
-		} else {
-			userResults["home_chmod"] = "error"
-			errors++
-		}
-
-		// Fix ownership of home directory
-		if err := exec.Command("chown", fmt.Sprintf("%s:%s", u.Username, u.Username), homeDir).Run(); err == nil {
-			userResults["home_chown"] = "fixed"
-		} else {
-			userResults["home_chown"] = "error"
-			errors++
-		}
-
-		// Ensure run/ and log/ directories exist for per-user PHP instances
-		for _, subdir := range []string{"run", "log", "www"} {
-			dir := filepath.Join(homeDir, subdir)
-			if err := os.MkdirAll(dir, 0755); err == nil {
-				_ = exec.Command("chown", fmt.Sprintf("%s:%s", u.Username, u.Username), dir).Run()
-				userResults[subdir+"_dir"] = "fixed"
-			}
-		}
-
-		// Fix web directory (under user's home) - PHP runs as user, no ACLs needed
-		webDir := filepath.Join(homeDir, "www")
-		if _, err := os.Stat(webDir); err == nil {
-			if err := exec.Command("chmod", "755", webDir).Run(); err == nil {
-				userResults["web_chmod"] = "fixed"
-			}
-			if err := exec.Command("chown", "-R", fmt.Sprintf("%s:%s", u.Username, u.Username), webDir).Run(); err == nil {
-				userResults["web_chown"] = "fixed"
-			}
-		}
-
-		// Ensure user is in SSH groups
-		_ = exec.Command("usermod", "-aG", "ssh", u.Username).Run()
-		_ = exec.Command("usermod", "-aG", "sshusers", u.Username).Run()
-		userResults["ssh_groups"] = "checked"
-
-		results[u.Username] = userResults
-		fixed++
+	if errors > 0 {
+		// Log details at warning level to aid post-mortem investigations
+		// (includes per-user failure messages and command output)
+		s.logger.Warn("fixed user permissions (with errors)", "users", fixed, "errors", errors, "by", by, "details", results)
+	} else {
+		s.logger.Info("fixed user permissions", "users", fixed, "errors", errors, "by", by)
 	}
-
-	// Secure base /home directory
-	_ = exec.Command("chown", "root:root", "/home").Run()
-	_ = exec.Command("chmod", "755", "/home").Run()
-	results["home"] = map[string]string{
-		"owner":       "root:root",
-		"permissions": "755",
-	}
-
-	s.logger.Info("fixed user permissions", "users", fixed, "errors", errors, "by", claims.Username)
 
 	s.success(w, map[string]interface{}{
 		"message":     "permissions fixed",
@@ -663,6 +610,96 @@ func (s *Server) fixUserPermissions(w http.ResponseWriter, r *http.Request) {
 		"errors":      errors,
 		"details":     results,
 	})
+}
+
+// fixUserPermissionsForUsers does the permission fixes for a given list of users.
+// It prefers the user's HomeDir when set (useful for tests) and uses the package-level
+// runCommand helper so tests can mock system commands and inspect failures.
+func (s *Server) fixUserPermissionsForUsers(users []FastCPUser) (map[string]interface{}, int, int) {
+	results := make(map[string]interface{})
+	fixed := 0
+	errors := 0
+
+	for _, u := range users {
+		if u.Username == "root" {
+			continue
+		}
+
+		userResults := map[string]string{}
+
+		// Prefer explicit HomeDir (tests), otherwise use /home/{username}
+		homeDir := u.HomeDir
+		if homeDir == "" {
+			homeDir = fmt.Sprintf("/home/%s", u.Username)
+		}
+
+		// Fix home directory permissions
+		if out, err := runCommand("chmod", "750", homeDir); err == nil {
+			userResults["home_chmod"] = "fixed"
+		} else {
+			userResults["home_chmod"] = fmt.Sprintf("error: %v: %s", err, strings.TrimSpace(string(out)))
+			errors++
+		}
+
+		// Fix ownership of home directory
+		if out, err := runCommand("chown", fmt.Sprintf("%s:%s", u.Username, u.Username), homeDir); err == nil {
+			userResults["home_chown"] = "fixed"
+		} else {
+			userResults["home_chown"] = fmt.Sprintf("error: %v: %s", err, strings.TrimSpace(string(out)))
+			errors++
+		}
+
+		// Ensure run/ and log/ and www directories exist for per-user PHP instances
+		for _, subdir := range []string{"run", "log", "www"} {
+			dir := filepath.Join(homeDir, subdir)
+			if err := os.MkdirAll(dir, 0755); err == nil {
+				if out, err := runCommand("chown", fmt.Sprintf("%s:%s", u.Username, u.Username), dir); err == nil {
+					userResults[subdir+"_dir"] = "fixed"
+				} else {
+					userResults[subdir+"_dir"] = fmt.Sprintf("error: %v: %s", err, strings.TrimSpace(string(out)))
+					errors++
+				}
+			} else {
+				userResults[subdir+"_dir"] = fmt.Sprintf("mkdir_error: %v", err)
+				errors++
+			}
+		}
+
+		// Fix web directory (under user's home) - PHP runs as user, no ACLs needed
+		webDir := filepath.Join(homeDir, "www")
+		if _, err := os.Stat(webDir); err == nil {
+			if out, err := runCommand("chmod", "755", webDir); err == nil {
+				userResults["web_chmod"] = "fixed"
+			} else {
+				userResults["web_chmod"] = fmt.Sprintf("error: %v: %s", err, strings.TrimSpace(string(out)))
+				errors++
+			}
+			if out, err := runCommand("chown", "-R", fmt.Sprintf("%s:%s", u.Username, u.Username), webDir); err == nil {
+				userResults["web_chown"] = "fixed"
+			} else {
+				userResults["web_chown"] = fmt.Sprintf("error: %v: %s", err, strings.TrimSpace(string(out)))
+				errors++
+			}
+		}
+
+		// Ensure user is in SSH groups (best-effort)
+		_, _ = runCommand("usermod", "-aG", "ssh", u.Username)
+		_, _ = runCommand("usermod", "-aG", "sshusers", u.Username)
+		userResults["ssh_groups"] = "checked"
+
+		results[u.Username] = userResults
+		fixed++
+	}
+
+	// Secure base /home directory (best-effort)
+	_, _ = runCommand("chown", "root:root", "/home")
+	_, _ = runCommand("chmod", "755", "/home")
+	results["home"] = map[string]string{
+		"owner":       "root:root",
+		"permissions": "755",
+	}
+
+	return results, fixed, errors
 }
 
 // Note: ACL functions removed - PHP now runs as the user, so no ACLs needed
