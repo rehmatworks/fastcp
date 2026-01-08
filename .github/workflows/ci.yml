@@ -1,5 +1,10 @@
 name: CI
 
+# Ensure workflows have permissions to manage artifacts where needed (e.g., delete artifacts via gh or actions APIs)
+permissions:
+  contents: write
+  actions: write
+
 on:
   push:
     branches: [ main ]
