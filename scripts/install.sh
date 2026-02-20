@@ -1,7 +1,10 @@
 #!/bin/bash
 #
 # FastCP Installer
-# Usage: curl -fsSL https://get.fastcp.io | bash
+# https://github.com/rehmatworks/fastcp
+#
+# Copyright (c) 2024-present Rehmat Alam
+# Licensed under the MIT License
 #
 
 set -e
@@ -10,11 +13,42 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+DIM='\033[2m'
 NC='\033[0m'
+
+# Print banner
+print_banner() {
+    echo ""
+    echo -e "${CYAN}${BOLD}"
+    cat << 'EOF'
+    ______           __  __________ 
+   / ____/___ ______/ /_/ ____/ __ \
+  / /_  / __ `/ ___/ __/ /   / /_/ /
+ / __/ / /_/ (__  ) /_/ /___/ ____/ 
+/_/    \__,_/____/\__/\____/_/      
+                                    
+EOF
+    echo -e "${NC}"
+    echo -e "${DIM}Lightweight Server Control Panel${NC}"
+    echo -e "${DIM}Powered by FrankenPHP${NC}"
+    echo ""
+    echo -e "${BLUE}Author:${NC}    Rehmat Alam"
+    echo -e "${BLUE}Website:${NC}   https://github.com/rehmatworks/fastcp"
+    echo -e "${BLUE}License:${NC}   MIT"
+    echo ""
+    echo -e "${DIM}────────────────────────────────────────────${NC}"
+    echo ""
+}
 
 log() { echo -e "${GREEN}[FastCP]${NC} $1"; }
 warn() { echo -e "${YELLOW}[Warning]${NC} $1"; }
 error() { echo -e "${RED}[Error]${NC} $1"; exit 1; }
+
+# Show banner
+print_banner
 
 # Check if running as root
 [[ $EUID -ne 0 ]] && error "This script must be run as root"
@@ -214,21 +248,34 @@ systemctl start mysql
 
 # Done!
 echo ""
-echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║              FastCP Installation Complete!                 ║${NC}"
-echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
+echo -e "${GREEN}${BOLD}"
+cat << 'EOF'
+  ╔═══════════════════════════════════════════════════════════════╗
+  ║                                                               ║
+  ║            FastCP Installation Complete!                      ║
+  ║                                                               ║
+  ╚═══════════════════════════════════════════════════════════════╝
+EOF
+echo -e "${NC}"
 echo ""
-echo -e "  Access your control panel at:"
+echo -e "  ${CYAN}${BOLD}Control Panel URL${NC}"
 echo -e "  ${GREEN}https://${SERVER_IP}:2087${NC}"
 echo ""
-echo -e "  Login with your system root credentials."
+echo -e "  ${CYAN}${BOLD}Login Credentials${NC}"
+echo -e "  Use your Linux system ${BOLD}root${NC} username and password"
 echo ""
-echo -e "  Services:"
-echo -e "    fastcp-agent    - ${GREEN}running${NC}"
-echo -e "    fastcp          - ${GREEN}running${NC}"
-echo -e "    fastcp-caddy    - ${GREEN}running${NC}"
+echo -e "  ${CYAN}${BOLD}Services Status${NC}"
+echo -e "  ${GREEN}●${NC} fastcp-agent    ${DIM}(running)${NC}"
+echo -e "  ${GREEN}●${NC} fastcp          ${DIM}(running)${NC}"
+echo -e "  ${GREEN}●${NC} fastcp-caddy    ${DIM}(running)${NC}"
 echo ""
-echo -e "  Useful commands:"
-echo -e "    systemctl status fastcp"
-echo -e "    journalctl -u fastcp -f"
+echo -e "  ${CYAN}${BOLD}Useful Commands${NC}"
+echo -e "  ${DIM}Check status:${NC}   systemctl status fastcp"
+echo -e "  ${DIM}View logs:${NC}      journalctl -u fastcp -f"
+echo -e "  ${DIM}Restart:${NC}        systemctl restart fastcp fastcp-agent"
+echo ""
+echo -e "${DIM}────────────────────────────────────────────────────────────────${NC}"
+echo -e "${DIM}  FastCP - Copyright (c) 2024-present Rehmat Alam${NC}"
+echo -e "${DIM}  https://github.com/rehmatworks/fastcp${NC}"
+echo -e "${DIM}────────────────────────────────────────────────────────────────${NC}"
 echo ""
