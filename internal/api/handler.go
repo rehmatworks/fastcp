@@ -166,7 +166,7 @@ func (h *Handler) AddDomain(w http.ResponseWriter, r *http.Request) {
 
 	domain, err := h.siteService.AddDomain(r.Context(), &req)
 	if err != nil {
-		h.error(w, http.StatusInternalServerError, err.Error())
+		h.error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	h.json(w, http.StatusCreated, domain)

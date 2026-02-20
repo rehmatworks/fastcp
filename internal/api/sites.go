@@ -289,6 +289,8 @@ func (s *SiteService) Delete(ctx context.Context, id, username string) error {
 	return nil
 }
 
+const maxDomainsPerSite = 20
+
 // AddDomain adds a domain to a site
 func (s *SiteService) AddDomain(ctx context.Context, req *AddDomainRequest) (*SiteDomain, error) {
 	// Validate domain
@@ -304,6 +306,15 @@ func (s *SiteService) AddDomain(ctx context.Context, req *AddDomainRequest) (*Si
 	}
 	if dbSite.Username != req.Username {
 		return nil, fmt.Errorf("site not found")
+	}
+
+	// Check domain limit
+	existingDomains, err := s.db.GetSiteDomains(ctx, req.SiteID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check domain count: %w", err)
+	}
+	if len(existingDomains) >= maxDomainsPerSite {
+		return nil, fmt.Errorf("maximum of %d domains per site reached", maxDomainsPerSite)
 	}
 
 	// Add domain
