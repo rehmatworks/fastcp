@@ -1,0 +1,125 @@
+package api
+
+import (
+	"context"
+	"fmt"
+	"regexp"
+
+	"github.com/rehmatworks/fastcp/internal/agent"
+	"github.com/rehmatworks/fastcp/internal/database"
+)
+
+var usernameRegex = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
+
+// UserService handles user operations
+type UserService struct {
+	db    *database.DB
+	agent *agent.Client
+}
+
+// NewUserService creates a new user service
+func NewUserService(db *database.DB, agent *agent.Client) *UserService {
+	return &UserService{db: db, agent: agent}
+}
+
+// List returns all users (admin only)
+func (s *UserService) List(ctx context.Context) ([]*User, error) {
+	dbUsers, err := s.db.ListUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	users := make([]*User, len(dbUsers))
+	for i, dbUser := range dbUsers {
+		users[i] = &User{
+			ID:         dbUser.ID,
+			Username:   dbUser.Username,
+			IsAdmin:    dbUser.IsAdmin,
+			MemoryMB:   dbUser.MemoryMB,
+			CPUPercent: dbUser.CPUPercent,
+			CreatedAt:  dbUser.CreatedAt,
+		}
+	}
+	return users, nil
+}
+
+// Create creates a new system user (admin only)
+func (s *UserService) Create(ctx context.Context, req *CreateUserRequest) (*User, error) {
+	// Validate username
+	if !usernameRegex.MatchString(req.Username) {
+		return nil, fmt.Errorf("invalid username: must start with lowercase letter or underscore, contain only lowercase letters, digits, underscores, and hyphens, max 32 characters")
+	}
+
+	// Validate password
+	if len(req.Password) < 8 {
+		return nil, fmt.Errorf("password must be at least 8 characters")
+	}
+
+	// Reserved usernames
+	reserved := map[string]bool{
+		"root": true, "admin": true, "www-data": true, "mysql": true,
+		"nobody": true, "daemon": true, "bin": true, "sys": true,
+	}
+	if reserved[req.Username] {
+		return nil, fmt.Errorf("username '%s' is reserved", req.Username)
+	}
+
+	// Set defaults for resource limits
+	memoryMB := req.MemoryMB
+	if memoryMB == 0 {
+		memoryMB = 512 // Default 512MB
+	}
+	cpuPercent := req.CPUPercent
+	if cpuPercent == 0 {
+		cpuPercent = 100 // Default 100% (1 core)
+	}
+
+	// Create system user via agent
+	if err := s.agent.CreateUser(ctx, &agent.CreateUserRequest{
+		Username:   req.Username,
+		Password:   req.Password,
+		MemoryMB:   memoryMB,
+		CPUPercent: cpuPercent,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to create system user: %w", err)
+	}
+
+	// Save to database
+	dbUser, err := s.db.CreateUserWithLimits(ctx, req.Username, req.IsAdmin, memoryMB, cpuPercent)
+	if err != nil {
+		// Try to rollback system user creation
+		s.agent.DeleteUser(ctx, &agent.DeleteUserRequest{Username: req.Username})
+		return nil, fmt.Errorf("failed to save user: %w", err)
+	}
+
+	return &User{
+		ID:         dbUser.ID,
+		Username:   dbUser.Username,
+		IsAdmin:    dbUser.IsAdmin,
+		MemoryMB:   dbUser.MemoryMB,
+		CPUPercent: dbUser.CPUPercent,
+		CreatedAt:  dbUser.CreatedAt,
+	}, nil
+}
+
+// Delete deletes a system user (admin only)
+func (s *UserService) Delete(ctx context.Context, username string) error {
+	// Prevent deleting root
+	if username == "root" {
+		return fmt.Errorf("cannot delete root user")
+	}
+
+	// Delete system user via agent
+	if err := s.agent.DeleteUser(ctx, &agent.DeleteUserRequest{
+		Username: username,
+	}); err != nil {
+		return fmt.Errorf("failed to delete system user: %w", err)
+	}
+
+	// Delete from database (cascades to sites, databases, etc.)
+	if err := s.db.DeleteUser(ctx, username); err != nil {
+		return fmt.Errorf("failed to delete user from database: %w", err)
+	}
+
+	return nil
+}

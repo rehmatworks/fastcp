@@ -1,0 +1,1063 @@
+//go:build linux
+
+package agent
+
+import (
+	"bufio"
+	"context"
+	cryptoRand "crypto/rand"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"os"
+	"os/exec"
+	"os/user"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"syscall"
+
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/mattn/go-sqlite3"
+)
+
+const (
+	homeBase      = "/home"
+	appsDir       = "apps"
+	fastcpDir     = ".fastcp"
+	wpDownloadURL = "https://wordpress.org/latest.tar.gz"
+	caddyConfig   = "/opt/fastcp/config/Caddyfile"
+	mysqlSocket   = "/var/run/mysqld/mysqld.sock"
+)
+
+// Site handlers
+
+func (s *Server) handleCreateSiteDirectory(ctx context.Context, params json.RawMessage) (any, error) {
+	var req CreateSiteDirectoryRequest
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+
+	slog.Info("creating site directory", "username", req.Username, "domain", req.Domain)
+
+	// Get user info
+	u, err := user.Lookup(req.Username)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	uid, _ := strconv.Atoi(u.Uid)
+	gid, _ := strconv.Atoi(u.Gid)
+
+	// Create directory structure
+	safeDomain := strings.ReplaceAll(req.Domain, ".", "_")
+	siteDir := filepath.Join(homeBase, req.Username, appsDir, safeDomain)
+	dirs := []string{
+		siteDir,
+		filepath.Join(siteDir, "public"),
+		filepath.Join(siteDir, "logs"),
+		filepath.Join(siteDir, "tmp"),
+	}
+
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
+		}
+	}
+
+	// Create default index.php
+	indexPath := filepath.Join(siteDir, "public", "index.php")
+	indexContent := fmt.Sprintf(`<?php
+echo "<h1>Welcome to %s</h1>";
+echo "<p>Your site is ready. Upload your files to get started.</p>";
+phpinfo();
+`, req.Domain)
+
+	if err := os.WriteFile(indexPath, []byte(indexContent), 0644); err != nil {
+		return nil, fmt.Errorf("failed to create index.php: %w", err)
+	}
+
+	// Set ownership recursively
+	if err := chownRecursive(siteDir, uid, gid); err != nil {
+		return nil, fmt.Errorf("failed to set ownership: %w", err)
+	}
+
+	// Set ACLs
+	if err := setACLs(siteDir, req.Username); err != nil {
+		slog.Warn("failed to set ACLs", "error", err)
+	}
+
+	return map[string]string{"status": "ok", "path": siteDir}, nil
+}
+
+func (s *Server) handleDeleteSiteDirectory(ctx context.Context, params json.RawMessage) (any, error) {
+	var req DeleteSiteDirectoryRequest
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+
+	slog.Info("deleting site directory", "username", req.Username, "domain", req.Domain)
+
+	safeDomain := strings.ReplaceAll(req.Domain, ".", "_")
+	siteDir := filepath.Join(homeBase, req.Username, appsDir, safeDomain)
+
+	// Verify path is within user's home
+	if !strings.HasPrefix(siteDir, filepath.Join(homeBase, req.Username)) {
+		return nil, fmt.Errorf("invalid path")
+	}
+
+	if err := os.RemoveAll(siteDir); err != nil {
+		return nil, fmt.Errorf("failed to delete directory: %w", err)
+	}
+
+	return map[string]string{"status": "ok"}, nil
+}
+
+func (s *Server) handleInstallWordPress(ctx context.Context, params json.RawMessage) (any, error) {
+	var req InstallWordPressRequest
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+
+	slog.Info("installing WordPress", "username", req.Username, "domain", req.Domain)
+
+	// Get user info
+	u, err := user.Lookup(req.Username)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	uid, _ := strconv.Atoi(u.Uid)
+	gid, _ := strconv.Atoi(u.Gid)
+
+	// Download WordPress
+	tmpFile := filepath.Join("/tmp", fmt.Sprintf("wp-%s.tar.gz", req.Username))
+	if err := exec.Command("curl", "-sL", "-o", tmpFile, wpDownloadURL).Run(); err != nil {
+		return nil, fmt.Errorf("failed to download WordPress: %w", err)
+	}
+	defer os.Remove(tmpFile)
+
+	// Extract WordPress to public directory
+	publicDir := req.Path
+	if err := exec.Command("tar", "-xzf", tmpFile, "-C", publicDir, "--strip-components=1").Run(); err != nil {
+		return nil, fmt.Errorf("failed to extract WordPress: %w", err)
+	}
+
+	// Create database for WordPress
+	slog.Info("creating WordPress database", "db_name", req.DBName, "db_user", req.DBUser)
+	db, err := sql.Open("mysql", fmt.Sprintf("root@unix(%s)/", mysqlSocket))
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to MySQL: %w", err)
+	}
+	defer db.Close()
+
+	// Create database
+	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci", req.DBName))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create database: %w", err)
+	}
+
+	// Create user for both localhost and 127.0.0.1 (MySQL treats them differently)
+	for _, host := range []string{"localhost", "127.0.0.1"} {
+		_, err = db.Exec(fmt.Sprintf("CREATE USER IF NOT EXISTS '%s'@'%s' IDENTIFIED BY '%s'", req.DBUser, host, req.DBPass))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create database user: %w", err)
+		}
+		_, err = db.Exec(fmt.Sprintf("GRANT ALL PRIVILEGES ON `%s`.* TO '%s'@'%s'", req.DBName, req.DBUser, host))
+		if err != nil {
+			return nil, fmt.Errorf("failed to grant privileges: %w", err)
+		}
+	}
+	db.Exec("FLUSH PRIVILEGES")
+
+	// Generate wp-config.php
+	wpConfig := generateWPConfig(req.DBName, req.DBUser, req.DBPass)
+	wpConfigPath := filepath.Join(publicDir, "wp-config.php")
+	if err := os.WriteFile(wpConfigPath, []byte(wpConfig), 0644); err != nil {
+		return nil, fmt.Errorf("failed to write wp-config.php: %w", err)
+	}
+
+	// Set ownership for the entire site directory
+	siteDir := filepath.Dir(publicDir)
+	if err := chownRecursive(siteDir, uid, gid); err != nil {
+		return nil, fmt.Errorf("failed to set ownership: %w", err)
+	}
+
+	return &InstallWordPressResponse{
+		Status: "ok",
+		DBName: req.DBName,
+		DBUser: req.DBUser,
+		DBPass: req.DBPass,
+	}, nil
+}
+
+func generateWPConfig(dbName, dbUser, dbPass string) string {
+	// Generate random salts
+	salts := make([]string, 8)
+	for i := range salts {
+		salts[i] = generateRandomString(64)
+	}
+
+	return fmt.Sprintf(`<?php
+/**
+ * WordPress Configuration - Generated by FastCP
+ */
+
+// Database settings
+define( 'DB_NAME', '%s' );
+define( 'DB_USER', '%s' );
+define( 'DB_PASSWORD', '%s' );
+define( 'DB_HOST', '127.0.0.1' );
+define( 'DB_CHARSET', 'utf8mb4' );
+define( 'DB_COLLATE', '' );
+
+// Authentication keys and salts
+define( 'AUTH_KEY',         '%s' );
+define( 'SECURE_AUTH_KEY',  '%s' );
+define( 'LOGGED_IN_KEY',    '%s' );
+define( 'NONCE_KEY',        '%s' );
+define( 'AUTH_SALT',        '%s' );
+define( 'SECURE_AUTH_SALT', '%s' );
+define( 'LOGGED_IN_SALT',   '%s' );
+define( 'NONCE_SALT',       '%s' );
+
+// Database table prefix
+$table_prefix = 'wp_';
+
+// Debugging (set to true to enable)
+define( 'WP_DEBUG', false );
+
+// Absolute path to WordPress directory
+if ( ! defined( 'ABSPATH' ) ) {
+	define( 'ABSPATH', __DIR__ . '/' );
+}
+
+// Load WordPress
+require_once ABSPATH . 'wp-settings.php';
+`, dbName, dbUser, dbPass,
+		salts[0], salts[1], salts[2], salts[3],
+		salts[4], salts[5], salts[6], salts[7])
+}
+
+func generateRandomString(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{}|;:,.<>?"
+	b := make([]byte, length)
+	randomBytes := make([]byte, length)
+	// Use crypto/rand for secure random
+	if _, err := cryptoRand.Read(randomBytes); err != nil {
+		// Fallback to less secure but still random
+		for i := range b {
+			b[i] = charset[i%len(charset)]
+		}
+		return string(b)
+	}
+	for i := range b {
+		b[i] = charset[int(randomBytes[i])%len(charset)]
+	}
+	return string(b)
+}
+
+// Caddy handlers
+
+func (s *Server) handleReloadCaddy(ctx context.Context, params json.RawMessage) (any, error) {
+	slog.Info("regenerating and reloading Caddy configuration")
+
+	// Generate Caddyfile from database
+	if err := s.generateCaddyfile(); err != nil {
+		return nil, fmt.Errorf("failed to generate Caddyfile: %w", err)
+	}
+
+	// Check if FrankenPHP is running
+	if !s.isFrankenPHPRunning() {
+		slog.Info("FrankenPHP not running, starting it")
+		if err := s.startFrankenPHP(); err != nil {
+			return nil, fmt.Errorf("failed to start FrankenPHP: %w", err)
+		}
+		return map[string]string{"status": "ok", "action": "started"}, nil
+	}
+
+	// Use Caddy's admin API to reload
+	cmd := exec.Command("curl", "-s", "-X", "POST", "http://localhost:2019/load",
+		"-H", "Content-Type: text/caddyfile",
+		"--data-binary", fmt.Sprintf("@%s", caddyConfig))
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// Admin API failed, FrankenPHP might have crashed - restart it
+		slog.Warn("admin API reload failed, restarting FrankenPHP", "error", err, "output", string(output))
+		if err := s.startFrankenPHP(); err != nil {
+			return nil, fmt.Errorf("failed to restart FrankenPHP: %w", err)
+		}
+		return map[string]string{"status": "ok", "action": "restarted"}, nil
+	}
+
+	return map[string]string{"status": "ok", "action": "reloaded"}, nil
+}
+
+func (s *Server) isFrankenPHPRunning() bool {
+	cmd := exec.Command("pgrep", "-x", "frankenphp")
+	err := cmd.Run()
+	return err == nil
+}
+
+func (s *Server) startFrankenPHP() error {
+	// Kill any existing (possibly zombie) processes
+	exec.Command("pkill", "-9", "frankenphp").Run()
+	
+	// Give it a moment
+	exec.Command("sleep", "1").Run()
+
+	// Start FrankenPHP in background
+	cmd := exec.Command("/usr/local/bin/frankenphp", "run", "--config", caddyConfig)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start FrankenPHP: %w", err)
+	}
+
+	// Don't wait for it - let it run in background
+	go cmd.Wait()
+
+	// Give it time to start
+	exec.Command("sleep", "2").Run()
+
+	slog.Info("FrankenPHP started", "pid", cmd.Process.Pid)
+	return nil
+}
+
+func (s *Server) hasSystemd() bool {
+	// Check if systemd is available and running
+	cmd := exec.Command("systemctl", "is-system-running")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	state := strings.TrimSpace(string(output))
+	return state == "running" || state == "degraded"
+}
+
+func (s *Server) startUserPHP(username string) error {
+	socketPath := fmt.Sprintf("/var/run/fastcp/php-%s.sock", username)
+	configPath := fmt.Sprintf("/opt/fastcp/config/users/%s/Caddyfile", username)
+	logPath := fmt.Sprintf("/var/log/fastcp/frankenphp-%s.log", username)
+
+	// Check if already running
+	if _, err := os.Stat(socketPath); err == nil {
+		slog.Info("user PHP already has socket", "username", username)
+		return nil
+	}
+
+	// Ensure socket directory is writable
+	os.Chmod("/var/run/fastcp", 0777)
+
+	// Ensure log file exists and is writable
+	os.MkdirAll("/var/log/fastcp", 0755)
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		slog.Warn("failed to create log file", "error", err)
+	} else {
+		logFile.Close()
+	}
+
+	// Start FrankenPHP as the user using su, with custom php.ini
+	phpIniDir := filepath.Dir(configPath)
+	cmd := exec.Command("su", "-s", "/bin/bash", username, "-c",
+		fmt.Sprintf("export PHP_INI_SCAN_DIR=%s && nohup /usr/local/bin/frankenphp run --config %s >> %s 2>&1 &", phpIniDir, configPath, logPath))
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to start FrankenPHP for user %s: %w", username, err)
+	}
+
+	slog.Info("started user PHP process", "username", username)
+	return nil
+}
+
+func (s *Server) generateCaddyfile() error {
+	// Open FastCP database to get sites
+	db, err := sql.Open("sqlite3", "/opt/fastcp/data/fastcp.db")
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer db.Close()
+
+	rows, err := db.Query("SELECT domain, username, document_root FROM sites")
+	if err != nil {
+		// If no sites table yet, use default config
+		slog.Warn("no sites table found, using default config", "error", err)
+		return nil
+	}
+	defer rows.Close()
+
+	// Group sites by username
+	sitesByUser := make(map[string][]siteInfo)
+	for rows.Next() {
+		var site siteInfo
+		if err := rows.Scan(&site.Domain, &site.Username, &site.DocumentRoot); err != nil {
+			continue
+		}
+		site.SafeDomain = strings.ReplaceAll(site.Domain, ".", "_")
+		sitesByUser[site.Username] = append(sitesByUser[site.Username], site)
+	}
+
+	useSystemd := s.hasSystemd()
+
+	// Generate main Caddyfile (reverse proxy to user sockets)
+	var mainBuf strings.Builder
+	mainBuf.WriteString(`# FastCP Main Caddyfile - Reverse Proxy
+# DO NOT EDIT - This file is auto-generated by FastCP
+
+{
+    admin localhost:2019
+}
+
+`)
+
+	for username, sites := range sitesByUser {
+		socketPath := fmt.Sprintf("/var/run/fastcp/php-%s.sock", username)
+
+		for _, site := range sites {
+			logsDir := filepath.Join(homeBase, username, appsDir, site.SafeDomain, "logs")
+			os.MkdirAll(logsDir, 0755)
+
+			mainBuf.WriteString(fmt.Sprintf(`# Site: %s (User: %s)
+http://%s {
+    reverse_proxy unix/%s
+    
+    log {
+        output file %s/access.log
+    }
+}
+
+`, site.Domain, username, site.Domain, socketPath, logsDir))
+		}
+
+		// Generate per-user Caddyfile
+		if err := s.generateUserCaddyfile(username, sites); err != nil {
+			slog.Warn("failed to generate user Caddyfile", "username", username, "error", err)
+		}
+
+		// Start user's PHP service
+		if len(sites) > 0 {
+			if useSystemd {
+				serviceName := fmt.Sprintf("fastcp-php@%s.service", username)
+				exec.Command("systemctl", "start", serviceName).Run()
+			} else {
+				// Without systemd, start process directly
+				if err := s.startUserPHP(username); err != nil {
+					slog.Warn("failed to start user PHP", "username", username, "error", err)
+				}
+			}
+		}
+	}
+
+	mainBuf.WriteString(`# Default fallback
+:80 {
+    respond "FastCP - No site configured for this domain" 404
+}
+`)
+
+	// Write main Caddyfile
+	if err := os.WriteFile(caddyConfig, []byte(mainBuf.String()), 0644); err != nil {
+		return fmt.Errorf("failed to write main Caddyfile: %w", err)
+	}
+
+	slog.Info("generated Caddyfiles", "users", len(sitesByUser), "systemd", useSystemd)
+	return nil
+}
+
+func (s *Server) generateUserCaddyfile(username string, sites []siteInfo) error {
+	userConfigDir := filepath.Join("/opt/fastcp/config/users", username)
+	os.MkdirAll(userConfigDir, 0755)
+
+	socketPath := fmt.Sprintf("/var/run/fastcp/php-%s.sock", username)
+
+	var buf strings.Builder
+	buf.WriteString(fmt.Sprintf(`# FrankenPHP config for user: %s
+# DO NOT EDIT - This file is auto-generated by FastCP
+
+{
+    admin off
+    
+    frankenphp {
+        num_threads 4
+    }
+}
+
+:80 {
+    bind unix/%s
+
+`, username, socketPath))
+
+	for _, site := range sites {
+		matcherName := strings.ReplaceAll(site.SafeDomain, "-", "_")
+		buf.WriteString(fmt.Sprintf(`    @%s host %s
+    handle @%s {
+        root * %s
+        php_server
+    }
+
+`, matcherName, site.Domain, matcherName, site.DocumentRoot))
+	}
+
+	// Create per-user temp directory
+	userTmpDir := filepath.Join(homeBase, username, ".tmp")
+	userSessionDir := filepath.Join(userTmpDir, "sessions")
+	userUploadDir := filepath.Join(userTmpDir, "uploads")
+
+	// Get user info for ownership
+	u, err := user.Lookup(username)
+	if err == nil {
+		uid, _ := strconv.Atoi(u.Uid)
+		gid, _ := strconv.Atoi(u.Gid)
+
+		for _, dir := range []string{userTmpDir, userSessionDir, userUploadDir} {
+			os.MkdirAll(dir, 0700)
+			os.Chown(dir, uid, gid)
+		}
+	}
+
+	// Create per-user php.ini with security settings
+	var docRoots []string
+	for _, site := range sites {
+		docRoots = append(docRoots, filepath.Dir(site.DocumentRoot))
+		docRoots = append(docRoots, site.DocumentRoot)
+	}
+	// Include user's own temp directory, NOT shared /tmp
+	openBasedir := strings.Join(docRoots, ":") + ":" + userTmpDir
+
+	// Additional cache directories
+	userCacheDir := filepath.Join(userTmpDir, "cache")
+	userWsdlDir := filepath.Join(userTmpDir, "wsdl")
+	os.MkdirAll(userCacheDir, 0700)
+	os.MkdirAll(userWsdlDir, 0700)
+	if err == nil {
+		uid, _ := strconv.Atoi(u.Uid)
+		gid, _ := strconv.Atoi(u.Gid)
+		os.Chown(userCacheDir, uid, gid)
+		os.Chown(userWsdlDir, uid, gid)
+	}
+
+	phpIni := fmt.Sprintf(`; PHP security settings for user: %s
+; Isolation: Each user has their own temp/session/cache directories
+; Generated by FastCP
+
+[PHP]
+; Security
+open_basedir = %s
+disable_functions = exec,passthru,shell_exec,system,proc_open,popen,pcntl_exec,proc_get_status,proc_terminate,proc_close,escapeshellcmd,escapeshellarg,show_source,posix_kill,posix_mkfifo,posix_getpwuid,posix_setpgid,posix_setsid,posix_setuid,posix_setgid,posix_seteuid,posix_setegid,posix_uname,php_uname,dl
+expose_php = Off
+display_errors = Off
+display_startup_errors = Off
+log_errors = On
+error_log = /var/log/fastcp/php-%s-error.log
+html_errors = Off
+
+; Per-user temp directories (complete isolation from /tmp)
+sys_temp_dir = %s
+upload_tmp_dir = %s
+
+[Session]
+session.save_handler = files
+session.save_path = %s
+session.cookie_httponly = 1
+session.cookie_secure = 0
+session.use_strict_mode = 1
+
+[opcache]
+opcache.enable = 1
+opcache.lockfile_path = %s
+
+[soap]
+soap.wsdl_cache_dir = %s
+soap.wsdl_cache_enabled = 1
+
+[Limits]
+upload_max_filesize = 64M
+post_max_size = 64M
+max_execution_time = 300
+memory_limit = 256M
+max_input_vars = 5000
+
+[Security Headers]
+session.cookie_samesite = Strict
+`, username, openBasedir, username, userTmpDir, userUploadDir, userSessionDir, userCacheDir, userWsdlDir)
+
+	phpIniPath := filepath.Join(userConfigDir, "php.ini")
+	os.WriteFile(phpIniPath, []byte(phpIni), 0644)
+
+	buf.WriteString(`    handle {
+        respond "Site not found" 404
+    }
+}
+
+`)
+
+	caddyfilePath := filepath.Join(userConfigDir, "Caddyfile")
+	if err := os.WriteFile(caddyfilePath, []byte(buf.String()), 0644); err != nil {
+		return fmt.Errorf("failed to write user Caddyfile: %w", err)
+	}
+
+	// Reload user's FrankenPHP service
+	serviceName := fmt.Sprintf("fastcp-php@%s.service", username)
+	exec.Command("systemctl", "reload-or-restart", serviceName).Run()
+
+	return nil
+}
+
+type siteInfo struct {
+	Domain       string
+	Username     string
+	DocumentRoot string
+	SafeDomain   string
+}
+
+// Database handlers
+
+func (s *Server) handleCreateDatabase(ctx context.Context, params json.RawMessage) (any, error) {
+	var req CreateDatabaseRequest
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+
+	slog.Info("creating database", "db_name", req.DBName, "db_user", req.DBUser)
+
+	db, err := sql.Open("mysql", fmt.Sprintf("root@unix(%s)/", mysqlSocket))
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to MySQL: %w", err)
+	}
+	defer db.Close()
+
+	// Create database
+	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci", req.DBName))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create database: %w", err)
+	}
+
+	// Create user
+	_, err = db.Exec(fmt.Sprintf("CREATE USER IF NOT EXISTS '%s'@'localhost' IDENTIFIED BY '%s'", req.DBUser, req.Password))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	// Grant privileges
+	_, err = db.Exec(fmt.Sprintf("GRANT ALL PRIVILEGES ON `%s`.* TO '%s'@'localhost'", req.DBName, req.DBUser))
+	if err != nil {
+		return nil, fmt.Errorf("failed to grant privileges: %w", err)
+	}
+
+	_, err = db.Exec("FLUSH PRIVILEGES")
+	if err != nil {
+		return nil, fmt.Errorf("failed to flush privileges: %w", err)
+	}
+
+	return map[string]string{"status": "ok"}, nil
+}
+
+func (s *Server) handleDeleteDatabase(ctx context.Context, params json.RawMessage) (any, error) {
+	var req DeleteDatabaseRequest
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+
+	slog.Info("deleting database", "db_name", req.DBName, "db_user", req.DBUser)
+
+	db, err := sql.Open("mysql", fmt.Sprintf("root@unix(%s)/", mysqlSocket))
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to MySQL: %w", err)
+	}
+	defer db.Close()
+
+	// Drop user first
+	db.Exec(fmt.Sprintf("DROP USER IF EXISTS '%s'@'localhost'", req.DBUser))
+
+	// Drop database
+	_, err = db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", req.DBName))
+	if err != nil {
+		return nil, fmt.Errorf("failed to drop database: %w", err)
+	}
+
+	return map[string]string{"status": "ok"}, nil
+}
+
+// SSH handlers
+
+func (s *Server) handleAddSSHKey(ctx context.Context, params json.RawMessage) (any, error) {
+	var req AddSSHKeyRequest
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+
+	slog.Info("adding SSH key", "username", req.Username, "key_id", req.KeyID)
+
+	// Get user info
+	u, err := user.Lookup(req.Username)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	uid, _ := strconv.Atoi(u.Uid)
+	gid, _ := strconv.Atoi(u.Gid)
+
+	// Create .ssh directory
+	sshDir := filepath.Join(u.HomeDir, ".ssh")
+	if err := os.MkdirAll(sshDir, 0700); err != nil {
+		return nil, fmt.Errorf("failed to create .ssh directory: %w", err)
+	}
+	os.Chown(sshDir, uid, gid)
+
+	// Append to authorized_keys
+	authKeysPath := filepath.Join(sshDir, "authorized_keys")
+	f, err := os.OpenFile(authKeysPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open authorized_keys: %w", err)
+	}
+	defer f.Close()
+
+	// Add key with FastCP marker
+	keyLine := fmt.Sprintf("%s # fastcp:%s:%s\n", strings.TrimSpace(req.PublicKey), req.KeyID, req.Name)
+	if _, err := f.WriteString(keyLine); err != nil {
+		return nil, fmt.Errorf("failed to write key: %w", err)
+	}
+
+	os.Chown(authKeysPath, uid, gid)
+
+	return map[string]string{"status": "ok"}, nil
+}
+
+func (s *Server) handleRemoveSSHKey(ctx context.Context, params json.RawMessage) (any, error) {
+	var req RemoveSSHKeyRequest
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+
+	slog.Info("removing SSH key", "username", req.Username, "key_id", req.KeyID)
+
+	u, err := user.Lookup(req.Username)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	authKeysPath := filepath.Join(u.HomeDir, ".ssh", "authorized_keys")
+
+	// Read current file
+	content, err := os.ReadFile(authKeysPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read authorized_keys: %w", err)
+	}
+
+	// Filter out the key
+	var newLines []string
+	scanner := bufio.NewScanner(strings.NewReader(string(content)))
+	marker := fmt.Sprintf("fastcp:%s:", req.KeyID)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.Contains(line, marker) {
+			newLines = append(newLines, line)
+		}
+	}
+
+	// Write back
+	newContent := strings.Join(newLines, "\n")
+	if len(newLines) > 0 {
+		newContent += "\n"
+	}
+
+	if err := os.WriteFile(authKeysPath, []byte(newContent), 0600); err != nil {
+		return nil, fmt.Errorf("failed to write authorized_keys: %w", err)
+	}
+
+	return map[string]string{"status": "ok"}, nil
+}
+
+// System handlers
+
+func (s *Server) handleSystemStatus(ctx context.Context, params json.RawMessage) (any, error) {
+	hostname, _ := os.Hostname()
+
+	// Get load average
+	loadAvg := 0.0
+	if data, err := os.ReadFile("/proc/loadavg"); err == nil {
+		fmt.Sscanf(string(data), "%f", &loadAvg)
+	}
+
+	// Get memory info
+	var memTotal, memAvail uint64
+	if data, err := os.ReadFile("/proc/meminfo"); err == nil {
+		scanner := bufio.NewScanner(strings.NewReader(string(data)))
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "MemTotal:") {
+				fmt.Sscanf(line, "MemTotal: %d kB", &memTotal)
+				memTotal *= 1024
+			} else if strings.HasPrefix(line, "MemAvailable:") {
+				fmt.Sscanf(line, "MemAvailable: %d kB", &memAvail)
+				memAvail *= 1024
+			}
+		}
+	}
+
+	// Get disk info
+	var stat syscall.Statfs_t
+	var diskTotal, diskUsed uint64
+	if err := syscall.Statfs("/", &stat); err == nil {
+		diskTotal = stat.Blocks * uint64(stat.Bsize)
+		diskFree := stat.Bavail * uint64(stat.Bsize)
+		diskUsed = diskTotal - diskFree
+	}
+
+	// Get uptime
+	var uptime int64
+	if data, err := os.ReadFile("/proc/uptime"); err == nil {
+		var uptimeFloat float64
+		fmt.Sscanf(string(data), "%f", &uptimeFloat)
+		uptime = int64(uptimeFloat)
+	}
+
+	// Get PHP version
+	phpVersion := ""
+	if output, err := exec.Command("php", "-v").Output(); err == nil {
+		lines := strings.Split(string(output), "\n")
+		if len(lines) > 0 {
+			parts := strings.Fields(lines[0])
+			if len(parts) >= 2 {
+				phpVersion = parts[1]
+			}
+		}
+	}
+
+	// Get MySQL version
+	mysqlVersion := ""
+	if output, err := exec.Command("mysql", "--version").Output(); err == nil {
+		parts := strings.Fields(string(output))
+		for i, p := range parts {
+			if p == "Ver" && i+1 < len(parts) {
+				mysqlVersion = parts[i+1]
+				break
+			}
+		}
+	}
+
+	return &SystemStatus{
+		Hostname:     hostname,
+		OS:           "Ubuntu",
+		Uptime:       uptime,
+		LoadAverage:  loadAvg,
+		MemoryTotal:  memTotal,
+		MemoryUsed:   memTotal - memAvail,
+		DiskTotal:    diskTotal,
+		DiskUsed:     diskUsed,
+		PHPVersion:   phpVersion,
+		MySQLVersion: mysqlVersion,
+	}, nil
+}
+
+func (s *Server) handleSystemServices(ctx context.Context, params json.RawMessage) (any, error) {
+	services := []string{"fastcp", "fastcp-agent", "mysql", "php-fpm"}
+	var result []*ServiceStatus
+
+	for _, svc := range services {
+		status := &ServiceStatus{Name: svc, Status: "unknown", Enabled: false}
+
+		// Check if active
+		if err := exec.Command("systemctl", "is-active", "--quiet", svc).Run(); err == nil {
+			status.Status = "running"
+		} else {
+			status.Status = "stopped"
+		}
+
+		// Check if enabled
+		if err := exec.Command("systemctl", "is-enabled", "--quiet", svc).Run(); err == nil {
+			status.Enabled = true
+		}
+
+		result = append(result, status)
+	}
+
+	return result, nil
+}
+
+// User handlers
+
+func (s *Server) handleCreateUser(ctx context.Context, params json.RawMessage) (any, error) {
+	var req CreateUserRequest
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+
+	slog.Info("creating user", "username", req.Username, "memory_mb", req.MemoryMB, "cpu_percent", req.CPUPercent)
+
+	// Create user with home directory
+	cmd := exec.Command("useradd", "-m", "-s", "/bin/bash", req.Username)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("failed to create user: %w: %s", err, output)
+	}
+
+	// Set password
+	cmd = exec.Command("chpasswd")
+	cmd.Stdin = strings.NewReader(fmt.Sprintf("%s:%s", req.Username, req.Password))
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("failed to set password: %w: %s", err, output)
+	}
+
+	// Create apps directory
+	u, _ := user.Lookup(req.Username)
+	uid, _ := strconv.Atoi(u.Uid)
+	gid, _ := strconv.Atoi(u.Gid)
+
+	appsPath := filepath.Join(u.HomeDir, appsDir)
+	os.MkdirAll(appsPath, 0755)
+	os.Chown(appsPath, uid, gid)
+
+	// Create .fastcp directory
+	fastcpPath := filepath.Join(u.HomeDir, fastcpDir)
+	os.MkdirAll(fastcpPath, 0755)
+	os.Chown(fastcpPath, uid, gid)
+
+	// Create per-user FrankenPHP configuration directory
+	userConfigDir := filepath.Join("/opt/fastcp/config/users", req.Username)
+	os.MkdirAll(userConfigDir, 0755)
+
+	// Create user's Caddyfile (initially empty, will be populated when sites are created)
+	userCaddyfile := filepath.Join(userConfigDir, "Caddyfile")
+	initialCaddyfile := fmt.Sprintf(`# FrankenPHP config for user: %s
+{
+    admin off
+    
+    frankenphp {
+        num_threads 4
+    }
+}
+
+# Sites will be added here by FastCP
+`, req.Username)
+	os.WriteFile(userCaddyfile, []byte(initialCaddyfile), 0644)
+
+	// Create socket directory
+	socketDir := "/var/run/fastcp"
+	os.MkdirAll(socketDir, 0755)
+
+	// Create systemd service for this user's FrankenPHP instance
+	if err := s.createUserPHPService(req.Username, req.MemoryMB, req.CPUPercent); err != nil {
+		slog.Warn("failed to create PHP service", "error", err)
+	}
+
+	return map[string]string{"status": "ok"}, nil
+}
+
+func (s *Server) createUserPHPService(username string, memoryMB, cpuPercent int) error {
+	// Default values
+	if memoryMB == 0 {
+		memoryMB = 512
+	}
+	if cpuPercent == 0 {
+		cpuPercent = 100
+	}
+
+	serviceName := fmt.Sprintf("fastcp-php@%s.service", username)
+	servicePath := fmt.Sprintf("/etc/systemd/system/%s", serviceName)
+
+	// Verify user exists
+	if _, err := user.Lookup(username); err != nil {
+		return fmt.Errorf("user not found: %w", err)
+	}
+
+	serviceContent := fmt.Sprintf(`[Unit]
+Description=FastCP PHP Service for %s
+After=network.target
+
+[Service]
+Type=simple
+User=%s
+Group=%s
+ExecStart=/usr/local/bin/frankenphp run --config /opt/fastcp/config/users/%s/Caddyfile
+Restart=always
+RestartSec=5
+
+# Resource limits
+MemoryMax=%dM
+CPUQuota=%d%%
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/%s /var/run/fastcp /tmp
+
+# Environment
+Environment=HOME=/home/%s
+
+[Install]
+WantedBy=multi-user.target
+`, username, username, username, username, memoryMB, cpuPercent, username, username)
+
+	if err := os.WriteFile(servicePath, []byte(serviceContent), 0644); err != nil {
+		return fmt.Errorf("failed to write service file: %w", err)
+	}
+
+	// Reload systemd
+	exec.Command("systemctl", "daemon-reload").Run()
+
+	// Enable the service (but don't start yet - no sites)
+	exec.Command("systemctl", "enable", serviceName).Run()
+
+	slog.Info("created PHP service for user", "username", username, "memory_mb", memoryMB, "cpu_percent", cpuPercent)
+	return nil
+}
+
+func (s *Server) handleDeleteUser(ctx context.Context, params json.RawMessage) (any, error) {
+	var req DeleteUserRequest
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+
+	slog.Info("deleting user", "username", req.Username)
+
+	// Stop and disable the user's PHP service
+	serviceName := fmt.Sprintf("fastcp-php@%s.service", req.Username)
+	exec.Command("systemctl", "stop", serviceName).Run()
+	exec.Command("systemctl", "disable", serviceName).Run()
+	os.Remove(fmt.Sprintf("/etc/systemd/system/%s", serviceName))
+	exec.Command("systemctl", "daemon-reload").Run()
+
+	// Remove user's config directory
+	os.RemoveAll(filepath.Join("/opt/fastcp/config/users", req.Username))
+
+	// Delete user and home directory
+	cmd := exec.Command("userdel", "-r", req.Username)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("failed to delete user: %w: %s", err, output)
+	}
+
+	return map[string]string{"status": "ok"}, nil
+}
+
+// Helper functions
+
+func chownRecursive(path string, uid, gid int) error {
+	return filepath.Walk(path, func(name string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		return os.Chown(name, uid, gid)
+	})
+}
+
+func setACLs(path, username string) error {
+	// Set ACLs to restrict access to owner only
+	cmds := [][]string{
+		{"setfacl", "-R", "-m", fmt.Sprintf("u:%s:rwx", username), path},
+		{"setfacl", "-R", "-d", "-m", fmt.Sprintf("u:%s:rwx", username), path},
+		{"setfacl", "-R", "-m", "o::---", path},
+	}
+
+	for _, args := range cmds {
+		if err := exec.Command(args[0], args[1:]...).Run(); err != nil {
+			return fmt.Errorf("setfacl failed: %w", err)
+		}
+	}
+
+	return nil
+}

@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastCP - Server Control Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen" x-data="app()" x-cloak>
+    <!-- Login Screen -->
+    <div x-show="!authenticated" class="min-h-screen flex items-center justify-center">
+        <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-800">FastCP</h1>
+                <p class="text-gray-500 mt-2">Server Control Panel</p>
+            </div>
+            
+            <form @submit.prevent="login">
+                <div x-show="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                    <span x-text="error"></span>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Username</label>
+                    <input type="text" x-model="username" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                           placeholder="System username" required>
+                </div>
+                
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Password</label>
+                    <input type="password" x-model="password"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                           placeholder="System password" required>
+                </div>
+                
+                <button type="submit" :disabled="loading"
+                        class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                    <span x-show="!loading">Sign In</span>
+                    <span x-show="loading">Signing in...</span>
+                </button>
+            </form>
+            
+            <p class="text-center text-gray-500 text-sm mt-6">
+                Use your Linux system credentials to sign in
+            </p>
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div x-show="authenticated" class="min-h-screen">
+        <!-- Navigation -->
+        <nav class="bg-white shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center">
+                        <span class="text-xl font-bold text-gray-800">FastCP</span>
+                        <span class="ml-4 text-sm text-gray-500" x-text="'Welcome, ' + user?.username"></span>
+                    </div>
+                    <div class="flex items-center">
+                        <button @click="logout" class="text-gray-600 hover:text-gray-800">
+                            Sign Out
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Tabs -->
+            <div class="border-b border-gray-200 mb-8">
+                <nav class="-mb-px flex space-x-8">
+                    <button @click="tab = 'sites'; loadSites()" 
+                            :class="tab === 'sites' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                            class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                        Sites
+                    </button>
+                    <button @click="tab = 'databases'; loadDatabases()"
+                            :class="tab === 'databases' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                            class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                        Databases
+                    </button>
+                    <button @click="tab = 'ssh'; loadSSHKeys()"
+                            :class="tab === 'ssh' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                            class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                        SSH Keys
+                    </button>
+                    <button @click="tab = 'system'; loadSystemStatus()"
+                            :class="tab === 'system' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                            class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                        System
+                    </button>
+                    <button x-show="user?.is_admin" @click="tab = 'users'; loadUsers()"
+                            :class="tab === 'users' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                            class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                        Users
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Sites Tab -->
+            <div x-show="tab === 'sites'">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">Sites</h2>
+                    <button @click="showCreateSite = true" 
+                            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                        Create Site
+                    </button>
+                </div>
+
+                <div class="bg-white shadow rounded-lg overflow-hidden">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Domain</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SSL</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="site in sites" :key="site.id">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <a :href="'https://' + site.domain" target="_blank" class="text-blue-600 hover:underline" x-text="site.domain"></a>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 py-1 text-xs rounded-full"
+                                              :class="site.site_type === 'wordpress' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'"
+                                              x-text="site.site_type"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span x-show="site.ssl_enabled" class="text-green-600">✓</span>
+                                        <span x-show="!site.ssl_enabled" class="text-gray-400">-</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="formatDate(site.created_at)"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                                        <button @click="deleteSite(site)" class="text-red-600 hover:text-red-900 text-sm">Delete</button>
+                                    </td>
+                                </tr>
+                            </template>
+                            <tr x-show="sites.length === 0">
+                                <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                                    No sites yet. Create your first site!
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Databases Tab -->
+            <div x-show="tab === 'databases'">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">Databases</h2>
+                    <button @click="showCreateDatabase = true"
+                            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                        Create Database
+                    </button>
+                </div>
+
+                <div class="bg-white shadow rounded-lg overflow-hidden">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Database</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="db in databases" :key="db.id">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap font-mono text-sm" x-text="db.db_name"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap font-mono text-sm" x-text="db.db_user"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="formatDate(db.created_at)"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                                        <button @click="deleteDatabase(db)" class="text-red-600 hover:text-red-900 text-sm">Delete</button>
+                                    </td>
+                                </tr>
+                            </template>
+                            <tr x-show="databases.length === 0">
+                                <td colspan="4" class="px-6 py-12 text-center text-gray-500">
+                                    No databases yet.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- SSH Keys Tab -->
+            <div x-show="tab === 'ssh'">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">SSH Keys</h2>
+                    <button @click="showAddSSHKey = true"
+                            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                        Add SSH Key
+                    </button>
+                </div>
+
+                <div class="bg-white shadow rounded-lg overflow-hidden">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fingerprint</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Added</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="key in sshKeys" :key="key.id">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap" x-text="key.name"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap font-mono text-xs text-gray-500" x-text="key.fingerprint"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="formatDate(key.created_at)"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                                        <button @click="deleteSSHKey(key)" class="text-red-600 hover:text-red-900 text-sm">Remove</button>
+                                    </td>
+                                </tr>
+                            </template>
+                            <tr x-show="sshKeys.length === 0">
+                                <td colspan="4" class="px-6 py-12 text-center text-gray-500">
+                                    No SSH keys yet.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- System Tab -->
+            <div x-show="tab === 'system'">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">System Status</h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <div class="text-sm text-gray-500">CPU Load</div>
+                        <div class="text-2xl font-bold" x-text="systemStatus?.load_average?.toFixed(2) || '-'"></div>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <div class="text-sm text-gray-500">Memory</div>
+                        <div class="text-2xl font-bold" x-text="formatBytes(systemStatus?.memory_used) + ' / ' + formatBytes(systemStatus?.memory_total)"></div>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <div class="text-sm text-gray-500">Disk</div>
+                        <div class="text-2xl font-bold" x-text="formatBytes(systemStatus?.disk_used) + ' / ' + formatBytes(systemStatus?.disk_total)"></div>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <div class="text-sm text-gray-500">Uptime</div>
+                        <div class="text-2xl font-bold" x-text="formatUptime(systemStatus?.uptime)"></div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold mb-4">Server Info</h3>
+                    <dl class="grid grid-cols-2 gap-4 text-sm">
+                        <div><dt class="text-gray-500">Hostname</dt><dd class="font-mono" x-text="systemStatus?.hostname || '-'"></dd></div>
+                        <div><dt class="text-gray-500">OS</dt><dd x-text="systemStatus?.os || '-'"></dd></div>
+                        <div><dt class="text-gray-500">PHP</dt><dd class="font-mono" x-text="systemStatus?.php_version || '-'"></dd></div>
+                        <div><dt class="text-gray-500">MySQL</dt><dd class="font-mono" x-text="systemStatus?.mysql_version || '-'"></dd></div>
+                    </dl>
+                </div>
+            </div>
+
+            <!-- Users Tab (Admin Only) -->
+            <div x-show="tab === 'users'">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">Users</h2>
+                    <button @click="showCreateUser = true" 
+                            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                        Create User
+                    </button>
+                </div>
+
+                <div class="bg-white shadow rounded-lg overflow-hidden">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Username</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Memory</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">CPU</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="u in users" :key="u.id">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap font-medium" x-text="u.username"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 py-1 text-xs rounded-full"
+                                              :class="u.is_admin ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'"
+                                              x-text="u.is_admin ? 'Admin' : 'User'"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm" x-text="u.memory_mb + ' MB'"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm" x-text="u.cpu_percent + '%'"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="formatDate(u.created_at)"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                                        <button x-show="u.username !== 'root' && u.username !== user?.username" 
+                                                @click="deleteUser(u)" 
+                                                class="text-red-600 hover:text-red-900 text-sm">Delete</button>
+                                        <span x-show="u.username === 'root'" class="text-gray-400 text-sm">System</span>
+                                        <span x-show="u.username === user?.username && u.username !== 'root'" class="text-gray-400 text-sm">You</span>
+                                    </td>
+                                </tr>
+                            </template>
+                            <tr x-show="users.length === 0">
+                                <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                                    No users yet.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Site Modal -->
+    <div x-show="showCreateSite" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md" @click.away="showCreateSite = false">
+            <h3 class="text-lg font-semibold mb-4">Create New Site</h3>
+            <form @submit.prevent="createSite">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Domain</label>
+                    <input type="text" x-model="newSite.domain" required
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+                           placeholder="example.com">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                    <select x-model="newSite.site_type" class="w-full px-3 py-2 border rounded-lg">
+                        <option value="php">PHP</option>
+                        <option value="wordpress">WordPress</option>
+                    </select>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" @click="showCreateSite = false" class="px-4 py-2 border rounded-lg">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Create Database Modal -->
+    <div x-show="showCreateDatabase" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md" @click.away="showCreateDatabase = false">
+            <h3 class="text-lg font-semibold mb-4">Create Database</h3>
+            <form @submit.prevent="createDatabase">
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                    <div class="flex">
+                        <span class="inline-flex items-center px-3 bg-gray-100 border border-r-0 rounded-l-lg text-sm text-gray-500" x-text="user?.username + '_'"></span>
+                        <input type="text" x-model="newDatabase.name" required
+                               class="flex-1 px-3 py-2 border rounded-r-lg focus:outline-none focus:border-blue-500"
+                               placeholder="mydb">
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" @click="showCreateDatabase = false" class="px-4 py-2 border rounded-lg">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add SSH Key Modal -->
+    <div x-show="showAddSSHKey" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg" @click.away="showAddSSHKey = false">
+            <h3 class="text-lg font-semibold mb-4">Add SSH Key</h3>
+            <form @submit.prevent="addSSHKey">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                    <input type="text" x-model="newSSHKey.name" required
+                           class="w-full px-3 py-2 border rounded-lg" placeholder="My Laptop">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Public Key</label>
+                    <textarea x-model="newSSHKey.public_key" required rows="4"
+                              class="w-full px-3 py-2 border rounded-lg font-mono text-sm"
+                              placeholder="ssh-rsa AAAA... or ssh-ed25519 AAAA..."></textarea>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" @click="showAddSSHKey = false" class="px-4 py-2 border rounded-lg">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg">Add</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Create User Modal (Admin Only) -->
+    <div x-show="showCreateUser" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md" @click.away="showCreateUser = false">
+            <h3 class="text-lg font-semibold mb-4">Create New User</h3>
+            <form @submit.prevent="createUser">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                    <input type="text" x-model="newUser.username" required pattern="[a-z_][a-z0-9_-]*"
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+                           placeholder="username">
+                    <p class="text-xs text-gray-500 mt-1">Lowercase letters, numbers, underscores, hyphens</p>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <input type="password" x-model="newUser.password" required minlength="8"
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+                           placeholder="Minimum 8 characters">
+                </div>
+                <div class="mb-4 grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Memory Limit (MB)</label>
+                        <input type="number" x-model.number="newUser.memory_mb" min="128" max="16384"
+                               class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+                               placeholder="512">
+                        <p class="text-xs text-gray-500 mt-1">Default: 512 MB</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">CPU Limit (%)</label>
+                        <input type="number" x-model.number="newUser.cpu_percent" min="10" max="400"
+                               class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+                               placeholder="100">
+                        <p class="text-xs text-gray-500 mt-1">100% = 1 core</p>
+                    </div>
+                </div>
+                <div class="mb-6">
+                    <label class="flex items-center">
+                        <input type="checkbox" x-model="newUser.is_admin" class="rounded border-gray-300 text-blue-600 mr-2">
+                        <span class="text-sm text-gray-700">Administrator privileges</span>
+                    </label>
+                </div>
+                <div x-show="userError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4 text-sm">
+                    <span x-text="userError"></span>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" @click="showCreateUser = false; userError = ''" class="px-4 py-2 border rounded-lg">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg">Create User</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Database Created Modal -->
+    <div x-show="createdDatabase" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 class="text-lg font-semibold mb-4 text-green-600">Database Created!</h3>
+            <div class="bg-gray-50 rounded-lg p-4 mb-4 font-mono text-sm">
+                <div class="mb-2"><span class="text-gray-500">Database:</span> <span x-text="createdDatabase?.db_name"></span></div>
+                <div class="mb-2"><span class="text-gray-500">User:</span> <span x-text="createdDatabase?.db_user"></span></div>
+                <div class="mb-2"><span class="text-gray-500">Password:</span> <span x-text="createdDatabase?.password"></span></div>
+                <div><span class="text-gray-500">Host:</span> localhost</div>
+            </div>
+            <p class="text-sm text-red-600 mb-4">Save this password! It won't be shown again.</p>
+            <button @click="createdDatabase = null" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg">Got it</button>
+        </div>
+    </div>
+
+    <script>
+        const API = '/api';
+
+        function app() {
+            return {
+                authenticated: false,
+                token: localStorage.getItem('fastcp_token'),
+                user: null,
+                username: '',
+                password: '',
+                loading: false,
+                error: '',
+                tab: 'sites',
+                showCreateSite: false,
+                showCreateDatabase: false,
+                showAddSSHKey: false,
+                showCreateUser: false,
+                sites: [],
+                databases: [],
+                sshKeys: [],
+                users: [],
+                systemStatus: null,
+                createdDatabase: null,
+                userError: '',
+                newSite: { domain: '', site_type: 'php' },
+                newDatabase: { name: '' },
+                newSSHKey: { name: '', public_key: '' },
+                newUser: { username: '', password: '', is_admin: false, memory_mb: 512, cpu_percent: 100 },
+
+                async init() {
+                    if (this.token) {
+                        try {
+                            await this.fetchUser();
+                            this.authenticated = true;
+                            this.loadSites();
+                        } catch (e) {
+                            localStorage.removeItem('fastcp_token');
+                            this.token = null;
+                        }
+                    }
+                },
+
+                async login() {
+                    this.loading = true;
+                    this.error = '';
+                    try {
+                        const resp = await fetch(`${API}/auth/login`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ username: this.username, password: this.password })
+                        });
+                        const data = await resp.json();
+                        if (!resp.ok) throw new Error(data.error || 'Login failed');
+                        this.token = data.token;
+                        this.user = data.user;
+                        localStorage.setItem('fastcp_token', this.token);
+                        this.authenticated = true;
+                        this.password = '';
+                        this.loadSites();
+                    } catch (e) {
+                        this.error = e.message;
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                async logout() {
+                    await this.api('/auth/logout', 'POST').catch(() => {});
+                    localStorage.removeItem('fastcp_token');
+                    this.token = null;
+                    this.authenticated = false;
+                    this.user = null;
+                },
+
+                async fetchUser() {
+                    this.user = await this.api('/auth/me');
+                },
+
+                async loadSites() { this.sites = await this.api('/sites') || []; },
+                async loadDatabases() { this.databases = await this.api('/databases') || []; },
+                async loadSSHKeys() { this.sshKeys = await this.api('/ssh-keys') || []; },
+                async loadSystemStatus() { this.systemStatus = await this.api('/system/status'); },
+                async loadUsers() { 
+                    try { this.users = await this.api('/users') || []; } 
+                    catch(e) { this.users = []; }
+                },
+
+                async createSite() {
+                    await this.api('/sites', 'POST', this.newSite);
+                    this.showCreateSite = false;
+                    this.newSite = { domain: '', site_type: 'php' };
+                    this.loadSites();
+                },
+
+                async deleteSite(site) {
+                    if (!confirm(`Delete ${site.domain}?`)) return;
+                    await this.api(`/sites/${site.id}`, 'DELETE');
+                    this.loadSites();
+                },
+
+                async createDatabase() {
+                    const result = await this.api('/databases', 'POST', this.newDatabase);
+                    this.createdDatabase = result;
+                    this.showCreateDatabase = false;
+                    this.newDatabase = { name: '' };
+                    this.loadDatabases();
+                },
+
+                async deleteDatabase(db) {
+                    if (!confirm(`Delete ${db.db_name}?`)) return;
+                    await this.api(`/databases/${db.id}`, 'DELETE');
+                    this.loadDatabases();
+                },
+
+                async addSSHKey() {
+                    await this.api('/ssh-keys', 'POST', this.newSSHKey);
+                    this.showAddSSHKey = false;
+                    this.newSSHKey = { name: '', public_key: '' };
+                    this.loadSSHKeys();
+                },
+
+                async deleteSSHKey(key) {
+                    if (!confirm(`Remove "${key.name}"?`)) return;
+                    await this.api(`/ssh-keys/${key.id}`, 'DELETE');
+                    this.loadSSHKeys();
+                },
+
+                async createUser() {
+                    this.userError = '';
+                    try {
+                        await this.api('/users', 'POST', this.newUser);
+                        this.showCreateUser = false;
+                        this.newUser = { username: '', password: '', is_admin: false, memory_mb: 512, cpu_percent: 100 };
+                        this.loadUsers();
+                    } catch(e) {
+                        this.userError = e.message;
+                    }
+                },
+
+                async deleteUser(u) {
+                    if (!confirm(`Delete user "${u.username}"? This will also delete all their sites, databases, and SSH keys.`)) return;
+                    await this.api(`/users/${u.username}`, 'DELETE');
+                    this.loadUsers();
+                },
+
+                async api(path, method = 'GET', body = null) {
+                    const opts = {
+                        method,
+                        headers: { 'Authorization': `Bearer ${this.token}`, 'Content-Type': 'application/json' }
+                    };
+                    if (body) opts.body = JSON.stringify(body);
+                    const resp = await fetch(`${API}${path}`, opts);
+                    if (resp.status === 401) { this.logout(); throw new Error('Session expired'); }
+                    if (resp.status === 204) return null;
+                    const data = await resp.json();
+                    if (!resp.ok) throw new Error(data.error || 'Request failed');
+                    return data;
+                },
+
+                formatDate(d) { return d ? new Date(d).toLocaleDateString() : '-'; },
+                formatBytes(b) {
+                    if (!b) return '-';
+                    const u = ['B','KB','MB','GB','TB'];
+                    let i = 0;
+                    while (b >= 1024 && i < u.length-1) { b /= 1024; i++; }
+                    return b.toFixed(1) + ' ' + u[i];
+                },
+                formatUptime(s) {
+                    if (!s) return '-';
+                    const d = Math.floor(s/86400), h = Math.floor((s%86400)/3600);
+                    return d > 0 ? `${d}d ${h}h` : `${h}h ${Math.floor((s%3600)/60)}m`;
+                }
+            };
+        }
+    </script>
+</body>
+</html>

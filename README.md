@@ -1,0 +1,225 @@
+# FastCP
+
+A lightweight, modern server control panel for Ubuntu servers powered by [FrankenPHP](https://frankenphp.dev/).
+
+## Features
+
+- **Simple & Fast** - Minimal UI, focused on essentials like ServerPilot
+- **FrankenPHP Powered** - Modern PHP with worker mode for maximum performance
+- **Secure Multi-User** - System user isolation with ACLs
+- **PAM Authentication** - Login with your Linux system credentials
+- **WordPress Ready** - One-click WordPress installation
+- **MySQL Management** - Create databases and users easily
+- **SSH Key Management** - Manage SSH access from the UI
+- **Automatic SSL** - Free Let's Encrypt certificates via Caddy
+
+## Requirements
+
+- Ubuntu 22.04 LTS or 24.04 LTS
+- Minimum 1GB RAM (2GB+ recommended)
+- 5GB+ free disk space
+- Root access
+
+## Quick Install
+
+```bash
+curl -fsSL https://get.fastcp.io | bash
+```
+
+Or manually:
+
+```bash
+wget https://raw.githubusercontent.com/rehmat/fastcp/main/scripts/install.sh
+chmod +x install.sh
+sudo ./install.sh
+```
+
+## Access
+
+After installation:
+
+- **URL**: `https://your-server-ip:2087`
+- **Login**: Use your Linux system username and password
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    FastCP + FrankenPHP                          │
+│                 (runs as www-data, ports 80/443/2087)           │
+├─────────────────────────────────────────────────────────────────┤
+│  Caddy Web Server                                                │
+│  ├── Automatic HTTPS (Let's Encrypt)                            │
+│  ├── FastCP UI Module (control panel)                           │
+│  ├── FastCP Admin API                                           │
+│  └── FrankenPHP (PHP sites)                                     │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ Unix Socket
+┌────────────────────────────▼────────────────────────────────────┐
+│                    FastCP Agent                                  │
+│                    (runs as root)                                │
+│  - User management                                               │
+│  - ACL configuration                                             │
+│  - MySQL administration                                          │
+│  - SSH key management                                            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Directory Structure
+
+```
+/opt/fastcp/
+├── bin/
+│   ├── frankenphp       # FrankenPHP binary
+│   ├── fastcp           # Control panel (when built custom)
+│   └── fastcp-agent     # Privileged helper
+├── config/
+│   └── Caddyfile        # Main configuration
+└── data/
+    └── fastcp.db        # SQLite database
+
+/home/{user}/
+├── apps/
+│   └── {domain}/
+│       ├── public/      # Document root
+│       ├── logs/        # Access/error logs
+│       └── tmp/         # Temporary files
+└── .ssh/
+    └── authorized_keys  # SSH keys
+```
+
+## Building from Source
+
+### Prerequisites
+
+```bash
+# Install Go 1.23+
+wget https://go.dev/dl/go1.23.0.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.23.0.linux-amd64.tar.gz
+export PATH=$PATH:/usr/local/go/bin
+
+# Install build dependencies
+sudo apt-get install -y build-essential libpam0g-dev
+```
+
+### Build
+
+```bash
+git clone https://github.com/rehmatworks/fastcp.git
+cd fastcp
+
+# Build FastCP binaries
+make build
+
+# Or build individually
+CGO_ENABLED=1 go build -o bin/fastcp ./cmd/fastcp
+CGO_ENABLED=1 go build -o bin/fastcp-agent ./cmd/fastcp-agent
+```
+
+### Install
+
+```bash
+sudo make install
+```
+
+## Configuration
+
+### Main Caddyfile (`/opt/fastcp/config/Caddyfile`)
+
+```caddyfile
+{
+    fastcp {
+        data_dir /opt/fastcp/data
+        agent_socket /var/run/fastcp/agent.sock
+        listen_port 2087
+    }
+    
+    frankenphp {
+        num_threads 10
+    }
+}
+
+:2087 {
+    tls internal
+    fastcp_ui
+}
+
+# Sites are added here dynamically
+```
+
+## API
+
+FastCP exposes a REST API via Caddy's admin endpoint:
+
+```bash
+# Login
+curl -X POST http://localhost:2019/fastcp/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"myuser","password":"mypass"}'
+
+# List sites
+curl http://localhost:2019/fastcp/sites \
+  -H "Authorization: Bearer <token>"
+
+# Create site
+curl -X POST http://localhost:2019/fastcp/sites \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"domain":"example.com","site_type":"php"}'
+```
+
+## Security
+
+- **User Isolation**: Each user's files are isolated using Linux ACLs
+- **Privilege Separation**: Control panel runs as `www-data`, agent runs as `root`
+- **PAM Authentication**: Uses system authentication, no separate passwords
+- **No Root Web Access**: FrankenPHP never runs as root
+
+## Troubleshooting
+
+### Check service status
+
+```bash
+systemctl status fastcp
+systemctl status fastcp-agent
+```
+
+### View logs
+
+```bash
+# FastCP logs
+journalctl -u fastcp -f
+
+# Agent logs
+journalctl -u fastcp-agent -f
+
+# Site access logs
+tail -f /home/{user}/apps/{domain}/logs/access.log
+```
+
+### Restart services
+
+```bash
+sudo systemctl restart fastcp-agent
+sudo systemctl restart fastcp
+```
+
+## Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rehmat/fastcp/main/scripts/uninstall.sh | sudo bash
+```
+
+## Contributing
+
+Contributions are welcome! Please read our contributing guidelines before submitting PRs.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Credits
+
+- [FrankenPHP](https://frankenphp.dev/) - Modern PHP app server
+- [Caddy](https://caddyserver.com/) - The ultimate web server
+- Inspired by [ServerPilot](https://serverpilot.io/)

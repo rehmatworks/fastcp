@@ -1,0 +1,25 @@
+[Unit]
+Description=FastCP PHP Service for %i
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+Group=%i
+Environment=PHP_INI_SCAN_DIR=/opt/fastcp/config/users/%i
+ExecStart=/usr/local/bin/frankenphp run --config /opt/fastcp/config/users/%i/Caddyfile
+Restart=always
+RestartSec=5
+
+# Default resource limits (overridden when user is created)
+MemoryMax=512M
+CPUQuota=100%
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/%i /var/run/fastcp /var/log/fastcp /tmp
+
+[Install]
+WantedBy=multi-user.target
