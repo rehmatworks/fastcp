@@ -127,6 +127,18 @@ func (s *SiteService) Create(ctx context.Context, req *CreateSiteRequest) (*Site
 		}); err != nil {
 			return nil, fmt.Errorf("failed to install WordPress: %w", err)
 		}
+
+		// Save database record to FastCP database so it appears in the UI
+		dbRecord := &database.Database{
+			ID:       uuid.New().String(),
+			Username: req.Username,
+			DBName:   dbName,
+			DBUser:   dbUser,
+		}
+		if err := s.db.CreateDatabase(ctx, dbRecord); err != nil {
+			// Log but don't fail - WordPress is already installed
+			fmt.Printf("warning: failed to save WordPress database record: %v\n", err)
+		}
 	}
 
 	// Save to database
