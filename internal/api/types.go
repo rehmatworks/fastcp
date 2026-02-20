@@ -34,13 +34,51 @@ type CreateSiteRequest struct {
 
 // Site represents a website
 type Site struct {
-	ID           string    `json:"id"`
-	Username     string    `json:"username"`
-	Domain       string    `json:"domain"`
-	SiteType     string    `json:"site_type"`
-	DocumentRoot string    `json:"document_root"`
-	SSLEnabled   bool      `json:"ssl_enabled"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID           string       `json:"id"`
+	Username     string       `json:"username"`
+	Domain       string       `json:"domain"`
+	SiteType     string       `json:"site_type"`
+	DocumentRoot string       `json:"document_root"`
+	SSLEnabled   bool         `json:"ssl_enabled"`
+	CreatedAt    time.Time    `json:"created_at"`
+	Domains      []SiteDomain `json:"domains,omitempty"`
+}
+
+// SiteDomain represents a domain attached to a site
+type SiteDomain struct {
+	ID                int64     `json:"id"`
+	SiteID            string    `json:"site_id"`
+	Domain            string    `json:"domain"`
+	IsPrimary         bool      `json:"is_primary"`
+	RedirectToPrimary bool      `json:"redirect_to_primary"`
+	CreatedAt         time.Time `json:"created_at"`
+}
+
+// AddDomainRequest is the request body for adding a domain to a site
+type AddDomainRequest struct {
+	Username          string `json:"-"` // Set from auth
+	SiteID            string `json:"site_id"`
+	Domain            string `json:"domain"`
+	RedirectToPrimary bool   `json:"redirect_to_primary"`
+}
+
+// UpdateDomainRequest is the request body for updating a domain
+type UpdateDomainRequest struct {
+	Username          string `json:"-"` // Set from auth
+	DomainID          int64  `json:"domain_id"`
+	RedirectToPrimary bool   `json:"redirect_to_primary"`
+}
+
+// SetPrimaryDomainRequest is the request body for setting a primary domain
+type SetPrimaryDomainRequest struct {
+	Username string `json:"-"` // Set from auth
+	DomainID int64  `json:"domain_id"`
+}
+
+// DeleteDomainRequest is the request body for deleting a domain
+type DeleteDomainRequest struct {
+	Username string `json:"-"` // Set from auth
+	DomainID int64  `json:"domain_id"`
 }
 
 // CreateDatabaseRequest is the request body for creating a database

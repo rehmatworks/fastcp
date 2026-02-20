@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -142,6 +143,84 @@ func (h *Handler) DeleteSite(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	if err := h.siteService.Delete(r.Context(), id, user.Username); err != nil {
+		h.error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Domain handlers
+func (h *Handler) AddDomain(w http.ResponseWriter, r *http.Request) {
+	user := h.getUser(r)
+	siteID := chi.URLParam(r, "id")
+
+	var req AddDomainRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	req.Username = user.Username
+	req.SiteID = siteID
+
+	domain, err := h.siteService.AddDomain(r.Context(), &req)
+	if err != nil {
+		h.error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.json(w, http.StatusCreated, domain)
+}
+
+func (h *Handler) UpdateDomain(w http.ResponseWriter, r *http.Request) {
+	user := h.getUser(r)
+	domainIDStr := chi.URLParam(r, "domainId")
+	var domainID int64
+	fmt.Sscanf(domainIDStr, "%d", &domainID)
+
+	var req UpdateDomainRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	req.Username = user.Username
+	req.DomainID = domainID
+
+	if err := h.siteService.UpdateDomain(r.Context(), &req); err != nil {
+		h.error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.json(w, http.StatusOK, map[string]string{"message": "domain updated"})
+}
+
+func (h *Handler) SetPrimaryDomain(w http.ResponseWriter, r *http.Request) {
+	user := h.getUser(r)
+	domainIDStr := chi.URLParam(r, "domainId")
+	var domainID int64
+	fmt.Sscanf(domainIDStr, "%d", &domainID)
+
+	req := &SetPrimaryDomainRequest{
+		Username: user.Username,
+		DomainID: domainID,
+	}
+
+	if err := h.siteService.SetPrimaryDomain(r.Context(), req); err != nil {
+		h.error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.json(w, http.StatusOK, map[string]string{"message": "primary domain set"})
+}
+
+func (h *Handler) DeleteDomain(w http.ResponseWriter, r *http.Request) {
+	user := h.getUser(r)
+	domainIDStr := chi.URLParam(r, "domainId")
+	var domainID int64
+	fmt.Sscanf(domainIDStr, "%d", &domainID)
+
+	req := &DeleteDomainRequest{
+		Username: user.Username,
+		DomainID: domainID,
+	}
+
+	if err := h.siteService.DeleteDomain(r.Context(), req); err != nil {
 		h.error(w, http.StatusInternalServerError, err.Error())
 		return
 	}

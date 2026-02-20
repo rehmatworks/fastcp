@@ -105,6 +105,12 @@ func main() {
 			r.Get("/sites/{id}", apiHandler.GetSite)
 			r.Delete("/sites/{id}", apiHandler.DeleteSite)
 
+			// Site domains
+			r.Post("/sites/{id}/domains", apiHandler.AddDomain)
+			r.Put("/sites/domains/{domainId}", apiHandler.UpdateDomain)
+			r.Post("/sites/domains/{domainId}/set-primary", apiHandler.SetPrimaryDomain)
+			r.Delete("/sites/domains/{domainId}", apiHandler.DeleteDomain)
+
 			// Databases
 			r.Get("/databases", apiHandler.ListDatabases)
 			r.Post("/databases", apiHandler.CreateDatabase)

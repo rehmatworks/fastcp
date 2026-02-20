@@ -72,9 +72,13 @@ func migrate(db *sql.DB) error {
 			site_id TEXT NOT NULL,
 			domain TEXT UNIQUE NOT NULL,
 			is_primary INTEGER DEFAULT 0,
+			redirect_to_primary INTEGER DEFAULT 0,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
 		)`,
+
+		// Migration: add redirect_to_primary column if missing
+		`ALTER TABLE site_domains ADD COLUMN redirect_to_primary INTEGER DEFAULT 0`,
 
 		`CREATE TABLE IF NOT EXISTS databases (
 			id TEXT PRIMARY KEY,
@@ -133,14 +137,25 @@ type User struct {
 
 // Site represents a website
 type Site struct {
-	ID           string    `json:"id"`
-	Username     string    `json:"username"`
-	Domain       string    `json:"domain"`
-	SiteType     string    `json:"site_type"`
-	DocumentRoot string    `json:"document_root"`
-	SSLEnabled   bool      `json:"ssl_enabled"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID           string        `json:"id"`
+	Username     string        `json:"username"`
+	Domain       string        `json:"domain"`
+	SiteType     string        `json:"site_type"`
+	DocumentRoot string        `json:"document_root"`
+	SSLEnabled   bool          `json:"ssl_enabled"`
+	CreatedAt    time.Time     `json:"created_at"`
+	UpdatedAt    time.Time     `json:"updated_at"`
+	Domains      []*SiteDomain `json:"domains,omitempty"`
+}
+
+// SiteDomain represents a domain attached to a site
+type SiteDomain struct {
+	ID                int64     `json:"id"`
+	SiteID            string    `json:"site_id"`
+	Domain            string    `json:"domain"`
+	IsPrimary         bool      `json:"is_primary"`
+	RedirectToPrimary bool      `json:"redirect_to_primary"`
+	CreatedAt         time.Time `json:"created_at"`
 }
 
 // Database represents a MySQL database
@@ -352,6 +367,126 @@ func (db *DB) ListAllSites(ctx context.Context) ([]*Site, error) {
 		sites = append(sites, &s)
 	}
 	return sites, nil
+}
+
+// SiteDomain operations
+func (db *DB) AddSiteDomain(ctx context.Context, domain *SiteDomain) error {
+	result, err := db.ExecContext(ctx,
+		`INSERT INTO site_domains (site_id, domain, is_primary, redirect_to_primary)
+		 VALUES (?, ?, ?, ?)`,
+		domain.SiteID, domain.Domain, domain.IsPrimary, domain.RedirectToPrimary,
+	)
+	if err != nil {
+		return err
+	}
+	id, _ := result.LastInsertId()
+	domain.ID = id
+	domain.CreatedAt = time.Now()
+	return nil
+}
+
+func (db *DB) GetSiteDomains(ctx context.Context, siteID string) ([]*SiteDomain, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT id, site_id, domain, is_primary, COALESCE(redirect_to_primary, 0), created_at
+		 FROM site_domains WHERE site_id = ? ORDER BY is_primary DESC, domain ASC`,
+		siteID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var domains []*SiteDomain
+	for rows.Next() {
+		var d SiteDomain
+		if err := rows.Scan(&d.ID, &d.SiteID, &d.Domain, &d.IsPrimary, &d.RedirectToPrimary, &d.CreatedAt); err != nil {
+			return nil, err
+		}
+		domains = append(domains, &d)
+	}
+	return domains, nil
+}
+
+func (db *DB) GetSiteDomain(ctx context.Context, id int64) (*SiteDomain, error) {
+	var d SiteDomain
+	err := db.QueryRowContext(ctx,
+		`SELECT id, site_id, domain, is_primary, COALESCE(redirect_to_primary, 0), created_at
+		 FROM site_domains WHERE id = ?`,
+		id,
+	).Scan(&d.ID, &d.SiteID, &d.Domain, &d.IsPrimary, &d.RedirectToPrimary, &d.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
+func (db *DB) UpdateSiteDomain(ctx context.Context, domain *SiteDomain) error {
+	_, err := db.ExecContext(ctx,
+		`UPDATE site_domains SET is_primary = ?, redirect_to_primary = ? WHERE id = ?`,
+		domain.IsPrimary, domain.RedirectToPrimary, domain.ID,
+	)
+	return err
+}
+
+func (db *DB) SetPrimaryDomain(ctx context.Context, siteID string, domainID int64) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Clear all primary flags for this site
+	_, err = tx.ExecContext(ctx, "UPDATE site_domains SET is_primary = 0 WHERE site_id = ?", siteID)
+	if err != nil {
+		return err
+	}
+
+	// Set the new primary
+	_, err = tx.ExecContext(ctx, "UPDATE site_domains SET is_primary = 1, redirect_to_primary = 0 WHERE id = ?", domainID)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (db *DB) DeleteSiteDomain(ctx context.Context, id int64) error {
+	_, err := db.ExecContext(ctx, "DELETE FROM site_domains WHERE id = ?", id)
+	return err
+}
+
+func (db *DB) GetPrimaryDomain(ctx context.Context, siteID string) (*SiteDomain, error) {
+	var d SiteDomain
+	err := db.QueryRowContext(ctx,
+		`SELECT id, site_id, domain, is_primary, COALESCE(redirect_to_primary, 0), created_at
+		 FROM site_domains WHERE site_id = ? AND is_primary = 1`,
+		siteID,
+	).Scan(&d.ID, &d.SiteID, &d.Domain, &d.IsPrimary, &d.RedirectToPrimary, &d.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
+func (db *DB) GetAllSiteDomainsGrouped(ctx context.Context) (map[string][]*SiteDomain, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT id, site_id, domain, is_primary, COALESCE(redirect_to_primary, 0), created_at
+		 FROM site_domains ORDER BY site_id, is_primary DESC, domain ASC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string][]*SiteDomain)
+	for rows.Next() {
+		var d SiteDomain
+		if err := rows.Scan(&d.ID, &d.SiteID, &d.Domain, &d.IsPrimary, &d.RedirectToPrimary, &d.CreatedAt); err != nil {
+			return nil, err
+		}
+		result[d.SiteID] = append(result[d.SiteID], &d)
+	}
+	return result, nil
 }
 
 // Database operations

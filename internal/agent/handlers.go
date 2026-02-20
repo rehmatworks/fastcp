@@ -399,7 +399,8 @@ func (s *Server) generateCaddyfile() error {
 	}
 	defer db.Close()
 
-	rows, err := db.Query("SELECT domain, username, document_root FROM sites")
+	// Fetch all sites
+	rows, err := db.Query("SELECT id, domain, username, document_root FROM sites")
 	if err != nil {
 		// If no sites table yet, use default config
 		slog.Warn("no sites table found, using default config", "error", err)
@@ -407,15 +408,51 @@ func (s *Server) generateCaddyfile() error {
 	}
 	defer rows.Close()
 
-	// Group sites by username
-	sitesByUser := make(map[string][]siteInfo)
+	// Build sites map
+	sitesMap := make(map[string]*siteInfo)
 	for rows.Next() {
 		var site siteInfo
-		if err := rows.Scan(&site.Domain, &site.Username, &site.DocumentRoot); err != nil {
+		if err := rows.Scan(&site.ID, &site.Domain, &site.Username, &site.DocumentRoot); err != nil {
 			continue
 		}
 		site.SafeDomain = strings.ReplaceAll(site.Domain, ".", "_")
-		sitesByUser[site.Username] = append(sitesByUser[site.Username], site)
+		site.PrimaryDomain = site.Domain // Default to main domain
+		site.Domains = []siteDomainInfo{{Domain: site.Domain, IsPrimary: true, RedirectToPrimary: false}}
+		sitesMap[site.ID] = &site
+	}
+	rows.Close()
+
+	// Fetch all site domains
+	domainRows, err := db.Query("SELECT site_id, domain, is_primary, COALESCE(redirect_to_primary, 0) FROM site_domains ORDER BY is_primary DESC")
+	if err == nil {
+		defer domainRows.Close()
+		for domainRows.Next() {
+			var siteID, domain string
+			var isPrimary, redirectToPrimary bool
+			if err := domainRows.Scan(&siteID, &domain, &isPrimary, &redirectToPrimary); err != nil {
+				continue
+			}
+			if site, ok := sitesMap[siteID]; ok {
+				// Replace default domains with actual domains from site_domains table
+				if len(site.Domains) == 1 && site.Domains[0].Domain == site.Domain {
+					site.Domains = nil // Clear default
+				}
+				site.Domains = append(site.Domains, siteDomainInfo{
+					Domain:            domain,
+					IsPrimary:         isPrimary,
+					RedirectToPrimary: redirectToPrimary,
+				})
+				if isPrimary {
+					site.PrimaryDomain = domain
+				}
+			}
+		}
+	}
+
+	// Group sites by username
+	sitesByUser := make(map[string][]siteInfo)
+	for _, site := range sitesMap {
+		sitesByUser[site.Username] = append(sitesByUser[site.Username], *site)
 	}
 
 	useSystemd := s.hasSystemd()
@@ -438,7 +475,19 @@ func (s *Server) generateCaddyfile() error {
 			logsDir := filepath.Join(homeBase, username, appsDir, site.SafeDomain, "logs")
 			os.MkdirAll(logsDir, 0755)
 
-			mainBuf.WriteString(fmt.Sprintf(`# Site: %s (User: %s)
+			// Generate blocks for each domain
+			for _, domain := range site.Domains {
+				if domain.RedirectToPrimary && site.PrimaryDomain != domain.Domain {
+					// Generate redirect block for non-primary domains that should redirect
+					mainBuf.WriteString(fmt.Sprintf(`# Redirect: %s -> %s (User: %s)
+%s {
+    redir https://%s{uri} permanent
+}
+
+`, domain.Domain, site.PrimaryDomain, username, domain.Domain, site.PrimaryDomain))
+				} else {
+					// Generate reverse proxy block for domains that serve content
+					mainBuf.WriteString(fmt.Sprintf(`# Site: %s (User: %s)%s
 %s {
     reverse_proxy unix/%s {
         header_up X-Forwarded-Proto {scheme}
@@ -449,7 +498,14 @@ func (s *Server) generateCaddyfile() error {
     }
 }
 
-`, site.Domain, username, site.Domain, socketPath, logsDir))
+`, domain.Domain, username, func() string {
+						if domain.IsPrimary {
+							return " [PRIMARY]"
+						}
+						return ""
+					}(), domain.Domain, socketPath, logsDir))
+				}
+			}
 		}
 
 		// Generate per-user Caddyfile
@@ -510,14 +566,27 @@ func (s *Server) generateUserCaddyfile(username string, sites []siteInfo) error 
 `, username, socketPath))
 
 	for _, site := range sites {
+		// Get all domains that should serve content (not redirecting)
+		var servingDomains []string
+		for _, domain := range site.Domains {
+			if !domain.RedirectToPrimary {
+				servingDomains = append(servingDomains, domain.Domain)
+			}
+		}
+		// Fallback to main domain if no domains configured
+		if len(servingDomains) == 0 {
+			servingDomains = []string{site.Domain}
+		}
+
 		matcherName := strings.ReplaceAll(site.SafeDomain, "-", "_")
+		hostList := strings.Join(servingDomains, " ")
 		buf.WriteString(fmt.Sprintf(`    @%s host %s
     handle @%s {
         root * %s
         php_server
     }
 
-`, matcherName, site.Domain, matcherName, site.DocumentRoot))
+`, matcherName, hostList, matcherName, site.DocumentRoot))
 	}
 
 	// Create per-user temp directory
@@ -626,10 +695,19 @@ session.cookie_samesite = Strict
 }
 
 type siteInfo struct {
-	Domain       string
-	Username     string
-	DocumentRoot string
-	SafeDomain   string
+	ID            string
+	Domain        string
+	Username      string
+	DocumentRoot  string
+	SafeDomain    string
+	Domains       []siteDomainInfo
+	PrimaryDomain string
+}
+
+type siteDomainInfo struct {
+	Domain            string
+	IsPrimary         bool
+	RedirectToPrimary bool
 }
 
 // Database handlers
