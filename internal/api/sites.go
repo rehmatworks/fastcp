@@ -98,6 +98,22 @@ func (s *SiteService) Get(ctx context.Context, id, username string) (*Site, erro
 
 // Create creates a new site
 func (s *SiteService) Create(ctx context.Context, req *CreateSiteRequest) (*Site, error) {
+	// Check user's site limit
+	user, err := s.db.GetUser(ctx, req.Username)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+	
+	if user.MaxSites != -1 {
+		siteCount, err := s.db.CountUserSites(ctx, req.Username)
+		if err != nil {
+			return nil, fmt.Errorf("failed to count sites: %w", err)
+		}
+		if siteCount >= user.MaxSites {
+			return nil, fmt.Errorf("site limit reached: you can create a maximum of %d sites", user.MaxSites)
+		}
+	}
+
 	// Validate domain
 	domain := strings.ToLower(strings.TrimSpace(req.Domain))
 	if !domainRegex.MatchString(domain) {

@@ -9,6 +9,10 @@ type User struct {
 	IsAdmin    bool      `json:"is_admin"`
 	MemoryMB   int       `json:"memory_mb"`
 	CPUPercent int       `json:"cpu_percent"`
+	MaxSites   int       `json:"max_sites"`   // -1 = unlimited
+	StorageMB  int       `json:"storage_mb"`  // -1 = unlimited
+	SiteCount  int       `json:"site_count"`  // Current number of sites
+	StorageUsed int64    `json:"storage_used"` // Current storage used in bytes
 	CreatedAt  time.Time `json:"created_at"`
 }
 
@@ -141,6 +145,8 @@ type CreateUserRequest struct {
 	IsAdmin    bool   `json:"is_admin"`
 	MemoryMB   int    `json:"memory_mb"`   // Memory limit in MB (0 = unlimited)
 	CPUPercent int    `json:"cpu_percent"` // CPU limit as percentage (0 = unlimited, 100 = 1 core)
+	MaxSites   int    `json:"max_sites"`   // Max websites (-1 = unlimited)
+	StorageMB  int    `json:"storage_mb"`  // Max storage in MB (-1 = unlimited)
 }
 
 // UpdateUserRequest is the request body for updating a user

@@ -108,6 +108,8 @@ func migrate(db *sql.DB) error {
 		// Add resource limits to users table (safe to run multiple times - will fail silently if exists)
 		`ALTER TABLE users ADD COLUMN memory_mb INTEGER DEFAULT 512`,
 		`ALTER TABLE users ADD COLUMN cpu_percent INTEGER DEFAULT 100`,
+		`ALTER TABLE users ADD COLUMN max_sites INTEGER DEFAULT -1`,
+		`ALTER TABLE users ADD COLUMN storage_mb INTEGER DEFAULT -1`,
 	}
 
 	for _, m := range migrations {
@@ -131,6 +133,8 @@ type User struct {
 	IsAdmin    bool      `json:"is_admin"`
 	MemoryMB   int       `json:"memory_mb"`
 	CPUPercent int       `json:"cpu_percent"`
+	MaxSites   int       `json:"max_sites"`   // -1 = unlimited
+	StorageMB  int       `json:"storage_mb"`  // -1 = unlimited
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
 }
@@ -190,9 +194,11 @@ type Session struct {
 func (db *DB) GetUser(ctx context.Context, username string) (*User, error) {
 	var u User
 	err := db.QueryRowContext(ctx,
-		"SELECT id, username, is_admin, COALESCE(memory_mb, 512), COALESCE(cpu_percent, 100), created_at, updated_at FROM users WHERE username = ?",
+		`SELECT id, username, is_admin, COALESCE(memory_mb, 512), COALESCE(cpu_percent, 100), 
+		 COALESCE(max_sites, -1), COALESCE(storage_mb, -1), created_at, updated_at 
+		 FROM users WHERE username = ?`,
 		username,
-	).Scan(&u.ID, &u.Username, &u.IsAdmin, &u.MemoryMB, &u.CPUPercent, &u.CreatedAt, &u.UpdatedAt)
+	).Scan(&u.ID, &u.Username, &u.IsAdmin, &u.MemoryMB, &u.CPUPercent, &u.MaxSites, &u.StorageMB, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -200,13 +206,13 @@ func (db *DB) GetUser(ctx context.Context, username string) (*User, error) {
 }
 
 func (db *DB) CreateUser(ctx context.Context, username string, isAdmin bool) (*User, error) {
-	return db.CreateUserWithLimits(ctx, username, isAdmin, 512, 100)
+	return db.CreateUserWithLimits(ctx, username, isAdmin, 512, 100, -1, -1)
 }
 
-func (db *DB) CreateUserWithLimits(ctx context.Context, username string, isAdmin bool, memoryMB, cpuPercent int) (*User, error) {
+func (db *DB) CreateUserWithLimits(ctx context.Context, username string, isAdmin bool, memoryMB, cpuPercent, maxSites, storageMB int) (*User, error) {
 	result, err := db.ExecContext(ctx,
-		"INSERT INTO users (username, is_admin, memory_mb, cpu_percent) VALUES (?, ?, ?, ?)",
-		username, isAdmin, memoryMB, cpuPercent,
+		"INSERT INTO users (username, is_admin, memory_mb, cpu_percent, max_sites, storage_mb) VALUES (?, ?, ?, ?, ?, ?)",
+		username, isAdmin, memoryMB, cpuPercent, maxSites, storageMB,
 	)
 	if err != nil {
 		return nil, err
@@ -219,6 +225,8 @@ func (db *DB) CreateUserWithLimits(ctx context.Context, username string, isAdmin
 		IsAdmin:    isAdmin,
 		MemoryMB:   memoryMB,
 		CPUPercent: cpuPercent,
+		MaxSites:   maxSites,
+		StorageMB:  storageMB,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
 	}, nil
@@ -236,7 +244,9 @@ func (db *DB) EnsureUser(ctx context.Context, username string) (*User, error) {
 
 func (db *DB) ListUsers(ctx context.Context) ([]*User, error) {
 	rows, err := db.QueryContext(ctx,
-		"SELECT id, username, is_admin, COALESCE(memory_mb, 512), COALESCE(cpu_percent, 100), created_at, updated_at FROM users ORDER BY username",
+		`SELECT id, username, is_admin, COALESCE(memory_mb, 512), COALESCE(cpu_percent, 100), 
+		 COALESCE(max_sites, -1), COALESCE(storage_mb, -1), created_at, updated_at 
+		 FROM users ORDER BY username`,
 	)
 	if err != nil {
 		return nil, err
@@ -246,7 +256,7 @@ func (db *DB) ListUsers(ctx context.Context) ([]*User, error) {
 	var users []*User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Username, &u.IsAdmin, &u.MemoryMB, &u.CPUPercent, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.IsAdmin, &u.MemoryMB, &u.CPUPercent, &u.MaxSites, &u.StorageMB, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			continue
 		}
 		users = append(users, &u)
@@ -346,6 +356,12 @@ func (db *DB) ListSites(ctx context.Context, username string) ([]*Site, error) {
 func (db *DB) DeleteSite(ctx context.Context, id string) error {
 	_, err := db.ExecContext(ctx, "DELETE FROM sites WHERE id = ?", id)
 	return err
+}
+
+func (db *DB) CountUserSites(ctx context.Context, username string) (int, error) {
+	var count int
+	err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM sites WHERE username = ?", username).Scan(&count)
+	return count, err
 }
 
 func (db *DB) ListAllSites(ctx context.Context) ([]*Site, error) {

@@ -31,12 +31,16 @@ func (s *UserService) List(ctx context.Context) ([]*User, error) {
 
 	users := make([]*User, len(dbUsers))
 	for i, dbUser := range dbUsers {
+		siteCount, _ := s.db.CountUserSites(ctx, dbUser.Username)
 		users[i] = &User{
 			ID:         dbUser.ID,
 			Username:   dbUser.Username,
 			IsAdmin:    dbUser.IsAdmin,
 			MemoryMB:   dbUser.MemoryMB,
 			CPUPercent: dbUser.CPUPercent,
+			MaxSites:   dbUser.MaxSites,
+			StorageMB:  dbUser.StorageMB,
+			SiteCount:  siteCount,
 			CreatedAt:  dbUser.CreatedAt,
 		}
 	}
@@ -73,6 +77,14 @@ func (s *UserService) Create(ctx context.Context, req *CreateUserRequest) (*User
 	if cpuPercent == 0 {
 		cpuPercent = 100 // Default 100% (1 core)
 	}
+	maxSites := req.MaxSites
+	if maxSites == 0 {
+		maxSites = -1 // Default unlimited
+	}
+	storageMB := req.StorageMB
+	if storageMB == 0 {
+		storageMB = -1 // Default unlimited
+	}
 
 	// Create system user via agent
 	if err := s.agent.CreateUser(ctx, &agent.CreateUserRequest{
@@ -85,7 +97,7 @@ func (s *UserService) Create(ctx context.Context, req *CreateUserRequest) (*User
 	}
 
 	// Save to database
-	dbUser, err := s.db.CreateUserWithLimits(ctx, req.Username, req.IsAdmin, memoryMB, cpuPercent)
+	dbUser, err := s.db.CreateUserWithLimits(ctx, req.Username, req.IsAdmin, memoryMB, cpuPercent, maxSites, storageMB)
 	if err != nil {
 		// Try to rollback system user creation
 		s.agent.DeleteUser(ctx, &agent.DeleteUserRequest{Username: req.Username})
@@ -98,6 +110,9 @@ func (s *UserService) Create(ctx context.Context, req *CreateUserRequest) (*User
 		IsAdmin:    dbUser.IsAdmin,
 		MemoryMB:   dbUser.MemoryMB,
 		CPUPercent: dbUser.CPUPercent,
+		MaxSites:   dbUser.MaxSites,
+		StorageMB:  dbUser.StorageMB,
+		SiteCount:  0,
 		CreatedAt:  dbUser.CreatedAt,
 	}, nil
 }

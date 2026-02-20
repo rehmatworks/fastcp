@@ -1309,15 +1309,21 @@ func (s *Server) handleCreateUser(ctx context.Context, params json.RawMessage) (
 	socketDir := "/var/run/fastcp"
 	os.MkdirAll(socketDir, 0755)
 
+	// Create systemd user slice with resource limits (applies to ALL user processes)
+	if err := s.createUserResourceSlice(req.Username, uid, req.MemoryMB, req.CPUPercent); err != nil {
+		slog.Warn("failed to create user resource slice", "error", err)
+	}
+
 	// Create systemd service for this user's FrankenPHP instance
-	if err := s.createUserPHPService(req.Username, req.MemoryMB, req.CPUPercent); err != nil {
+	if err := s.createUserPHPService(req.Username); err != nil {
 		slog.Warn("failed to create PHP service", "error", err)
 	}
 
 	return map[string]string{"status": "ok"}, nil
 }
 
-func (s *Server) createUserPHPService(username string, memoryMB, cpuPercent int) error {
+// createUserResourceSlice creates a systemd slice override for the user to limit ALL their processes
+func (s *Server) createUserResourceSlice(username string, uid, memoryMB, cpuPercent int) error {
 	// Default values
 	if memoryMB == 0 {
 		memoryMB = 512
@@ -1326,6 +1332,38 @@ func (s *Server) createUserPHPService(username string, memoryMB, cpuPercent int)
 		cpuPercent = 100
 	}
 
+	// Create override directory for user-UID.slice
+	sliceDir := fmt.Sprintf("/etc/systemd/system/user-%d.slice.d", uid)
+	if err := os.MkdirAll(sliceDir, 0755); err != nil {
+		return fmt.Errorf("failed to create slice directory: %w", err)
+	}
+
+	// Create override file with resource limits
+	overrideContent := fmt.Sprintf(`# FastCP resource limits for user: %s (UID: %d)
+# These limits apply to ALL processes by this user:
+# - FrankenPHP (web server)
+# - SSH sessions
+# - Cron jobs
+# - Any other processes
+
+[Slice]
+MemoryMax=%dM
+CPUQuota=%d%%
+`, username, uid, memoryMB, cpuPercent)
+
+	overridePath := filepath.Join(sliceDir, "50-fastcp-limits.conf")
+	if err := os.WriteFile(overridePath, []byte(overrideContent), 0644); err != nil {
+		return fmt.Errorf("failed to write slice override: %w", err)
+	}
+
+	// Reload systemd to apply changes
+	exec.Command("systemctl", "daemon-reload").Run()
+
+	slog.Info("created user resource slice", "username", username, "uid", uid, "memory_mb", memoryMB, "cpu_percent", cpuPercent)
+	return nil
+}
+
+func (s *Server) createUserPHPService(username string) error {
 	serviceName := fmt.Sprintf("fastcp-php@%s.service", username)
 	servicePath := fmt.Sprintf("/etc/systemd/system/%s", serviceName)
 
@@ -1334,6 +1372,8 @@ func (s *Server) createUserPHPService(username string, memoryMB, cpuPercent int)
 		return fmt.Errorf("user not found: %w", err)
 	}
 
+	// Note: Resource limits (CPU/RAM) are enforced at the user-UID.slice level,
+	// which applies to ALL user processes including this service, SSH sessions, and cron jobs
 	serviceContent := fmt.Sprintf(`[Unit]
 Description=FastCP PHP Service for %s
 After=network.target
@@ -1346,10 +1386,6 @@ ExecStart=/usr/local/bin/frankenphp run --config /opt/fastcp/config/users/%s/Cad
 Restart=always
 RestartSec=5
 
-# Resource limits
-MemoryMax=%dM
-CPUQuota=%d%%
-
 # Security
 NoNewPrivileges=true
 ProtectSystem=strict
@@ -1361,7 +1397,7 @@ Environment=HOME=/home/%s
 
 [Install]
 WantedBy=multi-user.target
-`, username, username, username, username, memoryMB, cpuPercent, username, username)
+`, username, username, username, username, username, username)
 
 	if err := os.WriteFile(servicePath, []byte(serviceContent), 0644); err != nil {
 		return fmt.Errorf("failed to write service file: %w", err)
@@ -1373,7 +1409,7 @@ WantedBy=multi-user.target
 	// Enable the service (but don't start yet - no sites)
 	exec.Command("systemctl", "enable", serviceName).Run()
 
-	slog.Info("created PHP service for user", "username", username, "memory_mb", memoryMB, "cpu_percent", cpuPercent)
+	slog.Info("created PHP service for user", "username", username)
 	return nil
 }
 
@@ -1385,11 +1421,24 @@ func (s *Server) handleDeleteUser(ctx context.Context, params json.RawMessage) (
 
 	slog.Info("deleting user", "username", req.Username)
 
+	// Get user's UID before deletion (needed for slice cleanup)
+	var uid int
+	if u, err := user.Lookup(req.Username); err == nil {
+		uid, _ = strconv.Atoi(u.Uid)
+	}
+
 	// Stop and disable the user's PHP service
 	serviceName := fmt.Sprintf("fastcp-php@%s.service", req.Username)
 	exec.Command("systemctl", "stop", serviceName).Run()
 	exec.Command("systemctl", "disable", serviceName).Run()
 	os.Remove(fmt.Sprintf("/etc/systemd/system/%s", serviceName))
+
+	// Remove user resource slice overrides
+	if uid > 0 {
+		sliceDir := fmt.Sprintf("/etc/systemd/system/user-%d.slice.d", uid)
+		os.RemoveAll(sliceDir)
+	}
+
 	exec.Command("systemctl", "daemon-reload").Run()
 
 	// Delete all MySQL databases owned by this user
