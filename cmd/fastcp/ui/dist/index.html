@@ -59,9 +59,24 @@
                 <div class="flex justify-between h-16">
                     <div class="flex items-center">
                         <span class="text-xl font-bold text-gray-800">FastCP</span>
+                        <span class="ml-2 text-xs text-gray-400" x-text="updateInfo?.current_version || ''"></span>
                         <span class="ml-4 text-sm text-gray-500" x-text="'Welcome, ' + user?.username"></span>
                     </div>
-                    <div class="flex items-center">
+                    <div class="flex items-center space-x-4">
+                        <!-- Update notification -->
+                        <div x-show="user?.is_admin && updateInfo?.update_available" class="flex items-center">
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                </svg>
+                                <span x-text="updateInfo.latest_version + ' available'"></span>
+                            </span>
+                            <button @click="performUpdate()" :disabled="updateLoading"
+                                    class="ml-2 px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50">
+                                <span x-show="!updateLoading">Update</span>
+                                <span x-show="updateLoading">Updating...</span>
+                            </button>
+                        </div>
                         <button @click="logout" class="text-gray-600 hover:text-gray-800">
                             Sign Out
                         </button>
@@ -69,6 +84,14 @@
                 </div>
             </div>
         </nav>
+        
+        <!-- Update error banner -->
+        <div x-show="updateError" class="bg-red-100 border-b border-red-400 text-red-700 px-4 py-3">
+            <div class="max-w-7xl mx-auto flex justify-between items-center">
+                <span x-text="'Update failed: ' + updateError"></span>
+                <button @click="updateError = ''" class="text-red-700 hover:text-red-900">&times;</button>
+            </div>
+        </div>
 
         <!-- Main Content -->
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -492,6 +515,9 @@
                 newDatabase: { name: '' },
                 newSSHKey: { name: '', public_key: '' },
                 newUser: { username: '', password: '', is_admin: false, memory_mb: 512, cpu_percent: 100 },
+                updateInfo: null,
+                updateLoading: false,
+                updateError: '',
 
                 async init() {
                     if (this.token) {
@@ -499,6 +525,9 @@
                             await this.fetchUser();
                             this.authenticated = true;
                             this.loadSites();
+                            if (this.user?.is_admin) {
+                                this.checkUpdate();
+                            }
                         } catch (e) {
                             localStorage.removeItem('fastcp_token');
                             this.token = null;
@@ -607,6 +636,28 @@
                     if (!confirm(`Delete user "${u.username}"? This will also delete all their sites, databases, and SSH keys.`)) return;
                     await this.api(`/users/${u.username}`, 'DELETE');
                     this.loadUsers();
+                },
+
+                async checkUpdate() {
+                    try {
+                        this.updateInfo = await this.api('/system/check-update');
+                    } catch (e) {
+                        console.error('Failed to check for updates:', e);
+                    }
+                },
+
+                async performUpdate() {
+                    if (!confirm(`Update FastCP to ${this.updateInfo.latest_version}? The control panel will restart.`)) return;
+                    this.updateLoading = true;
+                    this.updateError = '';
+                    try {
+                        await this.api('/system/update', 'POST', { target_version: this.updateInfo.latest_version });
+                        alert('Update started! The page will reload in 10 seconds...');
+                        setTimeout(() => window.location.reload(), 10000);
+                    } catch (e) {
+                        this.updateError = e.message;
+                        this.updateLoading = false;
+                    }
                 },
 
                 async api(path, method = 'GET', body = null) {

@@ -251,3 +251,7 @@ func (s *Server) handleCreateUser(ctx context.Context, params json.RawMessage) (
 func (s *Server) handleDeleteUser(ctx context.Context, params json.RawMessage) (any, error) {
 	return nil, fmt.Errorf("user deletion not supported on macOS - use Ubuntu for production")
 }
+
+func (s *Server) handleSystemUpdate(ctx context.Context, params json.RawMessage) (any, error) {
+	return nil, fmt.Errorf("system updates not supported on macOS - use Ubuntu for production")
+}

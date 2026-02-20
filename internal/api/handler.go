@@ -28,7 +28,7 @@ type Handler struct {
 }
 
 // NewHandler creates a new API handler
-func NewHandler(db *database.DB, agentClient *agent.Client) *Handler {
+func NewHandler(db *database.DB, agentClient *agent.Client, version string) *Handler {
 	return &Handler{
 		db:          db,
 		agent:       agentClient,
@@ -36,7 +36,7 @@ func NewHandler(db *database.DB, agentClient *agent.Client) *Handler {
 		siteService: NewSiteService(db, agentClient),
 		dbService:   NewDatabaseService(db, agentClient),
 		sshService:  NewSSHKeyService(db, agentClient),
-		sysService:  NewSystemService(agentClient),
+		sysService:  NewSystemService(agentClient, version),
 		userService: NewUserService(db, agentClient),
 	}
 }
@@ -245,6 +245,30 @@ func (h *Handler) SystemServices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.json(w, http.StatusOK, services)
+}
+
+func (h *Handler) CheckUpdate(w http.ResponseWriter, r *http.Request) {
+	info, err := h.sysService.CheckUpdate(r.Context())
+	if err != nil {
+		h.error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.json(w, http.StatusOK, info)
+}
+
+func (h *Handler) PerformUpdate(w http.ResponseWriter, r *http.Request) {
+	var req PerformUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := h.sysService.PerformUpdate(r.Context(), req.TargetVersion); err != nil {
+		h.error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	h.json(w, http.StatusOK, map[string]string{"status": "ok", "message": "Update initiated. Services will restart shortly."})
 }
 
 // AdminMiddleware ensures user is an admin

@@ -87,7 +87,7 @@ func main() {
 	r.Use(middleware.Compress(5))
 
 	// API routes
-	apiHandler := api.NewHandler(db, agentClient)
+	apiHandler := api.NewHandler(db, agentClient, Version)
 	r.Route("/api", func(r chi.Router) {
 		// Auth
 		r.Post("/auth/login", apiHandler.Login)
@@ -127,6 +127,10 @@ func main() {
 				r.Get("/users", apiHandler.ListUsers)
 				r.Post("/users", apiHandler.CreateUser)
 				r.Delete("/users/{username}", apiHandler.DeleteUser)
+
+				// System updates
+				r.Get("/system/check-update", apiHandler.CheckUpdate)
+				r.Post("/system/update", apiHandler.PerformUpdate)
 			})
 		})
 	})

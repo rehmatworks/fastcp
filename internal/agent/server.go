@@ -156,6 +156,7 @@ func (s *Server) registerHandlers() {
 	// System handlers
 	s.handlers["system.status"] = s.handleSystemStatus
 	s.handlers["system.services"] = s.handleSystemServices
+	s.handlers["system.update"] = s.handleSystemUpdate
 
 	// User handlers
 	s.handlers["user.create"] = s.handleCreateUser

@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -13,10 +14,21 @@ import (
 	"github.com/rehmatworks/fastcp/internal/agent"
 )
 
+var (
+	Version   = "dev"
+	BuildTime = "unknown"
+)
+
 func main() {
 	socketPath := flag.String("socket", "/var/run/fastcp/agent.sock", "Unix socket path")
 	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
+	showVersion := flag.Bool("version", false, "Show version")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("FastCP Agent %s (built %s)\n", Version, BuildTime)
+		os.Exit(0)
+	}
 
 	// Must run as root
 	if os.Getuid() != 0 {

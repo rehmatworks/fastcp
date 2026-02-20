@@ -110,3 +110,18 @@ type UpdateUserRequest struct {
 	Password string `json:"password,omitempty"`
 	IsAdmin  bool   `json:"is_admin"`
 }
+
+// UpdateInfo contains information about available updates
+type UpdateInfo struct {
+	CurrentVersion  string    `json:"current_version"`
+	LatestVersion   string    `json:"latest_version"`
+	UpdateAvailable bool      `json:"update_available"`
+	ReleaseNotes    string    `json:"release_notes"`
+	ReleaseURL      string    `json:"release_url"`
+	PublishedAt     time.Time `json:"published_at"`
+}
+
+// PerformUpdateRequest is the request body for triggering an update
+type PerformUpdateRequest struct {
+	TargetVersion string `json:"target_version"`
+}

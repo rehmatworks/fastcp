@@ -187,3 +187,9 @@ func (c *Client) DeleteUser(ctx context.Context, req *DeleteUserRequest) error {
 	_, err := c.call(ctx, "user.delete", req)
 	return err
 }
+
+// Update operations
+func (c *Client) PerformUpdate(ctx context.Context, targetVersion string) error {
+	_, err := c.call(ctx, "system.update", &PerformUpdateRequest{TargetVersion: targetVersion})
+	return err
+}

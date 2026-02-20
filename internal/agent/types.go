@@ -106,3 +106,8 @@ type CreateUserRequest struct {
 type DeleteUserRequest struct {
 	Username string `json:"username"`
 }
+
+// PerformUpdateRequest is the request for updating FastCP
+type PerformUpdateRequest struct {
+	TargetVersion string `json:"target_version"`
+}

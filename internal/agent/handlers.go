@@ -879,6 +879,98 @@ func (s *Server) handleSystemServices(ctx context.Context, params json.RawMessag
 	return result, nil
 }
 
+func (s *Server) handleSystemUpdate(ctx context.Context, params json.RawMessage) (any, error) {
+	var req PerformUpdateRequest
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+
+	version := req.TargetVersion
+	if version == "" {
+		version = "latest"
+	}
+
+	slog.Info("performing system update", "target_version", version)
+
+	// Detect architecture
+	arch := "amd64"
+	cmd := exec.Command("uname", "-m")
+	if output, err := cmd.Output(); err == nil {
+		archStr := strings.TrimSpace(string(output))
+		if archStr == "aarch64" || archStr == "arm64" {
+			arch = "arm64"
+		}
+	}
+
+	// Build download URLs
+	var baseURL string
+	if version == "latest" {
+		baseURL = "https://github.com/rehmatworks/fastcp/releases/latest/download"
+	} else {
+		baseURL = fmt.Sprintf("https://github.com/rehmatworks/fastcp/releases/download/%s", version)
+	}
+
+	// Download new binaries to temp location
+	tmpDir := "/tmp/fastcp-update"
+	os.RemoveAll(tmpDir)
+	os.MkdirAll(tmpDir, 0755)
+
+	binaries := []struct {
+		url  string
+		dest string
+	}{
+		{fmt.Sprintf("%s/fastcp-linux-%s", baseURL, arch), "/opt/fastcp/bin/fastcp"},
+		{fmt.Sprintf("%s/fastcp-agent-linux-%s", baseURL, arch), "/opt/fastcp/bin/fastcp-agent"},
+	}
+
+	for _, bin := range binaries {
+		tmpPath := filepath.Join(tmpDir, filepath.Base(bin.dest))
+
+		// Download with curl
+		cmd := exec.Command("curl", "-fsSL", bin.url, "-o", tmpPath)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			os.RemoveAll(tmpDir)
+			return nil, fmt.Errorf("failed to download %s: %w: %s", bin.url, err, output)
+		}
+
+		// Make executable
+		os.Chmod(tmpPath, 0755)
+	}
+
+	// Stop services before replacing binaries
+	exec.Command("systemctl", "stop", "fastcp").Run()
+
+	// Replace binaries
+	for _, bin := range binaries {
+		tmpPath := filepath.Join(tmpDir, filepath.Base(bin.dest))
+
+		// Backup old binary
+		backupPath := bin.dest + ".bak"
+		os.Rename(bin.dest, backupPath)
+
+		// Move new binary into place
+		if err := os.Rename(tmpPath, bin.dest); err != nil {
+			// Restore backup on failure
+			os.Rename(backupPath, bin.dest)
+			os.RemoveAll(tmpDir)
+			return nil, fmt.Errorf("failed to install %s: %w", bin.dest, err)
+		}
+
+		// Remove backup
+		os.Remove(backupPath)
+	}
+
+	// Cleanup
+	os.RemoveAll(tmpDir)
+
+	// Restart services
+	exec.Command("systemctl", "start", "fastcp").Run()
+	exec.Command("systemctl", "restart", "fastcp-agent").Run()
+
+	slog.Info("system update completed", "version", version)
+	return map[string]string{"status": "ok", "version": version}, nil
+}
+
 // User handlers
 
 func (s *Server) handleCreateUser(ctx context.Context, params json.RawMessage) (any, error) {
