@@ -1230,7 +1230,7 @@
 
                 handleHashRoute() {
                     const hash = window.location.hash.slice(1) || 'dashboard';
-                    const validTabs = ['dashboard', 'sites', 'databases', 'ssh', 'users', 'system'];
+                    const validTabs = ['dashboard', 'sites', 'databases', 'ssh', 'cron', 'users', 'system'];
                     const adminTabs = ['users', 'system'];
                     
                     if (validTabs.includes(hash)) {
