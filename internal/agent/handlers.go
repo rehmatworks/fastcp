@@ -225,6 +225,23 @@ define( 'NONCE_SALT',       '%s' );
 // Database table prefix
 $table_prefix = 'wp_';
 
+// HTTPS and SSL handling (auto-detect from reverse proxy)
+if ( isset( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https' ) {
+	$_SERVER['HTTPS'] = 'on';
+}
+if ( isset( $_SERVER['HTTP_X_FORWARDED_SSL'] ) && $_SERVER['HTTP_X_FORWARDED_SSL'] === 'on' ) {
+	$_SERVER['HTTPS'] = 'on';
+}
+
+// Force SSL for admin
+define( 'FORCE_SSL_ADMIN', true );
+
+// Allow WordPress to detect the correct URL scheme
+if ( isset( $_SERVER['HTTPS'] ) && $_SERVER['HTTPS'] === 'on' ) {
+	define( 'WP_HOME', 'https://' . $_SERVER['HTTP_HOST'] );
+	define( 'WP_SITEURL', 'https://' . $_SERVER['HTTP_HOST'] );
+}
+
 // Debugging (set to true to enable)
 define( 'WP_DEBUG', false );
 
@@ -423,7 +440,9 @@ func (s *Server) generateCaddyfile() error {
 
 			mainBuf.WriteString(fmt.Sprintf(`# Site: %s (User: %s)
 %s {
-    reverse_proxy unix/%s
+    reverse_proxy unix/%s {
+        header_up X-Forwarded-Proto {scheme}
+    }
     
     log {
         output file %s/access.log
