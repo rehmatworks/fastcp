@@ -35,8 +35,7 @@ func (s *Server) handleCreateSiteDirectory(ctx context.Context, params json.RawM
 		homeDir = filepath.Join(homeBase, req.Username)
 	}
 
-	safeDomain := strings.ReplaceAll(req.Domain, ".", "_")
-	siteDir := filepath.Join(homeDir, appsDir, safeDomain)
+	siteDir := filepath.Join(homeDir, appsDir, req.Slug)
 	dirs := []string{
 		siteDir,
 		filepath.Join(siteDir, "public"),
@@ -230,7 +229,7 @@ $docRoot = '%s';
         </div>
         
         <p class="footer">
-            Powered by <a href="https://github.com/rehmatworks/fastcp" target="_blank">FastCP</a> &amp; FrankenPHP
+            Powered by <a href="https://github.com/rehmatworks/fastcp" target="_blank">FastCP</a>
         </p>
     </div>
 </body>
@@ -251,8 +250,7 @@ func (s *Server) handleDeleteSiteDirectory(ctx context.Context, params json.RawM
 	}
 
 	homeDir, _ := os.UserHomeDir()
-	safeDomain := strings.ReplaceAll(req.Domain, ".", "_")
-	siteDir := filepath.Join(homeDir, appsDir, safeDomain)
+	siteDir := filepath.Join(homeDir, appsDir, req.Slug)
 
 	if err := os.RemoveAll(siteDir); err != nil {
 		return nil, fmt.Errorf("failed to delete directory: %w", err)
@@ -433,4 +431,8 @@ func (s *Server) handleDeleteUser(ctx context.Context, params json.RawMessage) (
 
 func (s *Server) handleSystemUpdate(ctx context.Context, params json.RawMessage) (any, error) {
 	return nil, fmt.Errorf("system updates not supported on macOS - use Ubuntu for production")
+}
+
+func (s *Server) handleSyncCronJobs(ctx context.Context, params json.RawMessage) (any, error) {
+	return nil, fmt.Errorf("cron job sync not supported on macOS - use Ubuntu for production")
 }

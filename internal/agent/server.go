@@ -161,4 +161,7 @@ func (s *Server) registerHandlers() {
 	// User handlers
 	s.handlers["user.create"] = s.handleCreateUser
 	s.handlers["user.delete"] = s.handleDeleteUser
+
+	// Cron handlers
+	s.handlers["cron.sync"] = s.handleSyncCronJobs
 }

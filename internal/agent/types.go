@@ -18,13 +18,14 @@ type Response struct {
 type CreateSiteDirectoryRequest struct {
 	Username string `json:"username"`
 	Domain   string `json:"domain"`
+	Slug     string `json:"slug"` // Directory name for the site
 	SiteType string `json:"site_type"`
 }
 
 // DeleteSiteDirectoryRequest is the request for deleting a site directory
 type DeleteSiteDirectoryRequest struct {
 	Username string `json:"username"`
-	Domain   string `json:"domain"`
+	Slug     string `json:"slug"` // Directory name for the site
 }
 
 // InstallWordPressRequest is the request for installing WordPress
@@ -110,4 +111,19 @@ type DeleteUserRequest struct {
 // PerformUpdateRequest is the request for updating FastCP
 type PerformUpdateRequest struct {
 	TargetVersion string `json:"target_version"`
+}
+
+// SyncCronJobsRequest is the request for syncing cron jobs for a user
+type SyncCronJobsRequest struct {
+	Username string    `json:"username"`
+	Jobs     []CronJob `json:"jobs"`
+}
+
+// CronJob represents a cron job entry
+type CronJob struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Expression string `json:"expression"`
+	Command    string `json:"command"`
+	Enabled    bool   `json:"enabled"`
 }

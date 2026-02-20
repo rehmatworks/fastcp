@@ -50,9 +50,8 @@ func (s *Server) handleCreateSiteDirectory(ctx context.Context, params json.RawM
 	uid, _ := strconv.Atoi(u.Uid)
 	gid, _ := strconv.Atoi(u.Gid)
 
-	// Create directory structure
-	safeDomain := strings.ReplaceAll(req.Domain, ".", "_")
-	siteDir := filepath.Join(homeBase, req.Username, appsDir, safeDomain)
+	// Create directory structure using the slug
+	siteDir := filepath.Join(homeBase, req.Username, appsDir, req.Slug)
 	dirs := []string{
 		siteDir,
 		filepath.Join(siteDir, "public"),
@@ -246,7 +245,7 @@ $docRoot = '%s';
         </div>
         
         <p class="footer">
-            Powered by <a href="https://github.com/rehmatworks/fastcp" target="_blank">FastCP</a> &amp; FrankenPHP
+            Powered by <a href="https://github.com/rehmatworks/fastcp" target="_blank">FastCP</a>
         </p>
     </div>
 </body>
@@ -276,10 +275,9 @@ func (s *Server) handleDeleteSiteDirectory(ctx context.Context, params json.RawM
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
 
-	slog.Info("deleting site directory", "username", req.Username, "domain", req.Domain)
+	slog.Info("deleting site directory", "username", req.Username, "slug", req.Slug)
 
-	safeDomain := strings.ReplaceAll(req.Domain, ".", "_")
-	siteDir := filepath.Join(homeBase, req.Username, appsDir, safeDomain)
+	siteDir := filepath.Join(homeBase, req.Username, appsDir, req.Slug)
 
 	// Verify path is within user's home
 	if !strings.HasPrefix(siteDir, filepath.Join(homeBase, req.Username)) {
@@ -1550,4 +1548,47 @@ func setACLs(path, username string) error {
 	}
 
 	return nil
+}
+
+// Cron handlers
+
+func (s *Server) handleSyncCronJobs(ctx context.Context, params json.RawMessage) (any, error) {
+	var req SyncCronJobsRequest
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+
+	slog.Info("syncing cron jobs", "username", req.Username, "count", len(req.Jobs))
+
+	// Verify user exists
+	if _, err := user.Lookup(req.Username); err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	// Build crontab content
+	var lines []string
+	lines = append(lines, "# FastCP managed cron jobs - DO NOT EDIT MANUALLY")
+	lines = append(lines, "# Changes will be overwritten by FastCP")
+	lines = append(lines, "")
+
+	for _, job := range req.Jobs {
+		if !job.Enabled {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("# %s (ID: %s)", job.Name, job.ID))
+		lines = append(lines, fmt.Sprintf("%s %s", job.Expression, job.Command))
+		lines = append(lines, "")
+	}
+
+	crontabContent := strings.Join(lines, "\n")
+
+	// Write crontab using crontab command
+	cmd := exec.Command("crontab", "-u", req.Username, "-")
+	cmd.Stdin = strings.NewReader(crontabContent)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("failed to update crontab: %w: %s", err, output)
+	}
+
+	slog.Info("cron jobs synced", "username", req.Username)
+	return map[string]string{"status": "ok"}, nil
 }

@@ -33,6 +33,7 @@ type LoginResponse struct {
 type CreateSiteRequest struct {
 	Username string `json:"-"` // Set from auth
 	Domain   string `json:"domain"`
+	Slug     string `json:"slug"` // Optional, auto-generated from domain if empty
 	SiteType string `json:"site_type"` // "php" or "wordpress"
 }
 
@@ -41,11 +42,18 @@ type Site struct {
 	ID           string       `json:"id"`
 	Username     string       `json:"username"`
 	Domain       string       `json:"domain"`
+	Slug         string       `json:"slug"`
 	SiteType     string       `json:"site_type"`
 	DocumentRoot string       `json:"document_root"`
 	SSLEnabled   bool         `json:"ssl_enabled"`
 	CreatedAt    time.Time    `json:"created_at"`
 	Domains      []SiteDomain `json:"domains,omitempty"`
+}
+
+// ValidateSlugRequest is the request body for validating a site slug
+type ValidateSlugRequest struct {
+	Username string `json:"-"` // Set from auth
+	Slug     string `json:"slug"`
 }
 
 // SiteDomain represents a domain attached to a site
@@ -168,4 +176,35 @@ type UpdateInfo struct {
 // PerformUpdateRequest is the request body for triggering an update
 type PerformUpdateRequest struct {
 	TargetVersion string `json:"target_version"`
+}
+
+// CronJob represents a scheduled cron job
+type CronJob struct {
+	ID          string    `json:"id"`
+	Username    string    `json:"username"`
+	Name        string    `json:"name"`
+	Expression  string    `json:"expression"`
+	Command     string    `json:"command"`
+	Enabled     bool      `json:"enabled"`
+	Description string    `json:"description,omitempty"` // Human-readable schedule description
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// CreateCronJobRequest is the request body for creating a cron job
+type CreateCronJobRequest struct {
+	Username   string `json:"-"` // Set from auth
+	Name       string `json:"name"`
+	Expression string `json:"expression"`
+	Command    string `json:"command"`
+}
+
+// UpdateCronJobRequest is the request body for updating a cron job
+type UpdateCronJobRequest struct {
+	Username   string `json:"-"` // Set from auth
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Expression string `json:"expression"`
+	Command    string `json:"command"`
+	Enabled    bool   `json:"enabled"`
 }

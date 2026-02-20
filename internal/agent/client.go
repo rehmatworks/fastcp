@@ -193,3 +193,9 @@ func (c *Client) PerformUpdate(ctx context.Context, targetVersion string) error 
 	_, err := c.call(ctx, "system.update", &PerformUpdateRequest{TargetVersion: targetVersion})
 	return err
 }
+
+// Cron operations
+func (c *Client) SyncCronJobs(ctx context.Context, req *SyncCronJobsRequest) error {
+	_, err := c.call(ctx, "cron.sync", req)
+	return err
+}

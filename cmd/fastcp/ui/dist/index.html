@@ -136,6 +136,16 @@
                     SSH Keys
                 </a>
 
+                <a href="#cron" @click="navigate('cron')" 
+                   :class="tab === 'cron' ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-500' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'"
+                   class="flex items-center px-4 py-3 transition-colors duration-150">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Cron Jobs
+                    <span x-show="cronJobs.length > 0" class="ml-auto bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full" x-text="cronJobs.length"></span>
+                </a>
+
                 <div x-show="user?.is_admin" class="mt-6">
                     <div class="px-4 mb-2">
                         <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Admin</span>
@@ -494,6 +504,112 @@
                     </div>
                 </div>
 
+                <!-- Cron Jobs Tab -->
+                <div x-show="tab === 'cron'">
+                    <div class="flex justify-between items-center mb-6">
+                        <p class="text-gray-500">Schedule automated tasks to run at specific times</p>
+                        <button @click="showCreateCron = true"
+                                class="inline-flex items-center px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            </svg>
+                            New Cron Job
+                        </button>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
+                                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Schedule</th>
+                                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Command</th>
+                                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <template x-for="job in cronJobs" :key="job.id">
+                                    <tr class="hover:bg-gray-50 transition-colors">
+                                        <td class="px-6 py-4">
+                                            <div class="font-medium text-gray-900" x-text="job.name"></div>
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            <div class="text-sm text-gray-900" x-text="job.description"></div>
+                                            <div class="text-xs text-gray-400 font-mono mt-1" x-text="job.expression"></div>
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            <code class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded font-mono max-w-xs truncate block" x-text="job.command"></code>
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            <button @click="toggleCronJob(job)" 
+                                                    :class="job.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'"
+                                                    class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium transition-colors hover:opacity-80">
+                                                <span class="w-2 h-2 rounded-full mr-1.5" :class="job.enabled ? 'bg-green-500' : 'bg-gray-400'"></span>
+                                                <span x-text="job.enabled ? 'Active' : 'Paused'"></span>
+                                            </button>
+                                        </td>
+                                        <td class="px-6 py-4 text-right space-x-2">
+                                            <button @click="editCronJob(job)" class="text-primary-500 hover:text-primary-700 text-sm font-medium">Edit</button>
+                                            <button @click="deleteCronJob(job)" class="text-red-500 hover:text-red-700 text-sm font-medium">Delete</button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr x-show="cronJobs.length === 0">
+                                    <td colspan="5" class="px-6 py-16 text-center">
+                                        <div class="flex flex-col items-center">
+                                            <svg class="w-12 h-12 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                            </svg>
+                                            <p class="text-gray-500 mb-2">No cron jobs yet</p>
+                                            <button @click="showCreateCron = true" class="text-primary-600 hover:text-primary-700 text-sm font-medium">Create your first cron job</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Cron Expression Presets -->
+                    <div class="mt-6 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h3 class="text-sm font-semibold text-gray-700 mb-4">Common Schedules Reference</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <code class="text-xs text-gray-600 font-mono block mb-1">* * * * *</code>
+                                <span class="text-gray-500">Every minute</span>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <code class="text-xs text-gray-600 font-mono block mb-1">*/5 * * * *</code>
+                                <span class="text-gray-500">Every 5 minutes</span>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <code class="text-xs text-gray-600 font-mono block mb-1">0 * * * *</code>
+                                <span class="text-gray-500">Every hour</span>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <code class="text-xs text-gray-600 font-mono block mb-1">0 0 * * *</code>
+                                <span class="text-gray-500">Every day at midnight</span>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <code class="text-xs text-gray-600 font-mono block mb-1">0 0 * * 0</code>
+                                <span class="text-gray-500">Every Sunday at midnight</span>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <code class="text-xs text-gray-600 font-mono block mb-1">0 0 1 * *</code>
+                                <span class="text-gray-500">First of every month</span>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <code class="text-xs text-gray-600 font-mono block mb-1">0 3 * * *</code>
+                                <span class="text-gray-500">Every day at 3 AM</span>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <code class="text-xs text-gray-600 font-mono block mb-1">0 */6 * * *</code>
+                                <span class="text-gray-500">Every 6 hours</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- System Tab -->
                 <div x-show="tab === 'system'">
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -703,8 +819,29 @@
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Domain</label>
                         <input type="text" x-model="newSite.domain" required
+                               @input="generateSlugFromDomain()"
                                class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                                placeholder="example.com">
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Directory Name (Slug)</label>
+                        <div class="relative">
+                            <input type="text" x-model="newSite.slug" required
+                                   @input="validateSlug()"
+                                   class="w-full px-4 py-3 border rounded-lg focus:outline-none font-mono text-sm pr-10"
+                                   :class="slugValidation.valid === true ? 'border-green-300 focus:border-green-500' : slugValidation.valid === false ? 'border-red-300 focus:border-red-500' : 'border-gray-200 focus:border-primary-500'"
+                                   placeholder="example_com">
+                            <div class="absolute right-3 top-1/2 -translate-y-1/2">
+                                <svg x-show="slugValidation.valid === true" class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                <svg x-show="slugValidation.valid === false" class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <p class="text-xs mt-2" :class="slugValidation.valid === true ? 'text-green-600' : slugValidation.valid === false ? 'text-red-600' : 'text-gray-500'"
+                           x-text="slugValidation.message || 'Site will be created at: /home/' + (user?.username || 'user') + '/apps/' + (newSite.slug || 'slug') + '/public'"></p>
                     </div>
                     <div class="mb-6">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Type</label>
@@ -717,8 +854,9 @@
                         </p>
                     </div>
                     <div class="flex space-x-3">
-                        <button type="button" @click="showCreateSite = false" class="flex-1 px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 font-medium">Cancel</button>
-                        <button type="submit" class="flex-1 px-4 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 font-medium">Create Site</button>
+                        <button type="button" @click="showCreateSite = false; resetSlugValidation()" class="flex-1 px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 font-medium">Cancel</button>
+                        <button type="submit" :disabled="slugValidation.valid === false" 
+                                class="flex-1 px-4 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 font-medium disabled:opacity-50 disabled:cursor-not-allowed">Create Site</button>
                     </div>
                 </form>
             </div>
@@ -834,7 +972,7 @@
 
     <!-- Add SSH Key Modal -->
     <div x-show="showAddSSHKey" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" x-transition>
-        <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg mx-4" @click.away="showAddSSHKey = false">
+        <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg mx-4" @click.away="showAddSSHKey = false; sshKeyError = ''">
             <h3 class="text-xl font-semibold text-gray-800 mb-6">Add SSH Key</h3>
             <form @submit.prevent="addSSHKey">
                 <div class="mb-4">
@@ -843,15 +981,86 @@
                            class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary-500" 
                            placeholder="My Laptop">
                 </div>
-                <div class="mb-6">
+                <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Public Key</label>
                     <textarea x-model="newSSHKey.public_key" required rows="4"
                               class="w-full px-4 py-3 border border-gray-200 rounded-lg font-mono text-sm focus:outline-none focus:border-primary-500"
                               placeholder="ssh-rsa AAAA... or ssh-ed25519 AAAA..."></textarea>
+                    <p class="text-xs text-gray-500 mt-1">Paste your public key (usually from ~/.ssh/id_rsa.pub or ~/.ssh/id_ed25519.pub)</p>
+                </div>
+                <div x-show="sshKeyError" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+                    <span x-text="sshKeyError"></span>
                 </div>
                 <div class="flex space-x-3">
-                    <button type="button" @click="showAddSSHKey = false" class="flex-1 px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 font-medium">Cancel</button>
+                    <button type="button" @click="showAddSSHKey = false; sshKeyError = ''" class="flex-1 px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 font-medium">Cancel</button>
                     <button type="submit" class="flex-1 px-4 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 font-medium">Add Key</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Create/Edit Cron Job Modal -->
+    <div x-show="showCreateCron || showEditCron" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" x-transition>
+        <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg mx-4" @click.away="showCreateCron = false; showEditCron = false">
+            <h3 class="text-xl font-semibold text-gray-800 mb-6" x-text="showEditCron ? 'Edit Cron Job' : 'Create Cron Job'"></h3>
+            <form @submit.prevent="showEditCron ? updateCronJob() : createCronJob()">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                    <input type="text" x-model="cronForm.name" required
+                           class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary-500" 
+                           placeholder="e.g., Database Backup">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Schedule (Cron Expression)</label>
+                    <div class="relative">
+                        <input type="text" x-model="cronForm.expression" required
+                               @input="validateCronExpression()"
+                               class="w-full px-4 py-3 border rounded-lg focus:outline-none font-mono text-sm"
+                               :class="cronValidation.valid === true ? 'border-green-300 focus:border-green-500' : cronValidation.valid === false ? 'border-red-300 focus:border-red-500' : 'border-gray-200 focus:border-primary-500'"
+                               placeholder="*/5 * * * *">
+                        <div class="absolute right-3 top-1/2 -translate-y-1/2">
+                            <svg x-show="cronValidation.valid === true" class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            <svg x-show="cronValidation.valid === false" class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <p class="text-xs mt-2" :class="cronValidation.valid === true ? 'text-green-600' : cronValidation.valid === false ? 'text-red-600' : 'text-gray-500'"
+                       x-text="cronValidation.description || 'Format: minute hour day month weekday'"></p>
+                </div>
+
+                <!-- Quick preset buttons -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Quick Presets</label>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" @click="setCronPreset('*/5 * * * *')" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Every 5 min</button>
+                        <button type="button" @click="setCronPreset('0 * * * *')" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Hourly</button>
+                        <button type="button" @click="setCronPreset('0 0 * * *')" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Daily</button>
+                        <button type="button" @click="setCronPreset('0 0 * * 0')" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Weekly</button>
+                        <button type="button" @click="setCronPreset('0 0 1 * *')" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Monthly</button>
+                        <button type="button" @click="setCronPreset('0 3 * * *')" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">3 AM Daily</button>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Command</label>
+                    <textarea x-model="cronForm.command" required rows="3"
+                              class="w-full px-4 py-3 border border-gray-200 rounded-lg font-mono text-sm focus:outline-none focus:border-primary-500"
+                              placeholder="/usr/bin/php /home/user/apps/site/cron.php"></textarea>
+                    <p class="text-xs text-gray-500 mt-1">Use absolute paths. Output is captured in user's cron logs.</p>
+                </div>
+
+                <div x-show="cronError" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+                    <span x-text="cronError"></span>
+                </div>
+
+                <div class="flex space-x-3">
+                    <button type="button" @click="showCreateCron = false; showEditCron = false; cronError = ''" class="flex-1 px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 font-medium">Cancel</button>
+                    <button type="submit" :disabled="cronValidation.valid === false" 
+                            class="flex-1 px-4 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            x-text="showEditCron ? 'Save Changes' : 'Create Cron Job'"></button>
                 </div>
             </form>
         </div>
@@ -961,9 +1170,12 @@
                 systemStatus: null,
                 createdDatabase: null,
                 userError: '',
-                newSite: { domain: '', site_type: 'php' },
+                newSite: { domain: '', slug: '', site_type: 'php' },
+                slugValidation: { valid: null, message: '' },
+                slugValidateTimeout: null,
                 newDatabase: { name: '' },
                 newSSHKey: { name: '', public_key: '' },
+                sshKeyError: '',
                 newUser: { username: '', password: '', is_admin: false, memory_mb: 512, cpu_percent: 100, max_sites: -1, storage_mb: -1 },
                 updateInfo: null,
                 updateLoading: false,
@@ -976,6 +1188,15 @@
                 newDomain: { domain: '', redirect_to_primary: false },
                 domainLoading: false,
                 domainError: '',
+                
+                // Cron jobs
+                cronJobs: [],
+                showCreateCron: false,
+                showEditCron: false,
+                cronForm: { id: '', name: '', expression: '', command: '' },
+                cronValidation: { valid: null, description: '', error: '' },
+                cronError: '',
+                cronValidateTimeout: null,
 
                 get tabTitle() {
                     const titles = {
@@ -983,6 +1204,7 @@
                         'sites': 'Sites',
                         'databases': 'Databases',
                         'ssh': 'SSH Keys',
+                        'cron': 'Cron Jobs',
                         'system': 'System',
                         'users': 'Users'
                     };
@@ -1033,6 +1255,7 @@
                         case 'sites': this.loadSites(); break;
                         case 'databases': this.loadDatabases(); break;
                         case 'ssh': this.loadSSHKeys(); break;
+                        case 'cron': this.loadCronJobs(); break;
                         case 'users': this.loadUsers(); break;
                         case 'system': this.loadSystemStatus(); break;
                     }
@@ -1081,6 +1304,7 @@
                 async loadSites() { this.sites = await this.api('/sites') || []; },
                 async loadDatabases() { this.databases = await this.api('/databases') || []; },
                 async loadSSHKeys() { this.sshKeys = await this.api('/ssh-keys') || []; },
+                async loadCronJobs() { this.cronJobs = await this.api('/cron') || []; },
                 async loadSystemStatus() { this.systemStatus = await this.api('/system/status'); },
                 async loadUsers() { 
                     try { this.users = await this.api('/users') || []; } 
@@ -1114,7 +1338,8 @@
                         this.creatingSite = false;
                         this.showCreateSite = false;
                         this.siteCreationStatus = '';
-                        this.newSite = { domain: '', site_type: 'php' };
+                        this.newSite = { domain: '', slug: '', site_type: 'php' };
+                        this.resetSlugValidation();
                         this.loadSites();
                         this.loadDatabases();
                     } catch (e) {
@@ -1126,6 +1351,49 @@
 
                 sleep(ms) {
                     return new Promise(resolve => setTimeout(resolve, ms));
+                },
+
+                async generateSlugFromDomain() {
+                    const domain = this.newSite.domain.trim();
+                    if (!domain) {
+                        this.newSite.slug = '';
+                        this.resetSlugValidation();
+                        return;
+                    }
+                    
+                    try {
+                        const result = await this.api('/sites/generate-slug', 'POST', { domain });
+                        this.newSite.slug = result.slug;
+                        this.validateSlug();
+                    } catch (e) {
+                        this.newSite.slug = domain.replace(/\./g, '_').replace(/-/g, '_');
+                        this.validateSlug();
+                    }
+                },
+
+                async validateSlug() {
+                    clearTimeout(this.slugValidateTimeout);
+                    const slug = this.newSite.slug.trim();
+                    if (!slug) {
+                        this.slugValidation = { valid: null, message: '' };
+                        return;
+                    }
+
+                    this.slugValidateTimeout = setTimeout(async () => {
+                        try {
+                            const result = await this.api('/sites/validate-slug', 'POST', { slug });
+                            this.slugValidation = {
+                                valid: result.valid,
+                                message: result.message
+                            };
+                        } catch (e) {
+                            this.slugValidation = { valid: false, message: 'Validation failed' };
+                        }
+                    }, 300);
+                },
+
+                resetSlugValidation() {
+                    this.slugValidation = { valid: null, message: '' };
                 },
 
                 async deleteSite(site) {
@@ -1208,16 +1476,115 @@
                 },
 
                 async addSSHKey() {
-                    await this.api('/ssh-keys', 'POST', this.newSSHKey);
-                    this.showAddSSHKey = false;
-                    this.newSSHKey = { name: '', public_key: '' };
-                    this.loadSSHKeys();
+                    this.sshKeyError = '';
+                    try {
+                        await this.api('/ssh-keys', 'POST', this.newSSHKey);
+                        this.showAddSSHKey = false;
+                        this.newSSHKey = { name: '', public_key: '' };
+                        this.loadSSHKeys();
+                    } catch (e) {
+                        this.sshKeyError = e.message || 'Failed to add SSH key';
+                    }
                 },
 
                 async deleteSSHKey(key) {
                     if (!confirm(`Remove "${key.name}"?`)) return;
                     await this.api(`/ssh-keys/${key.id}`, 'DELETE');
                     this.loadSSHKeys();
+                },
+
+                // Cron job methods
+                async createCronJob() {
+                    this.cronError = '';
+                    try {
+                        await this.api('/cron', 'POST', {
+                            name: this.cronForm.name,
+                            expression: this.cronForm.expression,
+                            command: this.cronForm.command
+                        });
+                        this.showCreateCron = false;
+                        this.resetCronForm();
+                        this.loadCronJobs();
+                    } catch (e) {
+                        this.cronError = e.message;
+                    }
+                },
+
+                async updateCronJob() {
+                    this.cronError = '';
+                    try {
+                        await this.api(`/cron/${this.cronForm.id}`, 'PUT', {
+                            name: this.cronForm.name,
+                            expression: this.cronForm.expression,
+                            command: this.cronForm.command,
+                            enabled: this.cronForm.enabled
+                        });
+                        this.showEditCron = false;
+                        this.resetCronForm();
+                        this.loadCronJobs();
+                    } catch (e) {
+                        this.cronError = e.message;
+                    }
+                },
+
+                editCronJob(job) {
+                    this.cronForm = {
+                        id: job.id,
+                        name: job.name,
+                        expression: job.expression,
+                        command: job.command,
+                        enabled: job.enabled
+                    };
+                    this.cronValidation = { valid: true, description: job.description, error: '' };
+                    this.showEditCron = true;
+                },
+
+                async toggleCronJob(job) {
+                    try {
+                        await this.api(`/cron/${job.id}/toggle`, 'POST', { enabled: !job.enabled });
+                        this.loadCronJobs();
+                    } catch (e) {
+                        console.error('Failed to toggle cron job:', e);
+                    }
+                },
+
+                async deleteCronJob(job) {
+                    if (!confirm(`Delete cron job "${job.name}"?`)) return;
+                    await this.api(`/cron/${job.id}`, 'DELETE');
+                    this.loadCronJobs();
+                },
+
+                resetCronForm() {
+                    this.cronForm = { id: '', name: '', expression: '', command: '' };
+                    this.cronValidation = { valid: null, description: '', error: '' };
+                    this.cronError = '';
+                },
+
+                setCronPreset(expr) {
+                    this.cronForm.expression = expr;
+                    this.validateCronExpression();
+                },
+
+                async validateCronExpression() {
+                    clearTimeout(this.cronValidateTimeout);
+                    const expr = this.cronForm.expression;
+                    if (!expr.trim()) {
+                        this.cronValidation = { valid: null, description: '', error: '' };
+                        return;
+                    }
+                    
+                    this.cronValidateTimeout = setTimeout(async () => {
+                        try {
+                            const result = await this.api('/cron/validate', 'POST', { expression: expr });
+                            this.cronValidation = {
+                                valid: result.valid,
+                                description: result.description,
+                                error: result.error
+                            };
+                        } catch (e) {
+                            this.cronValidation = { valid: false, description: '', error: 'Validation failed' };
+                        }
+                    }, 300);
                 },
 
                 async createUser() {

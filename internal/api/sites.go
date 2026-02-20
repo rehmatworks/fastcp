@@ -14,6 +14,7 @@ import (
 )
 
 var domainRegex = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`)
+var slugRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}[a-zA-Z0-9]$|^[a-zA-Z0-9]$`)
 
 // SiteService handles site operations
 type SiteService struct {
@@ -41,6 +42,7 @@ func (s *SiteService) List(ctx context.Context, username string) ([]*Site, error
 			ID:           dbSite.ID,
 			Username:     dbSite.Username,
 			Domain:       dbSite.Domain,
+			Slug:         dbSite.Slug,
 			SiteType:     dbSite.SiteType,
 			DocumentRoot: dbSite.DocumentRoot,
 			SSLEnabled:   dbSite.SSLEnabled,
@@ -88,6 +90,7 @@ func (s *SiteService) Get(ctx context.Context, id, username string) (*Site, erro
 		ID:           dbSite.ID,
 		Username:     dbSite.Username,
 		Domain:       dbSite.Domain,
+		Slug:         dbSite.Slug,
 		SiteType:     dbSite.SiteType,
 		DocumentRoot: dbSite.DocumentRoot,
 		SSLEnabled:   dbSite.SSLEnabled,
@@ -129,15 +132,36 @@ func (s *SiteService) Create(ctx context.Context, req *CreateSiteRequest) (*Site
 		return nil, fmt.Errorf("invalid site type: must be 'php' or 'wordpress'")
 	}
 
+	// Handle slug - auto-generate from domain if not provided
+	slug := strings.TrimSpace(req.Slug)
+	if slug == "" {
+		slug = strings.ReplaceAll(domain, ".", "_")
+		slug = strings.ReplaceAll(slug, "-", "_")
+	}
+
+	// Validate slug format
+	if !slugRegex.MatchString(slug) {
+		return nil, fmt.Errorf("invalid slug format: use letters, numbers, underscores, and hyphens (2-64 chars)")
+	}
+
+	// Check if slug already exists for this user
+	exists, err := s.db.SlugExists(ctx, req.Username, slug)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check slug: %w", err)
+	}
+	if exists {
+		return nil, fmt.Errorf("slug '%s' already exists. Choose a different name.", slug)
+	}
+
 	// Generate ID and paths
 	id := uuid.New().String()
-	safeDomain := strings.ReplaceAll(domain, ".", "_")
-	documentRoot := fmt.Sprintf("/home/%s/apps/%s/public", req.Username, safeDomain)
+	documentRoot := fmt.Sprintf("/home/%s/apps/%s/public", req.Username, slug)
 
 	// Create site directory via agent
 	if err := s.agent.CreateSiteDirectory(ctx, &agent.CreateSiteDirectoryRequest{
 		Username: req.Username,
 		Domain:   domain,
+		Slug:     slug,
 		SiteType: siteType,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to create site directory: %w", err)
@@ -187,6 +211,7 @@ func (s *SiteService) Create(ctx context.Context, req *CreateSiteRequest) (*Site
 		ID:           id,
 		Username:     req.Username,
 		Domain:       domain,
+		Slug:         slug,
 		SiteType:     siteType,
 		DocumentRoot: documentRoot,
 		SSLEnabled:   true,
@@ -216,6 +241,7 @@ func (s *SiteService) Create(ctx context.Context, req *CreateSiteRequest) (*Site
 		ID:           id,
 		Username:     req.Username,
 		Domain:       domain,
+		Slug:         slug,
 		SiteType:     siteType,
 		DocumentRoot: documentRoot,
 		SSLEnabled:   true,
@@ -245,7 +271,7 @@ func (s *SiteService) Delete(ctx context.Context, id, username string) error {
 	// Delete site directory via agent
 	if err := s.agent.DeleteSiteDirectory(ctx, &agent.DeleteSiteDirectoryRequest{
 		Username: username,
-		Domain:   dbSite.Domain,
+		Slug:     dbSite.Slug,
 	}); err != nil {
 		return fmt.Errorf("failed to delete site directory: %w", err)
 	}
@@ -420,4 +446,30 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// ValidateSlug checks if a slug is valid and available
+func (s *SiteService) ValidateSlug(ctx context.Context, username, slug string) (bool, string, error) {
+	// Validate format
+	if !slugRegex.MatchString(slug) {
+		return false, "Invalid format: use letters, numbers, underscores, and hyphens (2-64 chars)", nil
+	}
+
+	// Check if already exists
+	exists, err := s.db.SlugExists(ctx, username, slug)
+	if err != nil {
+		return false, "", err
+	}
+	if exists {
+		return false, "This slug is already in use", nil
+	}
+
+	return true, "Slug is available", nil
+}
+
+// GenerateSlug creates a slug from a domain name
+func GenerateSlug(domain string) string {
+	slug := strings.ReplaceAll(domain, ".", "_")
+	slug = strings.ReplaceAll(slug, "-", "_")
+	return slug
 }

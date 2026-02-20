@@ -26,6 +26,7 @@ type Handler struct {
 	sshService  *SSHKeyService
 	sysService  *SystemService
 	userService *UserService
+	cronService *CronService
 }
 
 // NewHandler creates a new API handler
@@ -39,6 +40,7 @@ func NewHandler(db *database.DB, agentClient *agent.Client, version string) *Han
 		sshService:  NewSSHKeyService(db, agentClient),
 		sysService:  NewSystemService(agentClient, version),
 		userService: NewUserService(db, agentClient),
+		cronService: NewCronService(db, agentClient),
 	}
 }
 
@@ -227,6 +229,41 @@ func (h *Handler) DeleteDomain(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) ValidateSlug(w http.ResponseWriter, r *http.Request) {
+	user := h.getUser(r)
+	var req struct {
+		Slug string `json:"slug"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	valid, message, err := h.siteService.ValidateSlug(r.Context(), user.Username, req.Slug)
+	if err != nil {
+		h.error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	h.json(w, http.StatusOK, map[string]any{
+		"valid":   valid,
+		"message": message,
+	})
+}
+
+func (h *Handler) GenerateSlug(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Domain string `json:"domain"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	slug := GenerateSlug(req.Domain)
+	h.json(w, http.StatusOK, map[string]string{"slug": slug})
+}
+
 // Database handlers
 func (h *Handler) ListDatabases(w http.ResponseWriter, r *http.Request) {
 	user := h.getUser(r)
@@ -290,7 +327,7 @@ func (h *Handler) AddSSHKey(w http.ResponseWriter, r *http.Request) {
 
 	key, err := h.sshService.Add(r.Context(), &req)
 	if err != nil {
-		h.error(w, http.StatusInternalServerError, err.Error())
+		h.error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	h.json(w, http.StatusCreated, key)
@@ -395,6 +432,107 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// Cron job handlers
+func (h *Handler) ListCronJobs(w http.ResponseWriter, r *http.Request) {
+	user := h.getUser(r)
+	jobs, err := h.cronService.List(r.Context(), user.Username)
+	if err != nil {
+		h.error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.json(w, http.StatusOK, jobs)
+}
+
+func (h *Handler) CreateCronJob(w http.ResponseWriter, r *http.Request) {
+	user := h.getUser(r)
+	var req CreateCronJobRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	req.Username = user.Username
+
+	job, err := h.cronService.Create(r.Context(), &req)
+	if err != nil {
+		h.error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	h.json(w, http.StatusCreated, job)
+}
+
+func (h *Handler) UpdateCronJob(w http.ResponseWriter, r *http.Request) {
+	user := h.getUser(r)
+	var req UpdateCronJobRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	req.Username = user.Username
+	req.ID = chi.URLParam(r, "id")
+
+	job, err := h.cronService.Update(r.Context(), &req)
+	if err != nil {
+		h.error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	h.json(w, http.StatusOK, job)
+}
+
+func (h *Handler) ToggleCronJob(w http.ResponseWriter, r *http.Request) {
+	user := h.getUser(r)
+	id := chi.URLParam(r, "id")
+
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := h.cronService.Toggle(r.Context(), user.Username, id, req.Enabled); err != nil {
+		h.error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	h.json(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) DeleteCronJob(w http.ResponseWriter, r *http.Request) {
+	user := h.getUser(r)
+	id := chi.URLParam(r, "id")
+
+	if err := h.cronService.Delete(r.Context(), user.Username, id); err != nil {
+		h.error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) ValidateCronExpression(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Expression string `json:"expression"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := validateCronExpression(req.Expression); err != nil {
+		h.json(w, http.StatusOK, map[string]any{
+			"valid":       false,
+			"error":       err.Error(),
+			"description": "",
+		})
+		return
+	}
+
+	h.json(w, http.StatusOK, map[string]any{
+		"valid":       true,
+		"error":       "",
+		"description": describeCronExpression(req.Expression),
+	})
 }
 
 // Helper methods

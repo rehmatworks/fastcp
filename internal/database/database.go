@@ -59,6 +59,7 @@ func migrate(db *sql.DB) error {
 			id TEXT PRIMARY KEY,
 			username TEXT NOT NULL,
 			domain TEXT UNIQUE NOT NULL,
+			slug TEXT NOT NULL,
 			site_type TEXT NOT NULL DEFAULT 'php',
 			document_root TEXT NOT NULL,
 			ssl_enabled INTEGER DEFAULT 1,
@@ -110,6 +111,24 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE users ADD COLUMN cpu_percent INTEGER DEFAULT 100`,
 		`ALTER TABLE users ADD COLUMN max_sites INTEGER DEFAULT -1`,
 		`ALTER TABLE users ADD COLUMN storage_mb INTEGER DEFAULT -1`,
+
+		// Cron jobs table
+		`CREATE TABLE IF NOT EXISTS cron_jobs (
+			id TEXT PRIMARY KEY,
+			username TEXT NOT NULL,
+			name TEXT NOT NULL,
+			expression TEXT NOT NULL,
+			command TEXT NOT NULL,
+			enabled INTEGER DEFAULT 1,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (username) REFERENCES users(username) ON DELETE CASCADE
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_cron_jobs_username ON cron_jobs(username)`,
+
+		// Add slug column to sites table (migration for existing databases)
+		`ALTER TABLE sites ADD COLUMN slug TEXT`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_sites_username_slug ON sites(username, slug)`,
 	}
 
 	for _, m := range migrations {
@@ -144,6 +163,7 @@ type Site struct {
 	ID           string        `json:"id"`
 	Username     string        `json:"username"`
 	Domain       string        `json:"domain"`
+	Slug         string        `json:"slug"`
 	SiteType     string        `json:"site_type"`
 	DocumentRoot string        `json:"document_root"`
 	SSLEnabled   bool          `json:"ssl_enabled"`
@@ -188,6 +208,18 @@ type Session struct {
 	Username  string    `json:"username"`
 	ExpiresAt time.Time `json:"expires_at"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// CronJob represents a scheduled cron job
+type CronJob struct {
+	ID         string    `json:"id"`
+	Username   string    `json:"username"`
+	Name       string    `json:"name"`
+	Expression string    `json:"expression"`
+	Command    string    `json:"command"`
+	Enabled    bool      `json:"enabled"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // User operations
@@ -311,29 +343,31 @@ func (db *DB) CleanExpiredSessions(ctx context.Context) error {
 // Site operations
 func (db *DB) CreateSite(ctx context.Context, site *Site) error {
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO sites (id, username, domain, site_type, document_root, ssl_enabled)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		site.ID, site.Username, site.Domain, site.SiteType, site.DocumentRoot, site.SSLEnabled,
+		`INSERT INTO sites (id, username, domain, slug, site_type, document_root, ssl_enabled)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		site.ID, site.Username, site.Domain, site.Slug, site.SiteType, site.DocumentRoot, site.SSLEnabled,
 	)
 	return err
 }
 
 func (db *DB) GetSite(ctx context.Context, id string) (*Site, error) {
 	var s Site
+	var slug sql.NullString
 	err := db.QueryRowContext(ctx,
-		`SELECT id, username, domain, site_type, document_root, ssl_enabled, created_at, updated_at
+		`SELECT id, username, domain, COALESCE(slug, ''), site_type, document_root, ssl_enabled, created_at, updated_at
 		 FROM sites WHERE id = ?`,
 		id,
-	).Scan(&s.ID, &s.Username, &s.Domain, &s.SiteType, &s.DocumentRoot, &s.SSLEnabled, &s.CreatedAt, &s.UpdatedAt)
+	).Scan(&s.ID, &s.Username, &s.Domain, &slug, &s.SiteType, &s.DocumentRoot, &s.SSLEnabled, &s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
+	s.Slug = slug.String
 	return &s, nil
 }
 
 func (db *DB) ListSites(ctx context.Context, username string) ([]*Site, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, username, domain, site_type, document_root, ssl_enabled, created_at, updated_at
+		`SELECT id, username, domain, COALESCE(slug, ''), site_type, document_root, ssl_enabled, created_at, updated_at
 		 FROM sites WHERE username = ? ORDER BY created_at DESC`,
 		username,
 	)
@@ -345,7 +379,7 @@ func (db *DB) ListSites(ctx context.Context, username string) ([]*Site, error) {
 	var sites []*Site
 	for rows.Next() {
 		var s Site
-		if err := rows.Scan(&s.ID, &s.Username, &s.Domain, &s.SiteType, &s.DocumentRoot, &s.SSLEnabled, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.Username, &s.Domain, &s.Slug, &s.SiteType, &s.DocumentRoot, &s.SSLEnabled, &s.CreatedAt, &s.UpdatedAt); err != nil {
 			return nil, err
 		}
 		sites = append(sites, &s)
@@ -366,7 +400,7 @@ func (db *DB) CountUserSites(ctx context.Context, username string) (int, error) 
 
 func (db *DB) ListAllSites(ctx context.Context) ([]*Site, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, username, domain, site_type, document_root, ssl_enabled, created_at, updated_at
+		`SELECT id, username, domain, COALESCE(slug, ''), site_type, document_root, ssl_enabled, created_at, updated_at
 		 FROM sites ORDER BY username, domain`,
 	)
 	if err != nil {
@@ -377,12 +411,22 @@ func (db *DB) ListAllSites(ctx context.Context) ([]*Site, error) {
 	var sites []*Site
 	for rows.Next() {
 		var s Site
-		if err := rows.Scan(&s.ID, &s.Username, &s.Domain, &s.SiteType, &s.DocumentRoot, &s.SSLEnabled, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.Username, &s.Domain, &s.Slug, &s.SiteType, &s.DocumentRoot, &s.SSLEnabled, &s.CreatedAt, &s.UpdatedAt); err != nil {
 			return nil, err
 		}
 		sites = append(sites, &s)
 	}
 	return sites, nil
+}
+
+// SlugExists checks if a slug already exists for a username
+func (db *DB) SlugExists(ctx context.Context, username, slug string) (bool, error) {
+	var count int
+	err := db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM sites WHERE username = ? AND slug = ?",
+		username, slug,
+	).Scan(&count)
+	return count > 0, err
 }
 
 // SiteDomain operations
@@ -597,4 +641,87 @@ func (db *DB) ListSSHKeys(ctx context.Context, username string) ([]*SSHKey, erro
 func (db *DB) DeleteSSHKey(ctx context.Context, id string) error {
 	_, err := db.ExecContext(ctx, "DELETE FROM ssh_keys WHERE id = ?", id)
 	return err
+}
+
+// Cron Job operations
+func (db *DB) CreateCronJob(ctx context.Context, job *CronJob) error {
+	_, err := db.ExecContext(ctx,
+		"INSERT INTO cron_jobs (id, username, name, expression, command, enabled) VALUES (?, ?, ?, ?, ?, ?)",
+		job.ID, job.Username, job.Name, job.Expression, job.Command, job.Enabled,
+	)
+	return err
+}
+
+func (db *DB) GetCronJob(ctx context.Context, id string) (*CronJob, error) {
+	var j CronJob
+	err := db.QueryRowContext(ctx,
+		"SELECT id, username, name, expression, command, enabled, created_at, updated_at FROM cron_jobs WHERE id = ?",
+		id,
+	).Scan(&j.ID, &j.Username, &j.Name, &j.Expression, &j.Command, &j.Enabled, &j.CreatedAt, &j.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &j, nil
+}
+
+func (db *DB) ListCronJobs(ctx context.Context, username string) ([]*CronJob, error) {
+	rows, err := db.QueryContext(ctx,
+		"SELECT id, username, name, expression, command, enabled, created_at, updated_at FROM cron_jobs WHERE username = ? ORDER BY created_at DESC",
+		username,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var jobs []*CronJob
+	for rows.Next() {
+		var j CronJob
+		if err := rows.Scan(&j.ID, &j.Username, &j.Name, &j.Expression, &j.Command, &j.Enabled, &j.CreatedAt, &j.UpdatedAt); err != nil {
+			return nil, err
+		}
+		jobs = append(jobs, &j)
+	}
+	return jobs, nil
+}
+
+func (db *DB) UpdateCronJob(ctx context.Context, job *CronJob) error {
+	_, err := db.ExecContext(ctx,
+		"UPDATE cron_jobs SET name = ?, expression = ?, command = ?, enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+		job.Name, job.Expression, job.Command, job.Enabled, job.ID,
+	)
+	return err
+}
+
+func (db *DB) ToggleCronJob(ctx context.Context, id string, enabled bool) error {
+	_, err := db.ExecContext(ctx,
+		"UPDATE cron_jobs SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+		enabled, id,
+	)
+	return err
+}
+
+func (db *DB) DeleteCronJob(ctx context.Context, id string) error {
+	_, err := db.ExecContext(ctx, "DELETE FROM cron_jobs WHERE id = ?", id)
+	return err
+}
+
+func (db *DB) ListAllCronJobs(ctx context.Context) ([]*CronJob, error) {
+	rows, err := db.QueryContext(ctx,
+		"SELECT id, username, name, expression, command, enabled, created_at, updated_at FROM cron_jobs ORDER BY username, created_at DESC",
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var jobs []*CronJob
+	for rows.Next() {
+		var j CronJob
+		if err := rows.Scan(&j.ID, &j.Username, &j.Name, &j.Expression, &j.Command, &j.Enabled, &j.CreatedAt, &j.UpdatedAt); err != nil {
+			return nil, err
+		}
+		jobs = append(jobs, &j)
+	}
+	return jobs, nil
 }

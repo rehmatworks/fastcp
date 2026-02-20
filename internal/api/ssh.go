@@ -126,23 +126,33 @@ func (s *SSHKeyService) Remove(ctx context.Context, id, username string) error {
 func getSSHKeyFingerprint(publicKey string) (string, error) {
 	parts := strings.Fields(publicKey)
 	if len(parts) < 2 {
-		return "", fmt.Errorf("invalid key format")
+		return "", fmt.Errorf("key must start with type (e.g., ssh-rsa, ssh-ed25519) followed by base64 data")
 	}
 
 	keyType := parts[0]
-	if keyType != "ssh-rsa" && keyType != "ssh-ed25519" && keyType != "ecdsa-sha2-nistp256" &&
-		keyType != "ecdsa-sha2-nistp384" && keyType != "ecdsa-sha2-nistp521" && keyType != "ssh-dss" {
-		return "", fmt.Errorf("unsupported key type: %s", keyType)
+	validTypes := []string{"ssh-rsa", "ssh-ed25519", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521", "ssh-dss"}
+	isValidType := false
+	for _, t := range validTypes {
+		if keyType == t {
+			isValidType = true
+			break
+		}
+	}
+	if !isValidType {
+		return "", fmt.Errorf("unsupported key type '%s'. Supported: ssh-rsa, ssh-ed25519, ecdsa-*", keyType)
 	}
 
 	keyData, err := base64.StdEncoding.DecodeString(parts[1])
 	if err != nil {
-		return "", fmt.Errorf("invalid key data")
+		return "", fmt.Errorf("key data is not valid base64. Make sure you copied the entire key")
+	}
+
+	if len(keyData) < 20 {
+		return "", fmt.Errorf("key data is too short. Make sure you copied the entire public key")
 	}
 
 	hash := sha256.Sum256(keyData)
 	fingerprint := base64.StdEncoding.EncodeToString(hash[:])
-	// Remove padding
 	fingerprint = strings.TrimRight(fingerprint, "=")
 
 	return fmt.Sprintf("SHA256:%s", fingerprint), nil

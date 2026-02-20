@@ -33,7 +33,6 @@ print_banner() {
 EOF
     echo -e "${NC}"
     echo -e "${DIM}Lightweight Server Control Panel${NC}"
-    echo -e "${DIM}Powered by FrankenPHP${NC}"
     echo ""
     echo -e "${BLUE}Author:${NC}    Rehmat Alam"
     echo -e "${BLUE}Website:${NC}   https://github.com/rehmatworks/fastcp"

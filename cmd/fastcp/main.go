@@ -111,6 +111,10 @@ func main() {
 			r.Post("/sites/domains/{domainId}/set-primary", apiHandler.SetPrimaryDomain)
 			r.Delete("/sites/domains/{domainId}", apiHandler.DeleteDomain)
 
+			// Site slug validation
+			r.Post("/sites/validate-slug", apiHandler.ValidateSlug)
+			r.Post("/sites/generate-slug", apiHandler.GenerateSlug)
+
 			// Databases
 			r.Get("/databases", apiHandler.ListDatabases)
 			r.Post("/databases", apiHandler.CreateDatabase)
@@ -120,6 +124,14 @@ func main() {
 			r.Get("/ssh-keys", apiHandler.ListSSHKeys)
 			r.Post("/ssh-keys", apiHandler.AddSSHKey)
 			r.Delete("/ssh-keys/{id}", apiHandler.RemoveSSHKey)
+
+			// Cron Jobs
+			r.Get("/cron", apiHandler.ListCronJobs)
+			r.Post("/cron", apiHandler.CreateCronJob)
+			r.Put("/cron/{id}", apiHandler.UpdateCronJob)
+			r.Post("/cron/{id}/toggle", apiHandler.ToggleCronJob)
+			r.Delete("/cron/{id}", apiHandler.DeleteCronJob)
+			r.Post("/cron/validate", apiHandler.ValidateCronExpression)
 
 			// System
 			r.Get("/system/status", apiHandler.SystemStatus)
