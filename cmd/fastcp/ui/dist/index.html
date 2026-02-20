@@ -650,14 +650,35 @@
                     if (!confirm(`Update FastCP to ${this.updateInfo.latest_version}? The control panel will restart.`)) return;
                     this.updateLoading = true;
                     this.updateError = '';
-                    try {
-                        await this.api('/system/update', 'POST', { target_version: this.updateInfo.latest_version });
-                        alert('Update started! The page will reload in 10 seconds...');
-                        setTimeout(() => window.location.reload(), 10000);
-                    } catch (e) {
-                        this.updateError = e.message;
-                        this.updateLoading = false;
-                    }
+                    
+                    // Start the API call but don't wait - server will restart during update
+                    this.api('/system/update', 'POST', { target_version: this.updateInfo.latest_version }).catch(() => {});
+                    
+                    // Start polling for server to come back up
+                    let attempts = 0;
+                    const maxAttempts = 30;
+                    const checkServer = async () => {
+                        attempts++;
+                        try {
+                            const resp = await fetch('/api/system/status', {
+                                headers: { 'Authorization': `Bearer ${this.token}` }
+                            });
+                            if (resp.ok) {
+                                window.location.reload();
+                                return;
+                            }
+                        } catch (e) {}
+                        
+                        if (attempts < maxAttempts) {
+                            setTimeout(checkServer, 2000);
+                        } else {
+                            this.updateError = 'Update may have completed. Please refresh the page manually.';
+                            this.updateLoading = false;
+                        }
+                    };
+                    
+                    // Wait 3 seconds for update to start, then begin polling
+                    setTimeout(checkServer, 3000);
                 },
 
                 async api(path, method = 'GET', body = null) {
