@@ -111,9 +111,10 @@ func main() {
 			r.Post("/sites/domains/{domainId}/set-primary", apiHandler.SetPrimaryDomain)
 			r.Delete("/sites/domains/{domainId}", apiHandler.DeleteDomain)
 
-			// Site slug validation
+			// Site slug and domain validation
 			r.Post("/sites/validate-slug", apiHandler.ValidateSlug)
 			r.Post("/sites/generate-slug", apiHandler.GenerateSlug)
+			r.Post("/sites/validate-domain", apiHandler.ValidateDomain)
 
 			// Databases
 			r.Get("/databases", apiHandler.ListDatabases)
@@ -145,6 +146,7 @@ func main() {
 				r.Get("/users", apiHandler.ListUsers)
 				r.Post("/users", apiHandler.CreateUser)
 				r.Delete("/users/{username}", apiHandler.DeleteUser)
+				r.Post("/users/{username}/toggle-suspend", apiHandler.ToggleUserSuspension)
 
 				// System updates
 				r.Get("/system/check-update", apiHandler.CheckUpdate)

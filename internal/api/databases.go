@@ -46,6 +46,26 @@ func (s *DatabaseService) List(ctx context.Context, username string) ([]*Databas
 	return databases, nil
 }
 
+// ListPaginated returns paginated databases with search
+func (s *DatabaseService) ListPaginated(ctx context.Context, username string, page, limit int, search string) ([]*Database, int, error) {
+	dbDatabases, total, err := s.db.ListDatabasesPaginated(ctx, username, page, limit, search)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	databases := make([]*Database, len(dbDatabases))
+	for i, d := range dbDatabases {
+		databases[i] = &Database{
+			ID:        d.ID,
+			Username:  d.Username,
+			DBName:    d.DBName,
+			DBUser:    d.DBUser,
+			CreatedAt: d.CreatedAt,
+		}
+	}
+	return databases, total, nil
+}
+
 // Create creates a new MySQL database
 func (s *DatabaseService) Create(ctx context.Context, req *CreateDatabaseRequest) (*Database, error) {
 	// Validate name

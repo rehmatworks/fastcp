@@ -53,6 +53,31 @@ func (s *SiteService) List(ctx context.Context, username string) ([]*Site, error
 	return sites, nil
 }
 
+// ListPaginated returns paginated sites with search
+func (s *SiteService) ListPaginated(ctx context.Context, username string, page, limit int, search string) ([]*Site, int, error) {
+	dbSites, total, err := s.db.ListSitesPaginated(ctx, username, page, limit, search)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	sites := make([]*Site, len(dbSites))
+	for i, dbSite := range dbSites {
+		domains, _ := s.db.GetSiteDomains(ctx, dbSite.ID)
+		sites[i] = &Site{
+			ID:           dbSite.ID,
+			Username:     dbSite.Username,
+			Domain:       dbSite.Domain,
+			Slug:         dbSite.Slug,
+			SiteType:     dbSite.SiteType,
+			DocumentRoot: dbSite.DocumentRoot,
+			SSLEnabled:   dbSite.SSLEnabled,
+			CreatedAt:    dbSite.CreatedAt,
+			Domains:      convertDomains(domains),
+		}
+	}
+	return sites, total, nil
+}
+
 func convertDomains(dbDomains []*database.SiteDomain) []SiteDomain {
 	if dbDomains == nil {
 		return nil
@@ -476,6 +501,37 @@ func (s *SiteService) ValidateSlug(ctx context.Context, username, slug string) (
 	}
 
 	return true, "Slug is available", nil
+}
+
+// ValidateDomain checks if a domain is valid and available
+func (s *SiteService) ValidateDomain(ctx context.Context, domain string) (bool, string, error) {
+	// Normalize domain
+	domain = strings.ToLower(strings.TrimSpace(domain))
+
+	if domain == "" {
+		return false, "Domain is required", nil
+	}
+
+	// Validate format
+	if !domainRegex.MatchString(domain) {
+		return false, "Invalid domain format", nil
+	}
+
+	// Check minimum length
+	if len(domain) < 3 {
+		return false, "Domain is too short", nil
+	}
+
+	// Check if already exists
+	exists, err := s.db.DomainExists(ctx, domain)
+	if err != nil {
+		return false, "", err
+	}
+	if exists {
+		return false, "This domain is already in use", nil
+	}
+
+	return true, "Domain is available", nil
 }
 
 // GenerateSlug creates a slug from a domain name

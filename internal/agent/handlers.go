@@ -569,12 +569,28 @@ func (s *Server) startUserPHP(username string) error {
 }
 
 func (s *Server) generateCaddyfile() error {
+	// Ensure suspended page exists
+	s.ensureSuspendedPage()
+
 	// Open FastCP database to get sites
 	db, err := sql.Open("sqlite3", "/opt/fastcp/data/fastcp.db")
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 	defer db.Close()
+
+	// Fetch suspended users
+	suspendedUsers := make(map[string]bool)
+	suspendedRows, err := db.Query("SELECT username FROM users WHERE is_suspended = 1")
+	if err == nil {
+		defer suspendedRows.Close()
+		for suspendedRows.Next() {
+			var username string
+			if err := suspendedRows.Scan(&username); err == nil {
+				suspendedUsers[username] = true
+			}
+		}
+	}
 
 	// Fetch all sites
 	rows, err := db.Query("SELECT id, domain, username, document_root FROM sites")
@@ -595,6 +611,7 @@ func (s *Server) generateCaddyfile() error {
 		site.SafeDomain = strings.ReplaceAll(site.Domain, ".", "_")
 		site.PrimaryDomain = site.Domain // Default to main domain
 		site.Domains = []siteDomainInfo{{Domain: site.Domain, IsPrimary: true, RedirectToPrimary: false}}
+		site.IsSuspended = suspendedUsers[site.Username]
 		sitesMap[site.ID] = &site
 	}
 	rows.Close()
@@ -649,6 +666,7 @@ func (s *Server) generateCaddyfile() error {
 
 	for username, sites := range sitesByUser {
 		socketPath := fmt.Sprintf("/var/run/fastcp/php-%s.sock", username)
+		isSuspended := len(sites) > 0 && sites[0].IsSuspended
 
 		for _, site := range sites {
 			logsDir := filepath.Join(homeBase, username, appsDir, site.SafeDomain, "logs")
@@ -656,7 +674,21 @@ func (s *Server) generateCaddyfile() error {
 
 			// Generate blocks for each domain
 			for _, domain := range site.Domains {
-				if domain.RedirectToPrimary && site.PrimaryDomain != domain.Domain {
+				if site.IsSuspended {
+					// Serve suspended page for suspended users
+					mainBuf.WriteString(fmt.Sprintf(`# Site: %s (User: %s) [SUSPENDED]
+%s {
+    root * /var/www/suspended
+    file_server
+    try_files {path} /index.html
+    
+    log {
+        output file %s/access.log
+    }
+}
+
+`, domain.Domain, username, domain.Domain, logsDir))
+				} else if domain.RedirectToPrimary && site.PrimaryDomain != domain.Domain {
 					// Generate redirect block for non-primary domains that should redirect
 					mainBuf.WriteString(fmt.Sprintf(`# Redirect: %s -> %s (User: %s)
 %s {
@@ -692,8 +724,8 @@ func (s *Server) generateCaddyfile() error {
 			slog.Warn("failed to generate user Caddyfile", "username", username, "error", err)
 		}
 
-		// Start user's PHP service
-		if len(sites) > 0 {
+		// Start user's PHP service (skip if suspended)
+		if len(sites) > 0 && !isSuspended {
 			if useSystemd {
 				serviceName := fmt.Sprintf("fastcp-php@%s.service", username)
 				exec.Command("systemctl", "start", serviceName).Run()
@@ -719,6 +751,98 @@ func (s *Server) generateCaddyfile() error {
 
 	slog.Info("generated Caddyfiles", "users", len(sitesByUser), "systemd", useSystemd)
 	return nil
+}
+
+func (s *Server) ensureSuspendedPage() {
+	suspendedDir := "/var/www/suspended"
+	suspendedHTML := filepath.Join(suspendedDir, "index.html")
+
+	// Create directory if it doesn't exist
+	os.MkdirAll(suspendedDir, 0755)
+
+	// Check if file already exists
+	if _, err := os.Stat(suspendedHTML); err == nil {
+		return
+	}
+
+	// Create the suspended page
+	content := `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Suspended</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 48px;
+            text-align: center;
+            max-width: 500px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+        .icon {
+            width: 80px;
+            height: 80px;
+            background: #fee2e2;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+        }
+        .icon svg {
+            width: 40px;
+            height: 40px;
+            color: #dc2626;
+        }
+        h1 {
+            color: #1f2937;
+            font-size: 28px;
+            margin-bottom: 12px;
+        }
+        p {
+            color: #6b7280;
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+        .contact {
+            background: #f3f4f6;
+            border-radius: 8px;
+            padding: 16px;
+            color: #374151;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+        </div>
+        <h1>Account Suspended</h1>
+        <p>This website has been temporarily suspended. If you believe this is an error, please contact the server administrator.</p>
+        <div class="contact">
+            For assistance, please contact your hosting provider.
+        </div>
+    </div>
+</body>
+</html>`
+
+	os.WriteFile(suspendedHTML, []byte(content), 0644)
 }
 
 func (s *Server) generateUserCaddyfile(username string, sites []siteInfo) error {
@@ -881,6 +1005,7 @@ type siteInfo struct {
 	SafeDomain    string
 	Domains       []siteDomainInfo
 	PrimaryDomain string
+	IsSuspended   bool
 }
 
 type siteDomainInfo struct {

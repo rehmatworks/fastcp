@@ -128,6 +128,11 @@ func (c *Client) ReloadCaddy(ctx context.Context) error {
 	return err
 }
 
+// RegenerateCaddyfile is an alias for ReloadCaddy that regenerates the Caddyfile
+func (c *Client) RegenerateCaddyfile(ctx context.Context) error {
+	return c.ReloadCaddy(ctx)
+}
+
 // Database operations
 func (c *Client) CreateDatabase(ctx context.Context, req *CreateDatabaseRequest) error {
 	_, err := c.call(ctx, "database.create", req)

@@ -33,15 +33,16 @@ func (s *UserService) List(ctx context.Context) ([]*User, error) {
 	for i, dbUser := range dbUsers {
 		siteCount, _ := s.db.CountUserSites(ctx, dbUser.Username)
 		users[i] = &User{
-			ID:         dbUser.ID,
-			Username:   dbUser.Username,
-			IsAdmin:    dbUser.IsAdmin,
-			MemoryMB:   dbUser.MemoryMB,
-			CPUPercent: dbUser.CPUPercent,
-			MaxSites:   dbUser.MaxSites,
-			StorageMB:  dbUser.StorageMB,
-			SiteCount:  siteCount,
-			CreatedAt:  dbUser.CreatedAt,
+			ID:          dbUser.ID,
+			Username:    dbUser.Username,
+			IsAdmin:     dbUser.IsAdmin,
+			IsSuspended: dbUser.IsSuspended,
+			MemoryMB:    dbUser.MemoryMB,
+			CPUPercent:  dbUser.CPUPercent,
+			MaxSites:    dbUser.MaxSites,
+			StorageMB:   dbUser.StorageMB,
+			SiteCount:   siteCount,
+			CreatedAt:   dbUser.CreatedAt,
 		}
 	}
 	return users, nil
@@ -137,4 +138,44 @@ func (s *UserService) Delete(ctx context.Context, username string) error {
 	}
 
 	return nil
+}
+
+// ToggleSuspension toggles user suspension and regenerates Caddyfile
+func (s *UserService) ToggleSuspension(ctx context.Context, username string) (*User, error) {
+	// Prevent suspending root
+	if username == "root" {
+		return nil, fmt.Errorf("cannot suspend root user")
+	}
+
+	// Get current user
+	dbUser, err := s.db.GetUser(ctx, username)
+	if err != nil {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	// Toggle suspension
+	newStatus := !dbUser.IsSuspended
+	if err := s.db.SetUserSuspended(ctx, username, newStatus); err != nil {
+		return nil, fmt.Errorf("failed to update suspension status: %w", err)
+	}
+
+	// Regenerate Caddyfile to apply changes
+	if err := s.agent.RegenerateCaddyfile(ctx); err != nil {
+		return nil, fmt.Errorf("failed to update web server config: %w", err)
+	}
+
+	// Return updated user
+	siteCount, _ := s.db.CountUserSites(ctx, username)
+	return &User{
+		ID:          dbUser.ID,
+		Username:    dbUser.Username,
+		IsAdmin:     dbUser.IsAdmin,
+		IsSuspended: newStatus,
+		MemoryMB:    dbUser.MemoryMB,
+		CPUPercent:  dbUser.CPUPercent,
+		MaxSites:    dbUser.MaxSites,
+		StorageMB:   dbUser.StorageMB,
+		SiteCount:   siteCount,
+		CreatedAt:   dbUser.CreatedAt,
+	}, nil
 }

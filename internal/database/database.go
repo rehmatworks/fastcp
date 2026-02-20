@@ -17,7 +17,16 @@ type DB struct {
 
 // Open opens the SQLite database and runs migrations
 func Open(path string) (*DB, error) {
-	db, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_foreign_keys=on")
+	// SQLite connection string with performance optimizations:
+	// - _journal_mode=WAL: Write-Ahead Logging for concurrent reads + faster writes
+	// - _synchronous=NORMAL: Safe with WAL, much faster than FULL
+	// - _foreign_keys=on: Enforce foreign key constraints
+	// - _busy_timeout=5000: Wait up to 5s for locks instead of failing immediately
+	// - _cache_size=-64000: 64MB page cache (negative = KB)
+	// - _temp_store=MEMORY: Store temp tables in memory
+	connStr := path + "?_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=on&_busy_timeout=5000&_cache_size=-64000&_temp_store=MEMORY"
+	
+	db, err := sql.Open("sqlite3", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -26,6 +35,17 @@ func Open(path string) (*DB, error) {
 	db.SetMaxOpenConns(1) // SQLite doesn't support concurrent writes
 	db.SetMaxIdleConns(1)
 	db.SetConnMaxLifetime(time.Hour)
+
+	// Apply additional PRAGMA settings that can't be set via connection string
+	pragmas := []string{
+		"PRAGMA mmap_size = 268435456", // 256MB memory-mapped I/O
+		"PRAGMA page_size = 4096",      // Optimal page size (may not take effect on existing DB)
+	}
+	for _, pragma := range pragmas {
+		if _, err := db.Exec(pragma); err != nil {
+			// Non-fatal: some pragmas may not apply to existing databases
+		}
+	}
 
 	// Run migrations
 	if err := migrate(db); err != nil {
@@ -129,6 +149,9 @@ func migrate(db *sql.DB) error {
 		// Add slug column to sites table (migration for existing databases)
 		`ALTER TABLE sites ADD COLUMN slug TEXT`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_sites_username_slug ON sites(username, slug)`,
+
+		// Add is_suspended column to users table
+		`ALTER TABLE users ADD COLUMN is_suspended INTEGER DEFAULT 0`,
 	}
 
 	for _, m := range migrations {
@@ -147,15 +170,16 @@ func migrate(db *sql.DB) error {
 
 // User represents a system user
 type User struct {
-	ID         int64     `json:"id"`
-	Username   string    `json:"username"`
-	IsAdmin    bool      `json:"is_admin"`
-	MemoryMB   int       `json:"memory_mb"`
-	CPUPercent int       `json:"cpu_percent"`
-	MaxSites   int       `json:"max_sites"`   // -1 = unlimited
-	StorageMB  int       `json:"storage_mb"`  // -1 = unlimited
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ID          int64     `json:"id"`
+	Username    string    `json:"username"`
+	IsAdmin     bool      `json:"is_admin"`
+	IsSuspended bool      `json:"is_suspended"`
+	MemoryMB    int       `json:"memory_mb"`
+	CPUPercent  int       `json:"cpu_percent"`
+	MaxSites    int       `json:"max_sites"`  // -1 = unlimited
+	StorageMB   int       `json:"storage_mb"` // -1 = unlimited
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // Site represents a website
@@ -226,11 +250,11 @@ type CronJob struct {
 func (db *DB) GetUser(ctx context.Context, username string) (*User, error) {
 	var u User
 	err := db.QueryRowContext(ctx,
-		`SELECT id, username, is_admin, COALESCE(memory_mb, 512), COALESCE(cpu_percent, 100), 
+		`SELECT id, username, is_admin, COALESCE(is_suspended, 0), COALESCE(memory_mb, 512), COALESCE(cpu_percent, 100), 
 		 COALESCE(max_sites, -1), COALESCE(storage_mb, -1), created_at, updated_at 
 		 FROM users WHERE username = ?`,
 		username,
-	).Scan(&u.ID, &u.Username, &u.IsAdmin, &u.MemoryMB, &u.CPUPercent, &u.MaxSites, &u.StorageMB, &u.CreatedAt, &u.UpdatedAt)
+	).Scan(&u.ID, &u.Username, &u.IsAdmin, &u.IsSuspended, &u.MemoryMB, &u.CPUPercent, &u.MaxSites, &u.StorageMB, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +300,7 @@ func (db *DB) EnsureUser(ctx context.Context, username string) (*User, error) {
 
 func (db *DB) ListUsers(ctx context.Context) ([]*User, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, username, is_admin, COALESCE(memory_mb, 512), COALESCE(cpu_percent, 100), 
+		`SELECT id, username, is_admin, COALESCE(is_suspended, 0), COALESCE(memory_mb, 512), COALESCE(cpu_percent, 100), 
 		 COALESCE(max_sites, -1), COALESCE(storage_mb, -1), created_at, updated_at 
 		 FROM users ORDER BY username`,
 	)
@@ -288,7 +312,7 @@ func (db *DB) ListUsers(ctx context.Context) ([]*User, error) {
 	var users []*User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Username, &u.IsAdmin, &u.MemoryMB, &u.CPUPercent, &u.MaxSites, &u.StorageMB, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.IsAdmin, &u.IsSuspended, &u.MemoryMB, &u.CPUPercent, &u.MaxSites, &u.StorageMB, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			continue
 		}
 		users = append(users, &u)
@@ -299,6 +323,33 @@ func (db *DB) ListUsers(ctx context.Context) ([]*User, error) {
 func (db *DB) DeleteUser(ctx context.Context, username string) error {
 	_, err := db.ExecContext(ctx, "DELETE FROM users WHERE username = ?", username)
 	return err
+}
+
+func (db *DB) SetUserSuspended(ctx context.Context, username string, suspended bool) error {
+	_, err := db.ExecContext(ctx,
+		"UPDATE users SET is_suspended = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?",
+		suspended, username,
+	)
+	return err
+}
+
+// GetSuspendedUsernames returns a list of all suspended usernames
+func (db *DB) GetSuspendedUsernames(ctx context.Context) (map[string]bool, error) {
+	rows, err := db.QueryContext(ctx, "SELECT username FROM users WHERE is_suspended = 1")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	suspended := make(map[string]bool)
+	for rows.Next() {
+		var username string
+		if err := rows.Scan(&username); err != nil {
+			continue
+		}
+		suspended[username] = true
+	}
+	return suspended, nil
 }
 
 func (db *DB) UpdateUserAdmin(ctx context.Context, username string, isAdmin bool) error {
@@ -398,6 +449,51 @@ func (db *DB) CountUserSites(ctx context.Context, username string) (int, error) 
 	return count, err
 }
 
+// PaginatedResult holds paginated query results
+type PaginatedResult struct {
+	Total int `json:"total"`
+	Page  int `json:"page"`
+	Limit int `json:"limit"`
+}
+
+// ListSitesPaginated returns paginated sites with optional search
+func (db *DB) ListSitesPaginated(ctx context.Context, username string, page, limit int, search string) ([]*Site, int, error) {
+	offset := (page - 1) * limit
+	search = "%" + search + "%"
+
+	// Get total count
+	var total int
+	err := db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM sites WHERE username = ? AND (domain LIKE ? OR slug LIKE ?)`,
+		username, search, search,
+	).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Get paginated results
+	rows, err := db.QueryContext(ctx,
+		`SELECT id, username, domain, COALESCE(slug, ''), site_type, document_root, ssl_enabled, created_at, updated_at
+		 FROM sites WHERE username = ? AND (domain LIKE ? OR slug LIKE ?)
+		 ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+		username, search, search, limit, offset,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var sites []*Site
+	for rows.Next() {
+		var s Site
+		if err := rows.Scan(&s.ID, &s.Username, &s.Domain, &s.Slug, &s.SiteType, &s.DocumentRoot, &s.SSLEnabled, &s.CreatedAt, &s.UpdatedAt); err != nil {
+			return nil, 0, err
+		}
+		sites = append(sites, &s)
+	}
+	return sites, total, nil
+}
+
 func (db *DB) ListAllSites(ctx context.Context) ([]*Site, error) {
 	rows, err := db.QueryContext(ctx,
 		`SELECT id, username, domain, COALESCE(slug, ''), site_type, document_root, ssl_enabled, created_at, updated_at
@@ -425,6 +521,16 @@ func (db *DB) SlugExists(ctx context.Context, username, slug string) (bool, erro
 	err := db.QueryRowContext(ctx,
 		"SELECT COUNT(*) FROM sites WHERE username = ? AND slug = ?",
 		username, slug,
+	).Scan(&count)
+	return count > 0, err
+}
+
+// DomainExists checks if a domain is already in use (globally)
+func (db *DB) DomainExists(ctx context.Context, domain string) (bool, error) {
+	var count int
+	err := db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM site_domains WHERE domain = ?",
+		domain,
 	).Scan(&count)
 	return count > 0, err
 }
@@ -589,6 +695,44 @@ func (db *DB) ListDatabases(ctx context.Context, username string) ([]*Database, 
 		databases = append(databases, &d)
 	}
 	return databases, nil
+}
+
+// ListDatabasesPaginated returns paginated databases with optional search
+func (db *DB) ListDatabasesPaginated(ctx context.Context, username string, page, limit int, search string) ([]*Database, int, error) {
+	offset := (page - 1) * limit
+	search = "%" + search + "%"
+
+	// Get total count
+	var total int
+	err := db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM databases WHERE username = ? AND (db_name LIKE ? OR db_user LIKE ?)`,
+		username, search, search,
+	).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Get paginated results
+	rows, err := db.QueryContext(ctx,
+		`SELECT id, username, db_name, db_user, created_at 
+		 FROM databases WHERE username = ? AND (db_name LIKE ? OR db_user LIKE ?)
+		 ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+		username, search, search, limit, offset,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var databases []*Database
+	for rows.Next() {
+		var d Database
+		if err := rows.Scan(&d.ID, &d.Username, &d.DBName, &d.DBUser, &d.CreatedAt); err != nil {
+			return nil, 0, err
+		}
+		databases = append(databases, &d)
+	}
+	return databases, total, nil
 }
 
 func (db *DB) DeleteDatabase(ctx context.Context, id string) error {

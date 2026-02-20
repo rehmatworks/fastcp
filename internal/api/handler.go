@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -102,12 +103,30 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 // Site handlers
 func (h *Handler) ListSites(w http.ResponseWriter, r *http.Request) {
 	user := h.getUser(r)
-	sites, err := h.siteService.List(r.Context(), user.Username)
+
+	// Parse pagination params
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	search := r.URL.Query().Get("search")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	sites, total, err := h.siteService.ListPaginated(r.Context(), user.Username, page, limit, search)
 	if err != nil {
 		h.error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	h.json(w, http.StatusOK, sites)
+	h.json(w, http.StatusOK, map[string]any{
+		"data":  sites,
+		"total": total,
+		"page":  page,
+		"limit": limit,
+	})
 }
 
 func (h *Handler) CreateSite(w http.ResponseWriter, r *http.Request) {
@@ -264,15 +283,54 @@ func (h *Handler) GenerateSlug(w http.ResponseWriter, r *http.Request) {
 	h.json(w, http.StatusOK, map[string]string{"slug": slug})
 }
 
-// Database handlers
-func (h *Handler) ListDatabases(w http.ResponseWriter, r *http.Request) {
-	user := h.getUser(r)
-	databases, err := h.dbService.List(r.Context(), user.Username)
+func (h *Handler) ValidateDomain(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Domain string `json:"domain"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	valid, message, err := h.siteService.ValidateDomain(r.Context(), req.Domain)
 	if err != nil {
 		h.error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	h.json(w, http.StatusOK, databases)
+
+	h.json(w, http.StatusOK, map[string]any{
+		"valid":   valid,
+		"message": message,
+	})
+}
+
+// Database handlers
+func (h *Handler) ListDatabases(w http.ResponseWriter, r *http.Request) {
+	user := h.getUser(r)
+
+	// Parse pagination params
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	search := r.URL.Query().Get("search")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	databases, total, err := h.dbService.ListPaginated(r.Context(), user.Username, page, limit, search)
+	if err != nil {
+		h.error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.json(w, http.StatusOK, map[string]any{
+		"data":  databases,
+		"total": total,
+		"page":  page,
+		"limit": limit,
+	})
 }
 
 func (h *Handler) CreateDatabase(w http.ResponseWriter, r *http.Request) {
@@ -432,6 +490,17 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) ToggleUserSuspension(w http.ResponseWriter, r *http.Request) {
+	username := chi.URLParam(r, "username")
+
+	user, err := h.userService.ToggleSuspension(r.Context(), username)
+	if err != nil {
+		h.error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.json(w, http.StatusOK, user)
 }
 
 // Cron job handlers

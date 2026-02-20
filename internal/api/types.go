@@ -4,16 +4,17 @@ import "time"
 
 // User represents an authenticated user
 type User struct {
-	ID         int64     `json:"id"`
-	Username   string    `json:"username"`
-	IsAdmin    bool      `json:"is_admin"`
-	MemoryMB   int       `json:"memory_mb"`
-	CPUPercent int       `json:"cpu_percent"`
-	MaxSites   int       `json:"max_sites"`   // -1 = unlimited
-	StorageMB  int       `json:"storage_mb"`  // -1 = unlimited
-	SiteCount  int       `json:"site_count"`  // Current number of sites
-	StorageUsed int64    `json:"storage_used"` // Current storage used in bytes
-	CreatedAt  time.Time `json:"created_at"`
+	ID          int64     `json:"id"`
+	Username    string    `json:"username"`
+	IsAdmin     bool      `json:"is_admin"`
+	IsSuspended bool      `json:"is_suspended"`
+	MemoryMB    int       `json:"memory_mb"`
+	CPUPercent  int       `json:"cpu_percent"`
+	MaxSites    int       `json:"max_sites"`  // -1 = unlimited
+	StorageMB   int       `json:"storage_mb"` // -1 = unlimited
+	SiteCount   int       `json:"site_count"` // Current number of sites
+	StorageUsed int64     `json:"storage_used"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 // LoginRequest is the request body for login

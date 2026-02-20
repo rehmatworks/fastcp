@@ -336,8 +336,18 @@
 
                 <!-- Sites Tab -->
                 <div x-show="tab === 'sites'">
-                    <div class="flex justify-between items-center mb-6">
-                        <p class="text-gray-500">Manage your websites and applications</p>
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                        <div class="flex items-center gap-4">
+                            <div class="relative">
+                                <input type="text" x-model="sitesSearch" @input.debounce.300ms="searchSites()" 
+                                       placeholder="Search sites..." 
+                                       class="pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary-500 w-64">
+                                <svg class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                </svg>
+                            </div>
+                            <span class="text-sm text-gray-500" x-text="sitesTotal + ' site' + (sitesTotal !== 1 ? 's' : '')"></span>
+                        </div>
                         <button @click="showCreateSite = true" 
                                 class="inline-flex items-center px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -402,12 +412,40 @@
                             </tbody>
                         </table>
                     </div>
+                    
+                    <!-- Sites Pagination -->
+                    <div x-show="sitesTotal > sitesLimit" class="flex items-center justify-between mt-4 px-2">
+                        <div class="text-sm text-gray-500">
+                            Showing <span x-text="((sitesPage - 1) * sitesLimit) + 1"></span> to <span x-text="Math.min(sitesPage * sitesLimit, sitesTotal)"></span> of <span x-text="sitesTotal"></span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button @click="goToSitesPage(sitesPage - 1)" :disabled="sitesPage <= 1"
+                                    class="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                Previous
+                            </button>
+                            <span class="text-sm text-gray-600">Page <span x-text="sitesPage"></span> of <span x-text="sitesTotalPages()"></span></span>
+                            <button @click="goToSitesPage(sitesPage + 1)" :disabled="sitesPage >= sitesTotalPages()"
+                                    class="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                Next
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Databases Tab -->
                 <div x-show="tab === 'databases'">
-                    <div class="flex justify-between items-center mb-6">
-                        <p class="text-gray-500">Manage your MySQL databases</p>
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                        <div class="flex items-center gap-4">
+                            <div class="relative">
+                                <input type="text" x-model="databasesSearch" @input.debounce.300ms="searchDatabases()" 
+                                       placeholder="Search databases..." 
+                                       class="pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary-500 w-64">
+                                <svg class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                </svg>
+                            </div>
+                            <span class="text-sm text-gray-500" x-text="databasesTotal + ' database' + (databasesTotal !== 1 ? 's' : '')"></span>
+                        </div>
                         <button @click="showCreateDatabase = true"
                                 class="inline-flex items-center px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -451,6 +489,24 @@
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+                    
+                    <!-- Databases Pagination -->
+                    <div x-show="databasesTotal > databasesLimit" class="flex items-center justify-between mt-4 px-2">
+                        <div class="text-sm text-gray-500">
+                            Showing <span x-text="((databasesPage - 1) * databasesLimit) + 1"></span> to <span x-text="Math.min(databasesPage * databasesLimit, databasesTotal)"></span> of <span x-text="databasesTotal"></span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button @click="goToDatabasesPage(databasesPage - 1)" :disabled="databasesPage <= 1"
+                                    class="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                Previous
+                            </button>
+                            <span class="text-sm text-gray-600">Page <span x-text="databasesPage"></span> of <span x-text="databasesTotalPages()"></span></span>
+                            <button @click="goToDatabasesPage(databasesPage + 1)" :disabled="databasesPage >= databasesTotalPages()"
+                                    class="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                Next
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -726,8 +782,11 @@
                             </thead>
                             <tbody class="divide-y divide-gray-100">
                                 <template x-for="u in users" :key="u.id">
-                                    <tr class="hover:bg-gray-50 transition-colors">
-                                        <td class="px-6 py-4 font-medium" x-text="u.username"></td>
+                                    <tr class="hover:bg-gray-50 transition-colors" :class="u.is_suspended ? 'bg-red-50' : ''">
+                                        <td class="px-6 py-4 font-medium">
+                                            <span x-text="u.username"></span>
+                                            <span x-show="u.is_suspended" class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">Suspended</span>
+                                        </td>
                                         <td class="px-6 py-4">
                                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
                                                   :class="u.is_admin ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'"
@@ -744,7 +803,12 @@
                                             </div>
                                         </td>
                                         <td class="px-6 py-4 text-sm text-gray-500" x-text="formatDate(u.created_at)"></td>
-                                        <td class="px-6 py-4 text-right">
+                                        <td class="px-6 py-4 text-right space-x-3">
+                                            <button x-show="u.username !== 'root' && u.username !== user?.username" 
+                                                    @click="toggleUserSuspension(u)" 
+                                                    class="text-sm font-medium"
+                                                    :class="u.is_suspended ? 'text-green-600 hover:text-green-700' : 'text-yellow-600 hover:text-yellow-700'"
+                                                    x-text="u.is_suspended ? 'Unsuspend' : 'Suspend'"></button>
                                             <button x-show="u.username !== 'root' && u.username !== user?.username" 
                                                     @click="deleteUser(u)" 
                                                     class="text-red-500 hover:text-red-700 text-sm font-medium">Delete</button>
@@ -818,10 +882,23 @@
                 <form @submit.prevent="createSite">
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Domain</label>
-                        <input type="text" x-model="newSite.domain" required
-                               @input="generateSlugFromDomain()"
-                               class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
-                               placeholder="example.com">
+                        <div class="relative">
+                            <input type="text" x-model="newSite.domain" required
+                                   @input="validateDomainAndGenerateSlug()"
+                                   class="w-full px-4 py-3 border rounded-lg focus:outline-none pr-10"
+                                   :class="domainValidation.valid === true ? 'border-green-300 focus:border-green-500' : domainValidation.valid === false ? 'border-red-300 focus:border-red-500' : 'border-gray-200 focus:border-primary-500'"
+                                   placeholder="example.com">
+                            <div class="absolute right-3 top-1/2 -translate-y-1/2">
+                                <svg x-show="domainValidation.valid === true" class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                <svg x-show="domainValidation.valid === false" class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <p class="text-xs mt-1" :class="domainValidation.valid === true ? 'text-green-600' : domainValidation.valid === false ? 'text-red-600' : 'text-gray-500'"
+                           x-text="domainValidation.message || 'Enter your domain name'"></p>
                     </div>
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Directory Name (Slug)</label>
@@ -854,8 +931,8 @@
                         </p>
                     </div>
                     <div class="flex space-x-3">
-                        <button type="button" @click="showCreateSite = false; resetSlugValidation()" class="flex-1 px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 font-medium">Cancel</button>
-                        <button type="submit" :disabled="slugValidation.valid === false" 
+                        <button type="button" @click="showCreateSite = false; resetSiteValidation()" class="flex-1 px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 font-medium">Cancel</button>
+                        <button type="submit" :disabled="domainValidation.valid === false || slugValidation.valid === false" 
                                 class="flex-1 px-4 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 font-medium disabled:opacity-50 disabled:cursor-not-allowed">Create Site</button>
                     </div>
                 </form>
@@ -1164,13 +1241,23 @@
                 showAddSSHKey: false,
                 showCreateUser: false,
                 sites: [],
+                sitesTotal: 0,
+                sitesPage: 1,
+                sitesLimit: 10,
+                sitesSearch: '',
                 databases: [],
+                databasesTotal: 0,
+                databasesPage: 1,
+                databasesLimit: 10,
+                databasesSearch: '',
                 sshKeys: [],
                 users: [],
                 systemStatus: null,
                 createdDatabase: null,
                 userError: '',
                 newSite: { domain: '', slug: '', site_type: 'php' },
+                domainValidation: { valid: null, message: '' },
+                domainValidateTimeout: null,
                 slugValidation: { valid: null, message: '' },
                 slugValidateTimeout: null,
                 newDatabase: { name: '' },
@@ -1301,8 +1388,18 @@
                     this.user = await this.api('/auth/me');
                 },
 
-                async loadSites() { this.sites = await this.api('/sites') || []; },
-                async loadDatabases() { this.databases = await this.api('/databases') || []; },
+                async loadSites() {
+                    const params = `?page=${this.sitesPage}&limit=${this.sitesLimit}&search=${encodeURIComponent(this.sitesSearch)}`;
+                    const result = await this.api('/sites' + params);
+                    this.sites = result?.data || [];
+                    this.sitesTotal = result?.total || 0;
+                },
+                async loadDatabases() {
+                    const params = `?page=${this.databasesPage}&limit=${this.databasesLimit}&search=${encodeURIComponent(this.databasesSearch)}`;
+                    const result = await this.api('/databases' + params);
+                    this.databases = result?.data || [];
+                    this.databasesTotal = result?.total || 0;
+                },
                 async loadSSHKeys() { this.sshKeys = await this.api('/ssh-keys') || []; },
                 async loadCronJobs() { this.cronJobs = await this.api('/cron') || []; },
                 async loadSystemStatus() { this.systemStatus = await this.api('/system/status'); },
@@ -1339,7 +1436,7 @@
                         this.showCreateSite = false;
                         this.siteCreationStatus = '';
                         this.newSite = { domain: '', slug: '', site_type: 'php' };
-                        this.resetSlugValidation();
+                        this.resetSiteValidation();
                         this.loadSites();
                         this.loadDatabases();
                     } catch (e) {
@@ -1351,6 +1448,31 @@
 
                 sleep(ms) {
                     return new Promise(resolve => setTimeout(resolve, ms));
+                },
+
+                validateDomainAndGenerateSlug() {
+                    // Normalize domain: lowercase and trim
+                    this.newSite.domain = this.newSite.domain.toLowerCase().replace(/\s+/g, '');
+                    this.validateDomain();
+                    this.generateSlugFromDomain();
+                },
+
+                async validateDomain() {
+                    clearTimeout(this.domainValidateTimeout);
+                    const domain = this.newSite.domain.trim();
+                    if (!domain) {
+                        this.domainValidation = { valid: null, message: '' };
+                        return;
+                    }
+
+                    this.domainValidateTimeout = setTimeout(async () => {
+                        try {
+                            const result = await this.api('/sites/validate-domain', 'POST', { domain });
+                            this.domainValidation = { valid: result.valid, message: result.message };
+                        } catch (e) {
+                            this.domainValidation = { valid: false, message: e.message || 'Validation failed' };
+                        }
+                    }, 300);
                 },
 
                 async generateSlugFromDomain() {
@@ -1396,10 +1518,36 @@
                     this.slugValidation = { valid: null, message: '' };
                 },
 
+                resetSiteValidation() {
+                    this.domainValidation = { valid: null, message: '' };
+                    this.slugValidation = { valid: null, message: '' };
+                },
+
                 async deleteSite(site) {
                     if (!confirm(`Delete ${site.domain}? This cannot be undone.`)) return;
                     await this.api(`/sites/${site.id}`, 'DELETE');
                     this.loadSites();
+                },
+
+                // Pagination helpers
+                sitesTotalPages() { return Math.ceil(this.sitesTotal / this.sitesLimit) || 1; },
+                databasesTotalPages() { return Math.ceil(this.databasesTotal / this.databasesLimit) || 1; },
+                
+                searchSites() {
+                    this.sitesPage = 1;
+                    this.loadSites();
+                },
+                searchDatabases() {
+                    this.databasesPage = 1;
+                    this.loadDatabases();
+                },
+                goToSitesPage(page) {
+                    this.sitesPage = page;
+                    this.loadSites();
+                },
+                goToDatabasesPage(page) {
+                    this.databasesPage = page;
+                    this.loadDatabases();
                 },
 
                 openDomainManager(site) {
@@ -1603,6 +1751,17 @@
                     if (!confirm(`Delete user "${u.username}"? This will delete all their sites, databases, and SSH keys.`)) return;
                     await this.api(`/users/${u.username}`, 'DELETE');
                     this.loadUsers();
+                },
+
+                async toggleUserSuspension(u) {
+                    const action = u.is_suspended ? 'unsuspend' : 'suspend';
+                    if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} user "${u.username}"?`)) return;
+                    try {
+                        await this.api(`/users/${u.username}/toggle-suspend`, 'POST');
+                        this.loadUsers();
+                    } catch(e) {
+                        alert('Failed to ' + action + ' user: ' + e.message);
+                    }
                 },
 
                 async checkUpdate() {
