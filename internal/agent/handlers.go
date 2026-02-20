@@ -422,7 +422,7 @@ func (s *Server) generateCaddyfile() error {
 			os.MkdirAll(logsDir, 0755)
 
 			mainBuf.WriteString(fmt.Sprintf(`# Site: %s (User: %s)
-http://%s {
+%s {
     reverse_proxy unix/%s
     
     log {
@@ -452,8 +452,8 @@ http://%s {
 		}
 	}
 
-	mainBuf.WriteString(`# Default fallback
-:80 {
+	mainBuf.WriteString(`# Default fallback for unconfigured domains
+:80, :443 {
     respond "FastCP - No site configured for this domain" 404
 }
 `)
