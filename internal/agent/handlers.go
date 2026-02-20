@@ -423,6 +423,7 @@ func (s *Server) generateCaddyfile() error {
 	rows.Close()
 
 	// Fetch all site domains
+	sitesWithDomains := make(map[string]bool) // Track which sites have entries in site_domains
 	domainRows, err := db.Query("SELECT site_id, domain, is_primary, COALESCE(redirect_to_primary, 0) FROM site_domains ORDER BY is_primary DESC")
 	if err == nil {
 		defer domainRows.Close()
@@ -433,9 +434,10 @@ func (s *Server) generateCaddyfile() error {
 				continue
 			}
 			if site, ok := sitesMap[siteID]; ok {
-				// Replace default domains with actual domains from site_domains table
-				if len(site.Domains) == 1 && site.Domains[0].Domain == site.Domain {
-					site.Domains = nil // Clear default
+				// Clear default domains only once when we first see this site in site_domains
+				if !sitesWithDomains[siteID] {
+					site.Domains = nil
+					sitesWithDomains[siteID] = true
 				}
 				site.Domains = append(site.Domains, siteDomainInfo{
 					Domain:            domain,
