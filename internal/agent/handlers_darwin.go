@@ -50,13 +50,192 @@ func (s *Server) handleCreateSiteDirectory(ctx context.Context, params json.RawM
 		}
 	}
 
-	// Create default index.php
+	// Create default index.php with beautiful welcome page
 	indexPath := filepath.Join(siteDir, "public", "index.php")
 	indexContent := fmt.Sprintf(`<?php
-echo "<h1>Welcome to %s</h1>";
-echo "<p>Your site is ready. Upload your files to get started.</p>";
-phpinfo();
-`, req.Domain)
+$domain = '%s';
+$docRoot = '%s';
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome - <?php echo $domain; ?></title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            padding: 48px;
+            max-width: 600px;
+            width: 100%%;
+            text-align: center;
+        }
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+        }
+        .logo svg { width: 40px; height: 40px; }
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 8px;
+        }
+        .domain {
+            font-size: 16px;
+            color: #667eea;
+            font-weight: 500;
+            margin-bottom: 32px;
+        }
+        .status {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 16px;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 100px;
+            color: #166534;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 32px;
+        }
+        .status::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%%;
+            margin-right: 8px;
+        }
+        .instructions {
+            text-align: left;
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+        .instructions h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 16px;
+        }
+        .instructions ul {
+            list-style: none;
+        }
+        .instructions li {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 14px;
+            color: #475569;
+        }
+        .instructions li:last-child { border-bottom: none; }
+        .instructions .num {
+            width: 24px;
+            height: 24px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        .path {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 13px;
+            margin-top: 8px;
+            word-break: break-all;
+        }
+        .footer {
+            font-size: 13px;
+            color: #94a3b8;
+        }
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <svg fill="none" stroke="white" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"></path>
+            </svg>
+        </div>
+        
+        <h1>Your Site is Ready!</h1>
+        <p class="domain"><?php echo $domain; ?></p>
+        
+        <div class="status">Site is live and running</div>
+        
+        <div class="instructions">
+            <h2>Getting Started</h2>
+            <ul>
+                <li>
+                    <span class="num">1</span>
+                    <div>
+                        <strong>Upload your files</strong><br>
+                        Use SFTP or SSH to upload your website files
+                        <div class="path"><?php echo $docRoot; ?></div>
+                    </div>
+                </li>
+                <li>
+                    <span class="num">2</span>
+                    <div>
+                        <strong>Replace this page</strong><br>
+                        Upload your own index.php or index.html to replace this welcome page
+                    </div>
+                </li>
+                <li>
+                    <span class="num">3</span>
+                    <div>
+                        <strong>Configure your application</strong><br>
+                        Set up your database connection and environment variables as needed
+                    </div>
+                </li>
+            </ul>
+        </div>
+        
+        <p class="footer">
+            Powered by <a href="https://github.com/rehmatworks/fastcp" target="_blank">FastCP</a> &amp; FrankenPHP
+        </p>
+    </div>
+</body>
+</html>
+`, req.Domain, filepath.Join(siteDir, "public"))
 
 	if err := os.WriteFile(indexPath, []byte(indexContent), 0644); err != nil {
 		return nil, fmt.Errorf("failed to create index.php: %w", err)

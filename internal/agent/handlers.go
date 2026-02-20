@@ -66,13 +66,192 @@ func (s *Server) handleCreateSiteDirectory(ctx context.Context, params json.RawM
 		}
 	}
 
-	// Create default index.php
+	// Create default index.php with beautiful welcome page
 	indexPath := filepath.Join(siteDir, "public", "index.php")
 	indexContent := fmt.Sprintf(`<?php
-echo "<h1>Welcome to %s</h1>";
-echo "<p>Your site is ready. Upload your files to get started.</p>";
-phpinfo();
-`, req.Domain)
+$domain = '%s';
+$docRoot = '%s';
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome - <?php echo $domain; ?></title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            padding: 48px;
+            max-width: 600px;
+            width: 100%%;
+            text-align: center;
+        }
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+        }
+        .logo svg { width: 40px; height: 40px; }
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 8px;
+        }
+        .domain {
+            font-size: 16px;
+            color: #667eea;
+            font-weight: 500;
+            margin-bottom: 32px;
+        }
+        .status {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 16px;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 100px;
+            color: #166534;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 32px;
+        }
+        .status::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%%;
+            margin-right: 8px;
+        }
+        .instructions {
+            text-align: left;
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+        .instructions h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 16px;
+        }
+        .instructions ul {
+            list-style: none;
+        }
+        .instructions li {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 14px;
+            color: #475569;
+        }
+        .instructions li:last-child { border-bottom: none; }
+        .instructions .num {
+            width: 24px;
+            height: 24px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        .path {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 13px;
+            margin-top: 8px;
+            word-break: break-all;
+        }
+        .footer {
+            font-size: 13px;
+            color: #94a3b8;
+        }
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <svg fill="none" stroke="white" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"></path>
+            </svg>
+        </div>
+        
+        <h1>Your Site is Ready!</h1>
+        <p class="domain"><?php echo $domain; ?></p>
+        
+        <div class="status">Site is live and running</div>
+        
+        <div class="instructions">
+            <h2>Getting Started</h2>
+            <ul>
+                <li>
+                    <span class="num">1</span>
+                    <div>
+                        <strong>Upload your files</strong><br>
+                        Use SFTP or SSH to upload your website files
+                        <div class="path"><?php echo $docRoot; ?></div>
+                    </div>
+                </li>
+                <li>
+                    <span class="num">2</span>
+                    <div>
+                        <strong>Replace this page</strong><br>
+                        Upload your own index.php or index.html to replace this welcome page
+                    </div>
+                </li>
+                <li>
+                    <span class="num">3</span>
+                    <div>
+                        <strong>Configure your application</strong><br>
+                        Set up your database connection and environment variables as needed
+                    </div>
+                </li>
+            </ul>
+        </div>
+        
+        <p class="footer">
+            Powered by <a href="https://github.com/rehmatworks/fastcp" target="_blank">FastCP</a> &amp; FrankenPHP
+        </p>
+    </div>
+</body>
+</html>
+`, req.Domain, filepath.Join(siteDir, "public"))
 
 	if err := os.WriteFile(indexPath, []byte(indexContent), 0644); err != nil {
 		return nil, fmt.Errorf("failed to create index.php: %w", err)
@@ -1213,6 +1392,11 @@ func (s *Server) handleDeleteUser(ctx context.Context, params json.RawMessage) (
 	os.Remove(fmt.Sprintf("/etc/systemd/system/%s", serviceName))
 	exec.Command("systemctl", "daemon-reload").Run()
 
+	// Delete all MySQL databases owned by this user
+	if err := s.deleteUserDatabases(req.Username); err != nil {
+		slog.Warn("failed to delete user databases", "username", req.Username, "error", err)
+	}
+
 	// Remove user's config directory
 	os.RemoveAll(filepath.Join("/opt/fastcp/config/users", req.Username))
 
@@ -1222,7 +1406,73 @@ func (s *Server) handleDeleteUser(ctx context.Context, params json.RawMessage) (
 		return nil, fmt.Errorf("failed to delete user: %w: %s", err, output)
 	}
 
+	// Reload Caddy to remove site configurations
+	if err := s.generateCaddyfile(); err != nil {
+		slog.Warn("failed to regenerate Caddyfile", "error", err)
+	}
+	exec.Command("pkill", "-USR1", "frankenphp").Run()
+
 	return map[string]string{"status": "ok"}, nil
+}
+
+// deleteUserDatabases drops all MySQL databases and users owned by a system user
+func (s *Server) deleteUserDatabases(username string) error {
+	// Open FastCP database to get user's databases
+	db, err := sql.Open("sqlite3", "/opt/fastcp/data/fastcp.db")
+	if err != nil {
+		return fmt.Errorf("failed to open FastCP database: %w", err)
+	}
+	defer db.Close()
+
+	// Get all databases for this user
+	rows, err := db.Query("SELECT db_name, db_user FROM databases WHERE username = ?", username)
+	if err != nil {
+		return fmt.Errorf("failed to query databases: %w", err)
+	}
+	defer rows.Close()
+
+	var databases []struct {
+		DBName string
+		DBUser string
+	}
+	for rows.Next() {
+		var d struct {
+			DBName string
+			DBUser string
+		}
+		if err := rows.Scan(&d.DBName, &d.DBUser); err != nil {
+			continue
+		}
+		databases = append(databases, d)
+	}
+
+	if len(databases) == 0 {
+		return nil
+	}
+
+	// Connect to MySQL
+	mysqlDB, err := sql.Open("mysql", "root@unix(/var/run/mysqld/mysqld.sock)/")
+	if err != nil {
+		return fmt.Errorf("failed to connect to MySQL: %w", err)
+	}
+	defer mysqlDB.Close()
+
+	// Drop each database and user
+	for _, d := range databases {
+		slog.Info("dropping database", "database", d.DBName, "user", d.DBUser)
+
+		// Drop database
+		if _, err := mysqlDB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", d.DBName)); err != nil {
+			slog.Warn("failed to drop database", "database", d.DBName, "error", err)
+		}
+
+		// Drop user (try both localhost and 127.0.0.1)
+		mysqlDB.Exec(fmt.Sprintf("DROP USER IF EXISTS '%s'@'localhost'", d.DBUser))
+		mysqlDB.Exec(fmt.Sprintf("DROP USER IF EXISTS '%s'@'127.0.0.1'", d.DBUser))
+	}
+
+	mysqlDB.Exec("FLUSH PRIVILEGES")
+	return nil
 }
 
 // Helper functions
