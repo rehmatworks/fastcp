@@ -806,12 +806,29 @@
                                         <td class="px-6 py-4 text-right space-x-3">
                                             <button x-show="u.username !== 'root' && u.username !== user?.username" 
                                                     @click="toggleUserSuspension(u)" 
-                                                    class="text-sm font-medium"
-                                                    :class="u.is_suspended ? 'text-green-600 hover:text-green-700' : 'text-yellow-600 hover:text-yellow-700'"
-                                                    x-text="u.is_suspended ? 'Unsuspend' : 'Suspend'"></button>
+                                                    :disabled="suspendingUser === u.username"
+                                                    class="text-sm font-medium disabled:opacity-50 inline-flex items-center"
+                                                    :class="u.is_suspended ? 'text-green-600 hover:text-green-700' : 'text-yellow-600 hover:text-yellow-700'">
+                                                <template x-if="suspendingUser === u.username">
+                                                    <svg class="animate-spin h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                    </svg>
+                                                </template>
+                                                <span x-text="suspendingUser === u.username ? (u.is_suspended ? 'Activating...' : 'Suspending...') : (u.is_suspended ? 'Unsuspend' : 'Suspend')"></span>
+                                            </button>
                                             <button x-show="u.username !== 'root' && u.username !== user?.username" 
                                                     @click="deleteUser(u)" 
-                                                    class="text-red-500 hover:text-red-700 text-sm font-medium">Delete</button>
+                                                    :disabled="deletingUser === u.username"
+                                                    class="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50 inline-flex items-center">
+                                                <template x-if="deletingUser === u.username">
+                                                    <svg class="animate-spin h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                    </svg>
+                                                </template>
+                                                <span x-text="deletingUser === u.username ? 'Deleting...' : 'Delete'"></span>
+                                            </button>
                                             <span x-show="u.username === 'root'" class="text-gray-400 text-sm">System</span>
                                             <span x-show="u.username === user?.username && u.username !== 'root'" class="text-gray-400 text-sm">You</span>
                                         </td>
@@ -1145,7 +1162,7 @@
 
     <!-- Create User Modal -->
     <div x-show="showCreateUser" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" x-transition>
-        <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4" @click.away="showCreateUser = false">
+        <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4" @click.away="if(!creatingUser) showCreateUser = false">
             <h3 class="text-xl font-semibold text-gray-800 mb-6">Create New User</h3>
             <form @submit.prevent="createUser">
                 <div class="mb-4">
@@ -1189,8 +1206,16 @@
                     <span x-text="userError"></span>
                 </div>
                 <div class="flex space-x-3">
-                    <button type="button" @click="showCreateUser = false; userError = ''" class="flex-1 px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 font-medium">Cancel</button>
-                    <button type="submit" class="flex-1 px-4 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 font-medium">Create User</button>
+                    <button type="button" @click="showCreateUser = false; userError = ''" :disabled="creatingUser" class="flex-1 px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 font-medium disabled:opacity-50">Cancel</button>
+                    <button type="submit" :disabled="creatingUser" class="flex-1 px-4 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 font-medium disabled:opacity-50 flex items-center justify-center">
+                        <template x-if="creatingUser">
+                            <svg class="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </template>
+                        <span x-text="creatingUser ? 'Creating...' : 'Create User'"></span>
+                    </button>
                 </div>
             </form>
         </div>
@@ -1264,6 +1289,9 @@
                 newSSHKey: { name: '', public_key: '' },
                 sshKeyError: '',
                 newUser: { username: '', password: '', is_admin: false, memory_mb: 512, cpu_percent: 100, max_sites: -1, storage_mb: -1 },
+                creatingUser: false,
+                deletingUser: null,
+                suspendingUser: null,
                 updateInfo: null,
                 updateLoading: false,
                 updateError: '',
@@ -1737,6 +1765,7 @@
 
                 async createUser() {
                     this.userError = '';
+                    this.creatingUser = true;
                     try {
                         await this.api('/users', 'POST', this.newUser);
                         this.showCreateUser = false;
@@ -1744,23 +1773,35 @@
                         this.loadUsers();
                     } catch(e) {
                         this.userError = e.message;
+                    } finally {
+                        this.creatingUser = false;
                     }
                 },
 
                 async deleteUser(u) {
                     if (!confirm(`Delete user "${u.username}"? This will delete all their sites, databases, and SSH keys.`)) return;
-                    await this.api(`/users/${u.username}`, 'DELETE');
-                    this.loadUsers();
+                    this.deletingUser = u.username;
+                    try {
+                        await this.api(`/users/${u.username}`, 'DELETE');
+                        this.loadUsers();
+                    } catch(e) {
+                        alert('Failed to delete user: ' + e.message);
+                    } finally {
+                        this.deletingUser = null;
+                    }
                 },
 
                 async toggleUserSuspension(u) {
                     const action = u.is_suspended ? 'unsuspend' : 'suspend';
                     if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} user "${u.username}"?`)) return;
+                    this.suspendingUser = u.username;
                     try {
                         await this.api(`/users/${u.username}/toggle-suspend`, 'POST');
                         this.loadUsers();
                     } catch(e) {
                         alert('Failed to ' + action + ' user: ' + e.message);
+                    } finally {
+                        this.suspendingUser = null;
                     }
                 },
 
