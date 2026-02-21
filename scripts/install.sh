@@ -74,9 +74,27 @@ esac
 
 log "Architecture: $ARCH"
 
+# Wait for any existing apt locks (e.g. unattended-upgrades on fresh VPS)
+wait_for_apt() {
+    local max_wait=120
+    local waited=0
+    while fuser /var/lib/apt/lists/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend /var/cache/apt/archives/lock >/dev/null 2>&1; do
+        if [[ $waited -eq 0 ]]; then
+            log "Waiting for apt lock (another package manager is running)..."
+        fi
+        sleep 5
+        waited=$((waited + 5))
+        if [[ $waited -ge $max_wait ]]; then
+            error "Timed out waiting for apt lock after ${max_wait}s"
+        fi
+    done
+}
+
 # Install dependencies
 log "Installing dependencies..."
+wait_for_apt
 apt-get update -qq
+wait_for_apt
 apt-get install -y -qq curl wget acl mysql-server libpam0g openssl > /dev/null
 
 # Get server IP early (needed for SSL cert)
