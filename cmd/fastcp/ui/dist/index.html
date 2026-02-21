@@ -422,7 +422,8 @@
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9"></path>
                                             </svg>
                                             <p class="text-gray-500 mb-2">No sites yet</p>
-                                            <button @click="showCreateSite = true" class="text-primary-600 hover:text-primary-700 text-sm font-medium">Create your first site</button>
+                                            <button x-show="user?.username !== 'root'" @click="showCreateSite = true" class="text-primary-600 hover:text-primary-700 text-sm font-medium">Create your first site</button>
+                                            <p x-show="user?.username === 'root'" class="text-gray-400 text-sm">Log in as a non-root user to create websites</p>
                                         </div>
                                     </td>
                                 </tr>
