@@ -4,7 +4,9 @@ package main
 
 import (
 	"context"
+	cryptorand "crypto/rand"
 	"embed"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -14,7 +16,9 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -22,8 +26,18 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/rehmatworks/fastcp/internal/agent"
 	"github.com/rehmatworks/fastcp/internal/api"
+	"github.com/rehmatworks/fastcp/internal/crypto"
 	"github.com/rehmatworks/fastcp/internal/database"
 )
+
+type pmaCredentials struct {
+	User     string
+	Password string
+	DB       string
+	Expiry   time.Time
+}
+
+var pmaStore sync.Map
 
 //go:embed ui/dist/*
 var uiFS embed.FS
@@ -159,36 +173,86 @@ func main() {
 		})
 	})
 
-	// phpMyAdmin reverse proxy
+	// phpMyAdmin reverse proxy - all auth handled in Go, no PHP sessions
 	phpMyAdminURL, _ := url.Parse("http://localhost:8088")
 	phpMyAdminProxy := httputil.NewSingleHostReverseProxy(phpMyAdminURL)
+	phpMyAdminProxy.ModifyResponse = func(resp *http.Response) error {
+		resp.Header.Del("WWW-Authenticate")
+		return nil
+	}
 	r.HandleFunc("/phpmyadmin", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/phpmyadmin/", http.StatusMovedPermanently)
 	})
 	r.HandleFunc("/phpmyadmin/*", func(w http.ResponseWriter, req *http.Request) {
 		path := strings.TrimPrefix(req.URL.Path, "/phpmyadmin")
-		
-		// Allow signon.php with token (token is the authentication)
-		// Also allow access if user has valid FastCP session (for subsequent requests after signon)
-		isSignonWithToken := strings.HasPrefix(path, "/signon.php") && req.URL.Query().Get("token") != ""
-		hasPhpMyAdminSession := false
-		for _, cookie := range req.Cookies() {
-			if cookie.Name == "SignonSession" || cookie.Name == "phpMyAdmin" {
-				hasPhpMyAdminSession = true
-				break
+
+		// Token present: decrypt, store credentials, set cookie, redirect
+		if token := req.URL.Query().Get("token"); token != "" {
+			payload, err := crypto.DecryptURLSafe(token)
+			if err != nil {
+				http.Error(w, "Invalid or expired token", http.StatusForbidden)
+				return
 			}
-		}
-		
-		if !isSignonWithToken && !hasPhpMyAdminSession && !apiHandler.IsAuthenticated(req) {
-			http.Redirect(w, req, "/?redirect=phpmyadmin", http.StatusFound)
+
+			parts := strings.SplitN(payload, "|", 4)
+			if len(parts) != 4 {
+				http.Error(w, "Invalid token format", http.StatusForbidden)
+				return
+			}
+
+			expiry, _ := strconv.ParseInt(parts[3], 10, 64)
+			if time.Now().Unix() > expiry {
+				http.Error(w, "Token expired", http.StatusForbidden)
+				return
+			}
+
+			buf := make([]byte, 32)
+			cryptorand.Read(buf)
+			sessionID := hex.EncodeToString(buf)
+
+			pmaStore.Store(sessionID, &pmaCredentials{
+				User:     parts[0],
+				Password: parts[1],
+				DB:       parts[2],
+				Expiry:   time.Now().Add(1 * time.Hour),
+			})
+
+			http.SetCookie(w, &http.Cookie{
+				Name:     "pma_creds",
+				Value:    sessionID,
+				Path:     "/phpmyadmin/",
+				HttpOnly: true,
+				Secure:   true,
+				SameSite: http.SameSiteLaxMode,
+			})
+			http.Redirect(w, req, "/phpmyadmin/?db="+url.QueryEscape(parts[2]), http.StatusFound)
 			return
 		}
 
-		// Strip /phpmyadmin prefix for the backend
+		// Look up stored credentials from cookie
+		var creds *pmaCredentials
+		if cookie, err := req.Cookie("pma_creds"); err == nil {
+			if val, ok := pmaStore.Load(cookie.Value); ok {
+				c := val.(*pmaCredentials)
+				if c.Expiry.After(time.Now()) {
+					creds = c
+				} else {
+					pmaStore.Delete(cookie.Value)
+				}
+			}
+		}
+
+		if creds == nil {
+			http.Redirect(w, req, "/", http.StatusFound)
+			return
+		}
+
+		// Proxy to FrankenPHP with injected Basic Auth
 		req.URL.Path = path
 		if req.URL.Path == "" {
 			req.URL.Path = "/"
 		}
+		req.SetBasicAuth(creds.User, creds.Password)
 		req.Header.Set("X-Forwarded-Host", req.Host)
 		req.Header.Set("X-Forwarded-Proto", "https")
 		req.Host = "localhost"

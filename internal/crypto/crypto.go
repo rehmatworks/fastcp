@@ -93,14 +93,23 @@ func EncryptURLSafe(plaintext string) (string, error) {
 	return base64.URLEncoding.EncodeToString(ciphertext), nil
 }
 
-// Decrypt decrypts ciphertext using AES-GCM
+// Decrypt decrypts ciphertext using AES-GCM (standard base64)
 func Decrypt(ciphertext string) (string, error) {
+	return decryptWithEncoding(ciphertext, base64.StdEncoding)
+}
+
+// DecryptURLSafe decrypts ciphertext using AES-GCM (URL-safe base64)
+func DecryptURLSafe(ciphertext string) (string, error) {
+	return decryptWithEncoding(ciphertext, base64.URLEncoding)
+}
+
+func decryptWithEncoding(ciphertext string, encoding *base64.Encoding) (string, error) {
 	key, err := getKey()
 	if err != nil {
 		return "", err
 	}
 
-	data, err := base64.StdEncoding.DecodeString(ciphertext)
+	data, err := encoding.DecodeString(ciphertext)
 	if err != nil {
 		return "", err
 	}

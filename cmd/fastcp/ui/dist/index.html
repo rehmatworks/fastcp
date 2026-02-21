@@ -1412,11 +1412,13 @@
                         this.authenticated = true;
                         this.password = '';
                         
-                        // Check for redirect parameter (e.g., from phpMyAdmin)
+                        // Check for redirect parameter
                         const urlParams = new URLSearchParams(window.location.search);
                         const redirect = urlParams.get('redirect');
                         if (redirect === 'phpmyadmin') {
-                            window.location.href = '/phpmyadmin/';
+                            window.history.replaceState({}, '', '/');
+                            this.activeTab = 'databases';
+                            this.loadDatabases();
                             return;
                         }
                         
