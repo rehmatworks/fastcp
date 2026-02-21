@@ -43,7 +43,7 @@ func (s *Server) runStartupMigrations() {
 	s.ensurePMAConfig()
 	s.ensureMySQLTuning()
 	s.ensureSwap()
-	s.ensureUserSocketDirs()
+	s.bootstrapAllUsers()
 	s.cleanStaleSocketsAndReload()
 }
 
@@ -166,65 +166,28 @@ func (s *Server) ensureServiceFiles() {
 	}
 }
 
-func (s *Server) ensureUserSocketDirs() {
-	// Check if any old-style sockets exist in the shared dir -- if so, we need to migrate
+// bootstrapAllUsers ensures every user that has a config directory also has
+// all required runtime directories with correct ownership. Also migrates
+// away from the legacy shared-socket layout if still present.
+func (s *Server) bootstrapAllUsers() {
+	// Migrate away from old shared /opt/fastcp/run/php-*.sock layout
 	oldSockets, _ := filepath.Glob(filepath.Join(fastcpRunDir, "php-*.sock"))
-	if len(oldSockets) == 0 {
-		// Also check if any user config dirs exist without the new socket dir
-		userDirs, _ := filepath.Glob("/opt/fastcp/config/users/*")
-		needsMigration := false
-		for _, dir := range userDirs {
-			username := filepath.Base(dir)
-			sockDir := userSocketDir(username)
-			if _, err := os.Stat(sockDir); err != nil {
-				needsMigration = true
-				break
-			}
+	if len(oldSockets) > 0 {
+		slog.Info("migrating legacy shared sockets to per-user home directories")
+		for _, sock := range oldSockets {
+			os.Remove(sock)
 		}
-		if !needsMigration {
-			return
+		oldPids, _ := filepath.Glob(filepath.Join(fastcpRunDir, "php-*.pid"))
+		for _, pid := range oldPids {
+			os.Remove(pid)
 		}
+		exec.Command("pkill", "-f", "frankenphp run --config /opt/fastcp/config/users").Run()
+		time.Sleep(1 * time.Second)
 	}
 
-	slog.Info("migrating user socket directories to home directories")
-
-	// Create ~/.fastcp/run/ for all existing users with config dirs
 	userDirs, _ := filepath.Glob("/opt/fastcp/config/users/*")
 	for _, dir := range userDirs {
-		username := filepath.Base(dir)
-		u, err := user.Lookup(username)
-		if err != nil {
-			continue
-		}
-		uid, _ := strconv.Atoi(u.Uid)
-		gid, _ := strconv.Atoi(u.Gid)
-
-		sockDir := userSocketDir(username)
-		os.MkdirAll(sockDir, 0755)
-		os.Chown(sockDir, uid, gid)
-		// Also ensure parent .fastcp dir has correct ownership
-		os.Chown(filepath.Dir(sockDir), uid, gid)
-	}
-
-	// Remove old sockets so user PHP processes restart with new paths
-	for _, sock := range oldSockets {
-		os.Remove(sock)
-	}
-	oldPids, _ := filepath.Glob(filepath.Join(fastcpRunDir, "php-*.pid"))
-	for _, pid := range oldPids {
-		os.Remove(pid)
-	}
-
-	// Kill old user FrankenPHP processes so they restart with new socket paths
-	exec.Command("pkill", "-f", "frankenphp run --config /opt/fastcp/config/users").Run()
-	time.Sleep(1 * time.Second)
-
-	// Regenerate Caddyfiles with new socket paths and reload
-	if err := s.generateCaddyfile(); err != nil {
-		slog.Error("failed to regenerate Caddyfile during migration", "error", err)
-	} else {
-		s.reloadCaddy()
-		slog.Info("regenerated Caddyfile with new user socket paths")
+		bootstrapUserEnvironment(filepath.Base(dir))
 	}
 }
 
@@ -876,17 +839,46 @@ func userSocketPath(username string) string {
 	return filepath.Join(userSocketDir(username), "php.sock")
 }
 
-func ensureUserSocketDir(username string) {
-	sockDir := userSocketDir(username)
+// bootstrapUserEnvironment creates all required directories and fixes
+// ownership for a system user. Safe to call repeatedly (idempotent).
+func bootstrapUserEnvironment(username string) {
 	u, err := user.Lookup(username)
 	if err != nil {
 		return
 	}
 	uid, _ := strconv.Atoi(u.Uid)
 	gid, _ := strconv.Atoi(u.Gid)
-	os.MkdirAll(sockDir, 0755)
-	os.Chown(sockDir, uid, gid)
-	os.Chown(filepath.Dir(sockDir), uid, gid)
+
+	own := func(p string) { os.Chown(p, uid, gid) }
+	mkown := func(p string, mode os.FileMode) {
+		os.MkdirAll(p, mode)
+		own(p)
+	}
+
+	// ~/apps/
+	mkown(filepath.Join(u.HomeDir, appsDir), 0755)
+
+	// ~/.fastcp/ and ~/.fastcp/run/ (socket directory)
+	fastcpPath := filepath.Join(u.HomeDir, fastcpDir)
+	mkown(fastcpPath, 0755)
+	mkown(filepath.Join(fastcpPath, "run"), 0755)
+
+	// ~/.tmp/ tree (sessions, uploads, cache, phpmyadmin, wsdl)
+	tmpDir := filepath.Join(u.HomeDir, ".tmp")
+	for _, sub := range []string{"", "sessions", "uploads", "cache", "phpmyadmin", "wsdl"} {
+		mkown(filepath.Join(tmpDir, sub), 0700)
+	}
+
+	// /opt/fastcp/config/users/{username}/
+	userConfigDir := filepath.Join("/opt/fastcp/config/users", username)
+	os.MkdirAll(userConfigDir, 0755)
+
+	// PHP error log
+	logPath := fmt.Sprintf("/var/log/fastcp/php-%s-error.log", username)
+	if _, err := os.Stat(logPath); err != nil {
+		os.WriteFile(logPath, nil, 0644)
+	}
+	own(logPath)
 }
 
 func (s *Server) startUserPHP(username string) error {
@@ -1113,7 +1105,7 @@ func (s *Server) generateCaddyfile() error {
 
 		// Start user's PHP service (skip if suspended)
 		if len(sites) > 0 && !isSuspended {
-			ensureUserSocketDir(username)
+			bootstrapUserEnvironment(username)
 			if useSystemd {
 				serviceName := fmt.Sprintf("fastcp-php@%s.service", username)
 				exec.Command("systemctl", "start", serviceName).Run()
@@ -1286,44 +1278,19 @@ func (s *Server) generateUserCaddyfile(username string, sites []siteInfo) error 
 `, matcherName, hostList, matcherName, site.DocumentRoot))
 	}
 
-	// Create per-user temp directory
+	// Per-user temp directory paths (directories are created by bootstrapUserEnvironment)
 	userTmpDir := filepath.Join(homeBase, username, ".tmp")
 	userSessionDir := filepath.Join(userTmpDir, "sessions")
 	userUploadDir := filepath.Join(userTmpDir, "uploads")
-	userPmaTmpDir := filepath.Join(userTmpDir, "phpmyadmin")
+	userCacheDir := filepath.Join(userTmpDir, "cache")
+	userWsdlDir := filepath.Join(userTmpDir, "wsdl")
 
-	// Get user info for ownership
-	u, err := user.Lookup(username)
-	if err == nil {
-		uid, _ := strconv.Atoi(u.Uid)
-		gid, _ := strconv.Atoi(u.Gid)
-
-		for _, dir := range []string{userTmpDir, userSessionDir, userUploadDir, userPmaTmpDir} {
-			os.MkdirAll(dir, 0700)
-			os.Chown(dir, uid, gid)
-		}
-	}
-
-	// Create per-user php.ini with security settings
 	var docRoots []string
 	for _, site := range sites {
 		docRoots = append(docRoots, filepath.Dir(site.DocumentRoot))
 		docRoots = append(docRoots, site.DocumentRoot)
 	}
-	// Include user's own temp directory, NOT shared /tmp
 	openBasedir := strings.Join(docRoots, ":") + ":" + userTmpDir + ":/opt/fastcp/phpmyadmin"
-
-	// Additional cache directories
-	userCacheDir := filepath.Join(userTmpDir, "cache")
-	userWsdlDir := filepath.Join(userTmpDir, "wsdl")
-	os.MkdirAll(userCacheDir, 0700)
-	os.MkdirAll(userWsdlDir, 0700)
-	if err == nil {
-		uid, _ := strconv.Atoi(u.Uid)
-		gid, _ := strconv.Atoi(u.Gid)
-		os.Chown(userCacheDir, uid, gid)
-		os.Chown(userWsdlDir, uid, gid)
-	}
 
 	phpIni := fmt.Sprintf(`; PHP security settings for user: %s
 ; Isolation: Each user has their own temp/session/cache directories
@@ -1386,7 +1353,7 @@ session.cookie_samesite = Strict
 	}
 
 	// Reload user's FrankenPHP service
-	ensureUserSocketDir(username)
+	bootstrapUserEnvironment(username)
 	serviceName := fmt.Sprintf("fastcp-php@%s.service", username)
 	exec.Command("systemctl", "reload-or-restart", serviceName).Run()
 
@@ -1876,29 +1843,14 @@ func (s *Server) handleCreateUser(ctx context.Context, params json.RawMessage) (
 		return nil, fmt.Errorf("failed to set password: %w: %s", err, output)
 	}
 
-	// Create apps directory
+	// Bootstrap all directories and fix ownership
+	bootstrapUserEnvironment(req.Username)
+
 	u, _ := user.Lookup(req.Username)
 	uid, _ := strconv.Atoi(u.Uid)
-	gid, _ := strconv.Atoi(u.Gid)
-
-	appsPath := filepath.Join(u.HomeDir, appsDir)
-	os.MkdirAll(appsPath, 0755)
-	os.Chown(appsPath, uid, gid)
-
-	// Create .fastcp directory and runtime subdirectory
-	fastcpPath := filepath.Join(u.HomeDir, fastcpDir)
-	os.MkdirAll(fastcpPath, 0755)
-	os.Chown(fastcpPath, uid, gid)
-
-	runPath := filepath.Join(fastcpPath, "run")
-	os.MkdirAll(runPath, 0755)
-	os.Chown(runPath, uid, gid)
-
-	// Create per-user FrankenPHP configuration directory
-	userConfigDir := filepath.Join("/opt/fastcp/config/users", req.Username)
-	os.MkdirAll(userConfigDir, 0755)
 
 	// Create user's Caddyfile (initially empty, will be populated when sites are created)
+	userConfigDir := filepath.Join("/opt/fastcp/config/users", req.Username)
 	userCaddyfile := filepath.Join(userConfigDir, "Caddyfile")
 	initialCaddyfile := fmt.Sprintf(`# FrankenPHP config for user: %s
 {

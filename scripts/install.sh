@@ -401,6 +401,21 @@ else
     log "Updated password for existing 'fastcp' user"
 fi
 
+# Bootstrap all required directories for the admin user
+FASTCP_HOME=$(eval echo ~fastcp)
+mkdir -p "${FASTCP_HOME}/apps"
+mkdir -p "${FASTCP_HOME}/.fastcp/run"
+mkdir -p "${FASTCP_HOME}/.tmp/sessions"
+mkdir -p "${FASTCP_HOME}/.tmp/uploads"
+mkdir -p "${FASTCP_HOME}/.tmp/cache"
+mkdir -p "${FASTCP_HOME}/.tmp/phpmyadmin"
+mkdir -p "${FASTCP_HOME}/.tmp/wsdl"
+mkdir -p /opt/fastcp/config/users/fastcp
+chown -R fastcp:fastcp "${FASTCP_HOME}/apps" "${FASTCP_HOME}/.fastcp" "${FASTCP_HOME}/.tmp"
+touch /var/log/fastcp/php-fastcp-error.log
+chown fastcp:fastcp /var/log/fastcp/php-fastcp-error.log
+log "Bootstrapped admin user directories"
+
 # Wait for FastCP API to be ready
 log "Waiting for FastCP API..."
 for i in {1..30}; do
