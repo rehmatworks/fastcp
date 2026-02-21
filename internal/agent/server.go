@@ -47,6 +47,8 @@ func New(socketPath string) (*Server, error) {
 
 // Run starts the agent server
 func (s *Server) Run(ctx context.Context) error {
+	s.runStartupMigrations()
+
 	listener, err := net.Listen("unix", s.socketPath)
 	if err != nil {
 		return fmt.Errorf("failed to listen on socket: %w", err)

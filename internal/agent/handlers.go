@@ -32,6 +32,55 @@ const (
 	mysqlSocket   = "/var/run/mysqld/mysqld.sock"
 )
 
+// runStartupMigrations fixes configuration drift on agent startup (e.g. after updates).
+func (s *Server) runStartupMigrations() {
+	s.ensurePHPIniConfig()
+	s.ensureSystemdRuntimeDir()
+}
+
+func (s *Server) ensurePHPIniConfig() {
+	iniDir := "/opt/fastcp/config/php"
+	iniFile := filepath.Join(iniDir, "99-fastcp.ini")
+	if _, err := os.Stat(iniFile); err == nil {
+		return
+	}
+	os.MkdirAll(iniDir, 0755)
+	os.WriteFile(iniFile, []byte("display_errors = Off\nerror_reporting = 22527\n"), 0644)
+	os.Remove("/opt/fastcp/phpmyadmin/.user.ini")
+	slog.Info("created PHP ini config", "path", iniFile)
+}
+
+func (s *Server) ensureSystemdRuntimeDir() {
+	needsReload := false
+
+	agentUnit := "/etc/systemd/system/fastcp-agent.service"
+	if data, err := os.ReadFile(agentUnit); err == nil {
+		content := string(data)
+		if !strings.Contains(content, "RuntimeDirectory=") {
+			content = strings.Replace(content, "RestartSec=5\n", "RestartSec=5\nRuntimeDirectory=fastcp\nRuntimeDirectoryMode=1777\nRuntimeDirectoryPreserve=yes\n", 1)
+			os.WriteFile(agentUnit, []byte(content), 0644)
+			needsReload = true
+			slog.Info("patched fastcp-agent.service with RuntimeDirectory")
+		}
+	}
+
+	caddyUnit := "/etc/systemd/system/fastcp-caddy.service"
+	if data, err := os.ReadFile(caddyUnit); err == nil {
+		content := string(data)
+		if !strings.Contains(content, "PHP_INI_SCAN_DIR") {
+			content = strings.Replace(content, "RestartSec=5\n", "RestartSec=5\nEnvironment=PHP_INI_SCAN_DIR=:/opt/fastcp/config/php\n", 1)
+			os.WriteFile(caddyUnit, []byte(content), 0644)
+			needsReload = true
+			slog.Info("patched fastcp-caddy.service with PHP_INI_SCAN_DIR")
+		}
+	}
+
+	if needsReload {
+		exec.Command("systemctl", "daemon-reload").Run()
+		exec.Command("systemctl", "restart", "fastcp-caddy").Run()
+	}
+}
+
 // Site handlers
 
 func (s *Server) handleCreateSiteDirectory(ctx context.Context, params json.RawMessage) (any, error) {
@@ -1396,6 +1445,10 @@ func (s *Server) handleSystemUpdate(ctx context.Context, params json.RawMessage)
 
 	// Cleanup
 	os.RemoveAll(tmpDir)
+
+	// Ensure configs are up-to-date before restarting
+	s.ensurePHPIniConfig()
+	s.ensureSystemdRuntimeDir()
 
 	// Restart services
 	exec.Command("systemctl", "start", "fastcp").Run()

@@ -179,6 +179,9 @@ Type=simple
 ExecStart=/opt/fastcp/bin/fastcp-agent
 Restart=always
 RestartSec=5
+RuntimeDirectory=fastcp
+RuntimeDirectoryMode=1777
+RuntimeDirectoryPreserve=yes
 
 [Install]
 WantedBy=multi-user.target
@@ -210,6 +213,7 @@ Type=simple
 ExecStart=/usr/local/bin/frankenphp run --config /opt/fastcp/config/Caddyfile
 Restart=always
 RestartSec=5
+Environment=PHP_INI_SCAN_DIR=:/opt/fastcp/config/php
 
 [Install]
 WantedBy=multi-user.target
@@ -297,9 +301,11 @@ sed -i "s/FASTCP_PMA_SECRET_PLACEHOLDER/${PMA_SECRET}/" /opt/fastcp/phpmyadmin/c
 # Remove signon.php if it exists from a previous install
 rm -f /opt/fastcp/phpmyadmin/signon.php
 
-# Suppress PHP 8.4 deprecation warnings before any code runs (including vendor autoloader).
-# Without this, warnings output text before session_start(), breaking "headers already sent".
-cat > /opt/fastcp/phpmyadmin/.user.ini << 'INIEOF'
+# Suppress PHP 8.4 deprecation warnings via FrankenPHP's PHP_INI_SCAN_DIR.
+# .user.ini doesn't work with FrankenPHP; we use a proper php.ini instead.
+rm -f /opt/fastcp/phpmyadmin/.user.ini
+mkdir -p /opt/fastcp/config/php
+cat > /opt/fastcp/config/php/99-fastcp.ini << 'INIEOF'
 display_errors = Off
 error_reporting = 22527
 INIEOF
