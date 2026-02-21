@@ -100,6 +100,21 @@ apt-get install -y -qq curl wget acl mysql-server libpam0g openssl > /dev/null
 # Get server IP early (needed for SSL cert)
 SERVER_IP=$(curl -s --connect-timeout 5 ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
 
+# Ensure swap exists on low-memory servers
+TOTAL_RAM_KB=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
+CURRENT_SWAP_KB=$(awk '/SwapTotal/ {print $2}' /proc/meminfo)
+if [[ $TOTAL_RAM_KB -le 2097152 && $CURRENT_SWAP_KB -lt 524288 ]]; then
+    log "Setting up swap (low memory detected)..."
+    if [[ ! -f /swapfile ]]; then
+        fallocate -l 1G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=1024 status=none
+        chmod 600 /swapfile
+        mkswap /swapfile > /dev/null
+    fi
+    swapon /swapfile 2>/dev/null || true
+    grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    log "1GB swap enabled"
+fi
+
 # Create directories
 log "Creating directories..."
 mkdir -p /opt/fastcp/{bin,data,config,ssl,run}
@@ -272,8 +287,46 @@ systemctl start fastcp-caddy
 
 # Configure MySQL
 log "Configuring MySQL..."
+
+# Tune MySQL based on available RAM
+TOTAL_RAM_MB=$(awk '/MemTotal/ {printf "%d", $2/1024}' /proc/meminfo)
+
+if [[ $TOTAL_RAM_MB -le 1024 ]]; then
+    INNODB_BUFFER=64
+    MAX_CONN=30
+    PERF_SCHEMA="OFF"
+elif [[ $TOTAL_RAM_MB -le 2048 ]]; then
+    INNODB_BUFFER=128
+    MAX_CONN=50
+    PERF_SCHEMA="OFF"
+elif [[ $TOTAL_RAM_MB -le 4096 ]]; then
+    INNODB_BUFFER=256
+    MAX_CONN=100
+    PERF_SCHEMA="ON"
+else
+    INNODB_BUFFER=512
+    MAX_CONN=150
+    PERF_SCHEMA="ON"
+fi
+
+cat > /etc/mysql/conf.d/fastcp.cnf << MYSQLEOF
+[mysqld]
+# FastCP tuning (${TOTAL_RAM_MB}MB RAM detected)
+innodb_buffer_pool_size = ${INNODB_BUFFER}M
+innodb_log_file_size = 16M
+innodb_log_buffer_size = 8M
+innodb_flush_log_at_trx_commit = 2
+innodb_flush_method = O_DIRECT
+key_buffer_size = 4M
+max_connections = ${MAX_CONN}
+table_open_cache = 200
+thread_cache_size = 8
+performance_schema = ${PERF_SCHEMA}
+skip-name-resolve
+MYSQLEOF
+
 systemctl enable mysql
-systemctl start mysql
+systemctl restart mysql
 
 # Install phpMyAdmin
 log "Installing phpMyAdmin..."

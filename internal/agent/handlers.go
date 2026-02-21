@@ -40,6 +40,8 @@ func (s *Server) runStartupMigrations() {
 	s.ensurePHPIniConfig()
 	s.ensureServiceFiles()
 	s.ensurePMAConfig()
+	s.ensureMySQLTuning()
+	s.ensureSwap()
 	s.ensureUserSocketDirs()
 	s.cleanStaleSocketsAndReload()
 }
@@ -223,6 +225,95 @@ func (s *Server) cleanStaleSocketsAndReload() {
 	} else {
 		exec.Command("pkill", "-USR1", "frankenphp").Run()
 	}
+}
+
+func (s *Server) ensureMySQLTuning() {
+	cnfPath := "/etc/mysql/conf.d/fastcp.cnf"
+	if _, err := os.Stat(cnfPath); err == nil {
+		return
+	}
+
+	// Detect RAM and set appropriate values
+	var totalMB int
+	if data, err := os.ReadFile("/proc/meminfo"); err == nil {
+		var kb int
+		fmt.Sscanf(string(data), "MemTotal: %d", &kb)
+		totalMB = kb / 1024
+	}
+
+	bufferPool, maxConn, perfSchema := 512, 150, "ON"
+	switch {
+	case totalMB <= 1024:
+		bufferPool, maxConn, perfSchema = 64, 30, "OFF"
+	case totalMB <= 2048:
+		bufferPool, maxConn, perfSchema = 128, 50, "OFF"
+	case totalMB <= 4096:
+		bufferPool, maxConn, perfSchema = 256, 100, "ON"
+	}
+
+	cnf := fmt.Sprintf(`[mysqld]
+# FastCP tuning (%dMB RAM detected)
+innodb_buffer_pool_size = %dM
+innodb_log_file_size = 16M
+innodb_log_buffer_size = 8M
+innodb_flush_log_at_trx_commit = 2
+innodb_flush_method = O_DIRECT
+key_buffer_size = 4M
+max_connections = %d
+table_open_cache = 200
+thread_cache_size = 8
+performance_schema = %s
+skip-name-resolve
+`, totalMB, bufferPool, maxConn, perfSchema)
+
+	os.MkdirAll("/etc/mysql/conf.d", 0755)
+	if err := os.WriteFile(cnfPath, []byte(cnf), 0644); err == nil {
+		exec.Command("systemctl", "restart", "mysql").Run()
+		slog.Info("applied MySQL tuning", "ram_mb", totalMB, "buffer_pool_mb", bufferPool, "perf_schema", perfSchema)
+	}
+}
+
+func (s *Server) ensureSwap() {
+	// Only add swap on servers with <= 2GB RAM and insufficient existing swap
+	data, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		return
+	}
+
+	var totalKB, swapKB int
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "MemTotal:") {
+			fmt.Sscanf(line, "MemTotal: %d", &totalKB)
+		} else if strings.HasPrefix(line, "SwapTotal:") {
+			fmt.Sscanf(line, "SwapTotal: %d", &swapKB)
+		}
+	}
+
+	if totalKB > 2*1024*1024 || swapKB >= 512*1024 {
+		return
+	}
+
+	if _, err := os.Stat("/swapfile"); err != nil {
+		cmd := exec.Command("fallocate", "-l", "1G", "/swapfile")
+		if cmd.Run() != nil {
+			return
+		}
+		os.Chmod("/swapfile", 0600)
+		exec.Command("mkswap", "/swapfile").Run()
+	}
+	exec.Command("swapon", "/swapfile").Run()
+
+	// Ensure it's in fstab
+	if fstab, err := os.ReadFile("/etc/fstab"); err == nil {
+		if !strings.Contains(string(fstab), "/swapfile") {
+			f, _ := os.OpenFile("/etc/fstab", os.O_APPEND|os.O_WRONLY, 0644)
+			if f != nil {
+				f.WriteString("\n/swapfile none swap sw 0 0\n")
+				f.Close()
+			}
+		}
+	}
+	slog.Info("ensured swap is active", "ram_kb", totalKB, "swap_kb", swapKB)
 }
 
 func (s *Server) ensurePMAConfig() {
