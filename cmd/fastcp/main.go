@@ -158,13 +158,19 @@ func main() {
 		})
 	})
 
-	// phpMyAdmin reverse proxy
+	// phpMyAdmin reverse proxy (requires authentication)
 	phpMyAdminURL, _ := url.Parse("http://localhost:8088")
 	phpMyAdminProxy := httputil.NewSingleHostReverseProxy(phpMyAdminURL)
 	r.HandleFunc("/phpmyadmin", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/phpmyadmin/", http.StatusMovedPermanently)
 	})
 	r.HandleFunc("/phpmyadmin/*", func(w http.ResponseWriter, req *http.Request) {
+		// Check authentication (via cookie or Authorization header)
+		if !apiHandler.IsAuthenticated(req) {
+			http.Redirect(w, req, "/?redirect=phpmyadmin", http.StatusFound)
+			return
+		}
+
 		// Strip /phpmyadmin prefix for the backend
 		req.URL.Path = strings.TrimPrefix(req.URL.Path, "/phpmyadmin")
 		if req.URL.Path == "" {

@@ -51,11 +51,9 @@ print_step "Stopping services..."
 systemctl stop fastcp 2>/dev/null || true
 systemctl stop fastcp-agent 2>/dev/null || true
 systemctl stop fastcp-caddy 2>/dev/null || true
-systemctl stop fastcp-phpmyadmin 2>/dev/null || true
 systemctl disable fastcp 2>/dev/null || true
 systemctl disable fastcp-agent 2>/dev/null || true
 systemctl disable fastcp-caddy 2>/dev/null || true
-systemctl disable fastcp-phpmyadmin 2>/dev/null || true
 
 # Stop per-user PHP services
 for user_dir in /opt/fastcp/config/users/*; do
@@ -71,7 +69,6 @@ print_step "Removing systemd services..."
 rm -f /etc/systemd/system/fastcp.service
 rm -f /etc/systemd/system/fastcp-agent.service
 rm -f /etc/systemd/system/fastcp-caddy.service
-rm -f /etc/systemd/system/fastcp-phpmyadmin.service
 rm -f /etc/systemd/system/fastcp-php@.service
 systemctl daemon-reload
 

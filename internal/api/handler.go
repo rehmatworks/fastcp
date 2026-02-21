@@ -70,6 +70,16 @@ func (h *Handler) getUser(r *http.Request) *User {
 	return user
 }
 
+// IsAuthenticated checks if the request has a valid session (for phpMyAdmin etc)
+func (h *Handler) IsAuthenticated(r *http.Request) bool {
+	token := extractToken(r)
+	if token == "" {
+		return false
+	}
+	_, err := h.authService.ValidateToken(r.Context(), token)
+	return err == nil
+}
+
 // Auth handlers
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
@@ -84,6 +94,17 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set session cookie for phpMyAdmin and other browser-based access
+	http.SetCookie(w, &http.Cookie{
+		Name:     "fastcp_session",
+		Value:    resp.Token,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  resp.ExpiresAt,
+	})
+
 	h.json(w, http.StatusOK, resp)
 }
 
@@ -92,6 +113,17 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	if token != "" {
 		h.authService.Logout(r.Context(), token)
 	}
+
+	// Clear session cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "fastcp_session",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		MaxAge:   -1,
+	})
+
 	h.json(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -621,9 +653,16 @@ func (h *Handler) error(w http.ResponseWriter, status int, message string) {
 }
 
 func extractToken(r *http.Request) string {
+	// Check Authorization header first
 	auth := r.Header.Get("Authorization")
 	if strings.HasPrefix(auth, "Bearer ") {
 		return strings.TrimPrefix(auth, "Bearer ")
 	}
+
+	// Check session cookie (for phpMyAdmin and other browser-based access)
+	if cookie, err := r.Cookie("fastcp_session"); err == nil {
+		return cookie.Value
+	}
+
 	return ""
 }

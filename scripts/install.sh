@@ -277,39 +277,7 @@ PMAEOF
 # Create phpMyAdmin temp directory
 mkdir -p /tmp/phpmyadmin
 chmod 777 /tmp/phpmyadmin
-
-# Create Caddyfile for phpMyAdmin
-cat > /opt/fastcp/config/phpmyadmin.Caddyfile << 'EOF'
-{
-    admin off
-}
-
-http://localhost:8088 {
-    root * /opt/fastcp/phpmyadmin
-    php_server
-}
-EOF
-
-# Create systemd service for phpMyAdmin
-cat > /etc/systemd/system/fastcp-phpmyadmin.service << 'EOF'
-[Unit]
-Description=FastCP phpMyAdmin
-After=network.target mysql.service
-
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/frankenphp run --config /opt/fastcp/config/phpmyadmin.Caddyfile
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl daemon-reload
-systemctl enable fastcp-phpmyadmin
-systemctl start fastcp-phpmyadmin
-log "phpMyAdmin installed and running"
+log "phpMyAdmin installed (served via main Caddy process)"
 
 # Create fastcp admin user
 log "Creating fastcp admin user..."
@@ -374,10 +342,9 @@ echo -e "  ${GREEN}https://${SERVER_IP}:2087/phpmyadmin/${NC}"
 echo -e "  ${DIM}Log in with your database credentials${NC}"
 echo ""
 echo -e "  ${CYAN}${BOLD}Services Status${NC}"
-echo -e "  ${GREEN}●${NC} fastcp-agent      ${DIM}(running)${NC}"
-echo -e "  ${GREEN}●${NC} fastcp            ${DIM}(running)${NC}"
-echo -e "  ${GREEN}●${NC} fastcp-caddy      ${DIM}(running)${NC}"
-echo -e "  ${GREEN}●${NC} fastcp-phpmyadmin ${DIM}(running)${NC}"
+echo -e "  ${GREEN}●${NC} fastcp-agent    ${DIM}(running)${NC}"
+echo -e "  ${GREEN}●${NC} fastcp          ${DIM}(running)${NC}"
+echo -e "  ${GREEN}●${NC} fastcp-caddy    ${DIM}(running)${NC}"
 echo ""
 echo -e "  ${CYAN}${BOLD}Useful Commands${NC}"
 echo -e "  ${DIM}Check status:${NC}   systemctl status fastcp"

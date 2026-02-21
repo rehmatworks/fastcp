@@ -738,7 +738,14 @@ func (s *Server) generateCaddyfile() error {
 		}
 	}
 
-	mainBuf.WriteString(`# Default fallback for unconfigured domains
+	// Add phpMyAdmin (internal only - accessed via FastCP reverse proxy)
+	mainBuf.WriteString(`# phpMyAdmin (internal only - accessed via FastCP reverse proxy)
+http://localhost:8088 {
+    root * /opt/fastcp/phpmyadmin
+    php_server
+}
+
+# Default fallback for unconfigured domains
 :80, :443 {
     respond "FastCP - No site configured for this domain" 404
 }
