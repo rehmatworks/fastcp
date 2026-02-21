@@ -1118,6 +1118,7 @@ func (s *Server) generateUserCaddyfile(username string, sites []siteInfo) error 
 
 {
     admin off
+    frankenphp
 }
 
 :80 {
@@ -1683,6 +1684,7 @@ func (s *Server) handleCreateUser(ctx context.Context, params json.RawMessage) (
 	initialCaddyfile := fmt.Sprintf(`# FrankenPHP config for user: %s
 {
     admin off
+    frankenphp
 }
 
 # Sites will be added here by FastCP
