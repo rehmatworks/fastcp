@@ -36,6 +36,7 @@ const (
 func (s *Server) runStartupMigrations() {
 	s.ensurePHPIniConfig()
 	s.ensureSystemdRuntimeDir()
+	s.ensurePMASocketFix()
 }
 
 func (s *Server) ensurePHPIniConfig() {
@@ -78,6 +79,20 @@ func (s *Server) ensureSystemdRuntimeDir() {
 	if needsReload {
 		exec.Command("systemctl", "daemon-reload").Run()
 		exec.Command("systemctl", "restart", "fastcp-caddy").Run()
+	}
+}
+
+func (s *Server) ensurePMASocketFix() {
+	configFile := "/opt/fastcp/phpmyadmin/config.inc.php"
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		return
+	}
+	content := string(data)
+	if strings.Contains(content, "'host'] = 'localhost'") {
+		content = strings.Replace(content, "'host'] = 'localhost'", "'host'] = '127.0.0.1'", 1)
+		os.WriteFile(configFile, []byte(content), 0644)
+		slog.Info("patched phpMyAdmin config to use TCP (127.0.0.1) instead of socket")
 	}
 }
 

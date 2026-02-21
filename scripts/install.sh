@@ -283,7 +283,7 @@ $cfg['SaveDir'] = '';
 
 $i = 0;
 $i++;
-$cfg['Servers'][$i]['host'] = 'localhost';
+$cfg['Servers'][$i]['host'] = '127.0.0.1';
 $cfg['Servers'][$i]['auth_type'] = 'config';
 $cfg['Servers'][$i]['user'] = $_SERVER['PHP_AUTH_USER'] ?? '';
 $cfg['Servers'][$i]['password'] = $_SERVER['PHP_AUTH_PW'] ?? '';
