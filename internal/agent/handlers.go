@@ -42,8 +42,7 @@ func (s *Server) runStartupMigrations() {
 }
 
 func (s *Server) ensureRunDir() {
-	os.MkdirAll(fastcpRunDir, 01777)
-	os.Chmod(fastcpRunDir, 01777)
+	os.MkdirAll(fastcpRunDir, 0755)
 
 	// Clean up old tmpfs-based runtime dir
 	os.Remove("/etc/tmpfiles.d/fastcp.conf")
@@ -101,15 +100,27 @@ func (s *Server) ensureServiceFiles() {
 		}
 	}
 
-	// Migrate fastcp-php@ template: update socket path
-	phpUnit := "/etc/systemd/system/fastcp-php@.service"
-	if data, err := os.ReadFile(phpUnit); err == nil {
+	// Migrate all fastcp-php service files: remove shared run dir from ReadWritePaths
+	phpUnits, _ := filepath.Glob("/etc/systemd/system/fastcp-php@*.service")
+	for _, phpUnit := range phpUnits {
+		data, err := os.ReadFile(phpUnit)
+		if err != nil {
+			continue
+		}
 		content := string(data)
+		changed := false
 		if strings.Contains(content, "/var/run/fastcp") {
 			content = strings.ReplaceAll(content, "/var/run/fastcp", "/opt/fastcp/run")
+			changed = true
+		}
+		if strings.Contains(content, " /opt/fastcp/run") {
+			content = strings.ReplaceAll(content, " /opt/fastcp/run", "")
+			changed = true
+		}
+		if changed {
 			os.WriteFile(phpUnit, []byte(content), 0644)
 			needsReload = true
-			slog.Info("migrated fastcp-php@.service socket path to /opt/fastcp/run/")
+			slog.Info("migrated php service", "unit", filepath.Base(phpUnit))
 		}
 	}
 
@@ -641,8 +652,18 @@ func (s *Server) hasSystemd() bool {
 	return state == "running" || state == "degraded"
 }
 
+func userSocketDir(username string) string {
+	return filepath.Join(homeBase, username, fastcpDir, "run")
+}
+
+func userSocketPath(username string) string {
+	return filepath.Join(userSocketDir(username), "php.sock")
+}
+
 func (s *Server) startUserPHP(username string) error {
-	socketPath := fmt.Sprintf("%s/php-%s.sock", fastcpRunDir, username)
+	sockDir := userSocketDir(username)
+	socketPath := userSocketPath(username)
+	pidFile := filepath.Join(sockDir, "php.pid")
 	configPath := fmt.Sprintf("/opt/fastcp/config/users/%s/Caddyfile", username)
 	logPath := fmt.Sprintf("/var/log/fastcp/frankenphp-%s.log", username)
 	phpIniDir := filepath.Dir(configPath)
@@ -653,8 +674,13 @@ func (s *Server) startUserPHP(username string) error {
 		return nil
 	}
 
-	os.MkdirAll(fastcpRunDir, 01777)
-	os.Chmod(fastcpRunDir, 01777)
+	// Ensure user socket directory exists with correct ownership
+	os.MkdirAll(sockDir, 0755)
+	if u, err := user.Lookup(username); err == nil {
+		uid, _ := strconv.Atoi(u.Uid)
+		gid, _ := strconv.Atoi(u.Gid)
+		os.Chown(sockDir, uid, gid)
+	}
 
 	// Ensure log file exists and is writable
 	os.MkdirAll("/var/log/fastcp", 0777)
@@ -665,13 +691,11 @@ func (s *Server) startUserPHP(username string) error {
 		logFile.Close()
 	}
 
-	// Start FrankenPHP as the user using start-stop-daemon for proper daemonization
-	// This ensures the process is properly detached and won't become a zombie
 	cmd := exec.Command("start-stop-daemon",
 		"--start",
 		"--background",
 		"--make-pidfile",
-		"--pidfile", fmt.Sprintf("%s/php-%s.pid", fastcpRunDir, username),
+		"--pidfile", pidFile,
 		"--chuid", username,
 		"--exec", "/usr/local/bin/frankenphp",
 		"--",
@@ -799,7 +823,7 @@ func (s *Server) generateCaddyfile() error {
 `)
 
 	for username, sites := range sitesByUser {
-		socketPath := fmt.Sprintf("%s/php-%s.sock", fastcpRunDir, username)
+		socketPath := userSocketPath(username)
 		isSuspended := len(sites) > 0 && sites[0].IsSuspended
 
 		for _, site := range sites {
@@ -990,7 +1014,7 @@ func (s *Server) generateUserCaddyfile(username string, sites []siteInfo) error 
 	userConfigDir := filepath.Join("/opt/fastcp/config/users", username)
 	os.MkdirAll(userConfigDir, 0755)
 
-	socketPath := fmt.Sprintf("%s/php-%s.sock", fastcpRunDir, username)
+	socketPath := userSocketPath(username)
 
 	var buf strings.Builder
 	buf.WriteString(fmt.Sprintf(`# FrankenPHP config for user: %s
@@ -1549,10 +1573,14 @@ func (s *Server) handleCreateUser(ctx context.Context, params json.RawMessage) (
 	os.MkdirAll(appsPath, 0755)
 	os.Chown(appsPath, uid, gid)
 
-	// Create .fastcp directory
+	// Create .fastcp directory and runtime subdirectory
 	fastcpPath := filepath.Join(u.HomeDir, fastcpDir)
 	os.MkdirAll(fastcpPath, 0755)
 	os.Chown(fastcpPath, uid, gid)
+
+	runPath := filepath.Join(fastcpPath, "run")
+	os.MkdirAll(runPath, 0755)
+	os.Chown(runPath, uid, gid)
 
 	// Create per-user FrankenPHP configuration directory
 	userConfigDir := filepath.Join("/opt/fastcp/config/users", req.Username)
@@ -1572,9 +1600,6 @@ func (s *Server) handleCreateUser(ctx context.Context, params json.RawMessage) (
 # Sites will be added here by FastCP
 `, req.Username)
 	os.WriteFile(userCaddyfile, []byte(initialCaddyfile), 0644)
-
-	os.MkdirAll(fastcpRunDir, 01777)
-	os.Chmod(fastcpRunDir, 01777)
 
 	// Create systemd user slice with resource limits (applies to ALL user processes)
 	if err := s.createUserResourceSlice(req.Username, uid, req.MemoryMB, req.CPUPercent); err != nil {
@@ -1659,7 +1684,7 @@ RestartSec=5
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/%s /opt/fastcp/run /var/log/fastcp /tmp
+ReadWritePaths=/home/%s /var/log/fastcp /tmp
 
 [Install]
 WantedBy=multi-user.target

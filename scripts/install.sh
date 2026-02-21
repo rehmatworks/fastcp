@@ -105,7 +105,7 @@ log "Creating directories..."
 mkdir -p /opt/fastcp/{bin,data,config,ssl,run}
 mkdir -p /opt/fastcp/config/users
 mkdir -p /var/log/fastcp
-chmod 1777 /opt/fastcp/run
+chmod 755 /opt/fastcp/run
 chmod 1777 /var/log/fastcp
 
 # Clean up old tmpfs-based runtime dir
@@ -256,7 +256,7 @@ CPUQuota=100%
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/%i /opt/fastcp/run /var/log/fastcp /tmp
+ReadWritePaths=/home/%i /var/log/fastcp /tmp
 
 [Install]
 WantedBy=multi-user.target

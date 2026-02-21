@@ -19,7 +19,7 @@ CPUQuota=100%
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/%i /opt/fastcp/run /var/log/fastcp /tmp
+ReadWritePaths=/home/%i /var/log/fastcp /tmp
 
 [Install]
 WantedBy=multi-user.target
