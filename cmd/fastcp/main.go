@@ -10,8 +10,11 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -153,6 +156,23 @@ func main() {
 				r.Post("/system/update", apiHandler.PerformUpdate)
 			})
 		})
+	})
+
+	// phpMyAdmin reverse proxy
+	phpMyAdminURL, _ := url.Parse("http://localhost:8088")
+	phpMyAdminProxy := httputil.NewSingleHostReverseProxy(phpMyAdminURL)
+	r.HandleFunc("/phpmyadmin", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/phpmyadmin/", http.StatusMovedPermanently)
+	})
+	r.HandleFunc("/phpmyadmin/*", func(w http.ResponseWriter, req *http.Request) {
+		// Strip /phpmyadmin prefix for the backend
+		req.URL.Path = strings.TrimPrefix(req.URL.Path, "/phpmyadmin")
+		if req.URL.Path == "" {
+			req.URL.Path = "/"
+		}
+		req.Header.Set("X-Forwarded-Host", req.Host)
+		req.Header.Set("X-Forwarded-Proto", "https")
+		phpMyAdminProxy.ServeHTTP(w, req)
 	})
 
 	// Serve embedded UI

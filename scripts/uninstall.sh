@@ -50,13 +50,29 @@ fi
 print_step "Stopping services..."
 systemctl stop fastcp 2>/dev/null || true
 systemctl stop fastcp-agent 2>/dev/null || true
+systemctl stop fastcp-caddy 2>/dev/null || true
+systemctl stop fastcp-phpmyadmin 2>/dev/null || true
 systemctl disable fastcp 2>/dev/null || true
 systemctl disable fastcp-agent 2>/dev/null || true
+systemctl disable fastcp-caddy 2>/dev/null || true
+systemctl disable fastcp-phpmyadmin 2>/dev/null || true
+
+# Stop per-user PHP services
+for user_dir in /opt/fastcp/config/users/*; do
+    if [[ -d "$user_dir" ]]; then
+        username=$(basename "$user_dir")
+        systemctl stop "fastcp-php@${username}" 2>/dev/null || true
+        systemctl disable "fastcp-php@${username}" 2>/dev/null || true
+    fi
+done
 
 # Remove systemd services
 print_step "Removing systemd services..."
 rm -f /etc/systemd/system/fastcp.service
 rm -f /etc/systemd/system/fastcp-agent.service
+rm -f /etc/systemd/system/fastcp-caddy.service
+rm -f /etc/systemd/system/fastcp-phpmyadmin.service
+rm -f /etc/systemd/system/fastcp-php@.service
 systemctl daemon-reload
 
 # Remove FastCP directory
@@ -80,5 +96,5 @@ echo ""
 echo "Note: MySQL and FrankenPHP were not removed."
 echo "To remove them, run:"
 echo "  apt-get remove mysql-server"
-echo "  rm /opt/fastcp/bin/frankenphp"
+echo "  rm /usr/local/bin/frankenphp"
 echo ""

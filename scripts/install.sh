@@ -244,6 +244,73 @@ log "Configuring MySQL..."
 systemctl enable mysql
 systemctl start mysql
 
+# Install phpMyAdmin
+log "Installing phpMyAdmin..."
+PHPMYADMIN_VERSION="5.2.1"
+mkdir -p /opt/fastcp/phpmyadmin
+curl -fsSL "https://files.phpmyadmin.net/phpMyAdmin/${PHPMYADMIN_VERSION}/phpMyAdmin-${PHPMYADMIN_VERSION}-all-languages.tar.gz" | tar xz --strip-components=1 -C /opt/fastcp/phpmyadmin
+
+# Generate phpMyAdmin blowfish secret
+PMA_SECRET=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
+
+# Create phpMyAdmin config
+cat > /opt/fastcp/phpmyadmin/config.inc.php << PMAEOF
+<?php
+\$cfg['blowfish_secret'] = '${PMA_SECRET}';
+\$cfg['TempDir'] = '/tmp/phpmyadmin';
+\$cfg['UploadDir'] = '';
+\$cfg['SaveDir'] = '';
+
+\$i = 0;
+\$i++;
+\$cfg['Servers'][\$i]['host'] = 'localhost';
+\$cfg['Servers'][\$i]['auth_type'] = 'cookie';
+\$cfg['Servers'][\$i]['AllowNoPassword'] = false;
+\$cfg['Servers'][\$i]['hide_db'] = '^(information_schema|performance_schema|mysql|sys)\$';
+
+// Security settings
+\$cfg['LoginCookieValidity'] = 3600;
+\$cfg['LoginCookieStore'] = 0;
+\$cfg['LoginCookieDeleteAll'] = true;
+PMAEOF
+
+# Create phpMyAdmin temp directory
+mkdir -p /tmp/phpmyadmin
+chmod 777 /tmp/phpmyadmin
+
+# Create Caddyfile for phpMyAdmin
+cat > /opt/fastcp/config/phpmyadmin.Caddyfile << 'EOF'
+{
+    admin off
+}
+
+http://localhost:8088 {
+    root * /opt/fastcp/phpmyadmin
+    php_server
+}
+EOF
+
+# Create systemd service for phpMyAdmin
+cat > /etc/systemd/system/fastcp-phpmyadmin.service << 'EOF'
+[Unit]
+Description=FastCP phpMyAdmin
+After=network.target mysql.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/frankenphp run --config /opt/fastcp/config/phpmyadmin.Caddyfile
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable fastcp-phpmyadmin
+systemctl start fastcp-phpmyadmin
+log "phpMyAdmin installed and running"
+
 # Create fastcp admin user
 log "Creating fastcp admin user..."
 FASTCP_PASSWORD=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9' | head -c 16)
@@ -302,10 +369,15 @@ echo ""
 echo -e "  ${DIM}You can also log in as root, but website creation is${NC}"
 echo -e "  ${DIM}disabled for root for security reasons.${NC}"
 echo ""
+echo -e "  ${CYAN}${BOLD}phpMyAdmin${NC}"
+echo -e "  ${GREEN}https://${SERVER_IP}:2087/phpmyadmin/${NC}"
+echo -e "  ${DIM}Log in with your database credentials${NC}"
+echo ""
 echo -e "  ${CYAN}${BOLD}Services Status${NC}"
-echo -e "  ${GREEN}●${NC} fastcp-agent    ${DIM}(running)${NC}"
-echo -e "  ${GREEN}●${NC} fastcp          ${DIM}(running)${NC}"
-echo -e "  ${GREEN}●${NC} fastcp-caddy    ${DIM}(running)${NC}"
+echo -e "  ${GREEN}●${NC} fastcp-agent      ${DIM}(running)${NC}"
+echo -e "  ${GREEN}●${NC} fastcp            ${DIM}(running)${NC}"
+echo -e "  ${GREEN}●${NC} fastcp-caddy      ${DIM}(running)${NC}"
+echo -e "  ${GREEN}●${NC} fastcp-phpmyadmin ${DIM}(running)${NC}"
 echo ""
 echo -e "  ${CYAN}${BOLD}Useful Commands${NC}"
 echo -e "  ${DIM}Check status:${NC}   systemctl status fastcp"
