@@ -187,7 +187,7 @@ func main() {
 		path := strings.TrimPrefix(req.URL.Path, "/phpmyadmin")
 
 		// Token present: decrypt, store credentials, set cookie, redirect
-		if token := req.URL.Query().Get("token"); token != "" {
+		if token := req.URL.Query().Get("fastcp_token"); token != "" {
 			payload, err := crypto.DecryptURLSafe(token)
 			if err != nil {
 				http.Error(w, "Invalid or expired token", http.StatusForbidden)

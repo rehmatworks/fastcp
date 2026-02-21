@@ -1133,16 +1133,16 @@ func (s *Server) handleCreateDatabase(ctx context.Context, params json.RawMessag
 		return nil, fmt.Errorf("failed to create database: %w", err)
 	}
 
-	// Create user
-	_, err = db.Exec(fmt.Sprintf("CREATE USER IF NOT EXISTS '%s'@'localhost' IDENTIFIED BY '%s'", req.DBUser, req.Password))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create user: %w", err)
-	}
-
-	// Grant privileges
-	_, err = db.Exec(fmt.Sprintf("GRANT ALL PRIVILEGES ON `%s`.* TO '%s'@'localhost'", req.DBName, req.DBUser))
-	if err != nil {
-		return nil, fmt.Errorf("failed to grant privileges: %w", err)
+	// Create user for both localhost (socket) and 127.0.0.1 (TCP) -- MySQL treats them as different hosts
+	for _, host := range []string{"localhost", "127.0.0.1"} {
+		_, err = db.Exec(fmt.Sprintf("CREATE USER IF NOT EXISTS '%s'@'%s' IDENTIFIED BY '%s'", req.DBUser, host, req.Password))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create user: %w", err)
+		}
+		_, err = db.Exec(fmt.Sprintf("GRANT ALL PRIVILEGES ON `%s`.* TO '%s'@'%s'", req.DBName, req.DBUser, host))
+		if err != nil {
+			return nil, fmt.Errorf("failed to grant privileges: %w", err)
+		}
 	}
 
 	_, err = db.Exec("FLUSH PRIVILEGES")
@@ -1167,8 +1167,9 @@ func (s *Server) handleDeleteDatabase(ctx context.Context, params json.RawMessag
 	}
 	defer db.Close()
 
-	// Drop user first
+	// Drop user from both hosts
 	db.Exec(fmt.Sprintf("DROP USER IF EXISTS '%s'@'localhost'", req.DBUser))
+	db.Exec(fmt.Sprintf("DROP USER IF EXISTS '%s'@'127.0.0.1'", req.DBUser))
 
 	// Drop database
 	_, err = db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", req.DBName))

@@ -1,6 +1,8 @@
 # Binaries
 bin/
 /dist/
+/fastcp
+/fastcp-agent
 !cmd/fastcp/ui/dist/
 *.exe
 *.exe~

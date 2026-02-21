@@ -420,7 +420,7 @@ func (h *Handler) PhpMyAdminSignon(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.json(w, http.StatusOK, map[string]string{
-		"url": "/phpmyadmin/?token=" + token,
+		"url": "/phpmyadmin/?fastcp_token=" + token,
 	})
 }
 
