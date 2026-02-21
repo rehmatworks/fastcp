@@ -91,6 +91,11 @@ mkdir -p /var/log/fastcp
 chmod 1777 /var/run/fastcp
 chmod 1777 /var/log/fastcp
 
+# Create tmpfiles.d config to ensure /var/run/fastcp persists after reboot
+cat > /etc/tmpfiles.d/fastcp.conf << 'EOF'
+d /var/run/fastcp 1777 root root -
+EOF
+
 # Generate encryption key for database passwords (if not exists)
 if [[ ! -f /opt/fastcp/data/.secret ]]; then
     openssl rand -base64 32 > /opt/fastcp/data/.secret
