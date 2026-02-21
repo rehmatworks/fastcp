@@ -439,6 +439,11 @@ func (s *Server) handleSyncCronJobs(ctx context.Context, params json.RawMessage)
 
 func (s *Server) runStartupMigrations() {}
 
+func (s *Server) isCaddyRunning() bool { return false }
+func (s *Server) startCaddy() error    { return nil }
+func (s *Server) reloadCaddy()         {}
+func (s *Server) ensureCaddyBinary()   {}
+
 func (s *Server) handleGetMySQLConfig(ctx context.Context, params json.RawMessage) (any, error) {
 	return &MySQLConfig{BufferPoolMB: 128, MaxConnections: 151, PerfSchema: true, DetectedRAMMB: 0}, nil
 }

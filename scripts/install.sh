@@ -146,6 +146,13 @@ fi
 curl -fsSL "$FRANKENPHP_URL" -o /usr/local/bin/frankenphp
 chmod +x /usr/local/bin/frankenphp
 
+# Download plain Caddy (lightweight root reverse proxy -- no PHP)
+log "Downloading Caddy..."
+CADDY_ARCH="amd64"
+[[ "$ARCH" == "arm64" ]] && CADDY_ARCH="arm64"
+curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=${CADDY_ARCH}" -o /usr/local/bin/caddy
+chmod +x /usr/local/bin/caddy
+
 # Download FastCP binaries
 log "Downloading FastCP..."
 FASTCP_VERSION=${FASTCP_VERSION:-latest}
@@ -238,10 +245,10 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/frankenphp run --config /opt/fastcp/config/Caddyfile
+ExecStart=/usr/local/bin/caddy run --config /opt/fastcp/config/Caddyfile
+ExecReload=/usr/local/bin/caddy reload --config /opt/fastcp/config/Caddyfile
 Restart=always
 RestartSec=5
-Environment=PHP_INI_SCAN_DIR=:/opt/fastcp/config/php
 
 [Install]
 WantedBy=multi-user.target
@@ -343,7 +350,7 @@ cat > /opt/fastcp/phpmyadmin/config.inc.php << 'PMAEOF'
 error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
 
 $cfg['blowfish_secret'] = 'FASTCP_PMA_SECRET_PLACEHOLDER';
-$cfg['TempDir'] = '/tmp/phpmyadmin';
+$cfg['TempDir'] = (getenv('HOME') ?: '/tmp') . '/.tmp/phpmyadmin';
 $cfg['UploadDir'] = '';
 $cfg['SaveDir'] = '';
 
@@ -377,10 +384,7 @@ display_errors = Off
 error_reporting = 22527
 INIEOF
 
-# Create phpMyAdmin temp directory
-mkdir -p /tmp/phpmyadmin
-chmod 777 /tmp/phpmyadmin
-log "phpMyAdmin installed (served via main Caddy process)"
+log "phpMyAdmin installed (served via per-user FrankenPHP instances)"
 
 # Create fastcp admin user
 log "Creating fastcp admin user..."

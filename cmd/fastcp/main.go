@@ -11,11 +11,12 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httputil"
-	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,6 +35,7 @@ type pmaCredentials struct {
 	User     string
 	Password string
 	DB       string
+	Username string // system username -- determines which socket to proxy to
 	Expiry   time.Time
 }
 
@@ -177,13 +179,7 @@ func main() {
 		})
 	})
 
-	// phpMyAdmin reverse proxy - all auth handled in Go, no PHP sessions
-	phpMyAdminURL, _ := url.Parse("http://localhost:8088")
-	phpMyAdminProxy := httputil.NewSingleHostReverseProxy(phpMyAdminURL)
-	phpMyAdminProxy.ModifyResponse = func(resp *http.Response) error {
-		resp.Header.Del("WWW-Authenticate")
-		return nil
-	}
+	// phpMyAdmin reverse proxy - routes to per-user FrankenPHP via Unix socket
 	r.HandleFunc("/phpmyadmin", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/phpmyadmin/", http.StatusMovedPermanently)
 	})
@@ -198,13 +194,13 @@ func main() {
 				return
 			}
 
-			parts := strings.SplitN(payload, "|", 4)
-			if len(parts) != 4 {
+			parts := strings.SplitN(payload, "|", 5)
+			if len(parts) != 5 {
 				http.Error(w, "Invalid token format", http.StatusForbidden)
 				return
 			}
 
-			expiry, _ := strconv.ParseInt(parts[3], 10, 64)
+			expiry, _ := strconv.ParseInt(parts[4], 10, 64)
 			if time.Now().Unix() > expiry {
 				http.Error(w, "Token expired", http.StatusForbidden)
 				return
@@ -218,6 +214,7 @@ func main() {
 				User:     parts[0],
 				Password: parts[1],
 				DB:       parts[2],
+				Username: parts[3],
 				Expiry:   time.Now().Add(1 * time.Hour),
 			})
 
@@ -229,7 +226,7 @@ func main() {
 				Secure:   true,
 				SameSite: http.SameSiteLaxMode,
 			})
-			http.Redirect(w, req, "/phpmyadmin/?db="+url.QueryEscape(parts[2]), http.StatusFound)
+			http.Redirect(w, req, "/phpmyadmin/?db="+parts[2], http.StatusFound)
 			return
 		}
 
@@ -251,16 +248,48 @@ func main() {
 			return
 		}
 
-		// Proxy to FrankenPHP with injected Basic Auth
-		req.URL.Path = path
-		if req.URL.Path == "" {
-			req.URL.Path = "/"
+		// Resolve user socket path
+		socketPath := filepath.Join("/home", creds.Username, ".fastcp", "run", "php.sock")
+
+		// Ensure user PHP is running -- start via agent if socket missing
+		if _, err := os.Stat(socketPath); os.IsNotExist(err) {
+			if agentClient != nil {
+				slog.Info("starting user PHP for phpMyAdmin", "username", creds.Username)
+				agentClient.ReloadCaddy(req.Context())
+				time.Sleep(3 * time.Second)
+			}
+			if _, err := os.Stat(socketPath); os.IsNotExist(err) {
+				http.Error(w, "User PHP service not available", http.StatusBadGateway)
+				return
+			}
 		}
+
+		// Proxy to user's FrankenPHP via Unix socket
+		proxy := &httputil.ReverseProxy{
+			Director: func(r *http.Request) {
+				r.URL.Scheme = "http"
+				r.URL.Host = "phpmyadmin.internal"
+				r.URL.Path = path
+				if r.URL.Path == "" {
+					r.URL.Path = "/"
+				}
+				r.Host = "phpmyadmin.internal"
+			},
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					return net.Dial("unix", socketPath)
+				},
+			},
+			ModifyResponse: func(resp *http.Response) error {
+				resp.Header.Del("WWW-Authenticate")
+				return nil
+			},
+		}
+
 		req.SetBasicAuth(creds.User, creds.Password)
 		req.Header.Set("X-Forwarded-Host", req.Host)
 		req.Header.Set("X-Forwarded-Proto", "https")
-		req.Host = "localhost"
-		phpMyAdminProxy.ServeHTTP(w, req)
+		proxy.ServeHTTP(w, req)
 	})
 
 	// Serve embedded UI

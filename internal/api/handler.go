@@ -412,8 +412,8 @@ func (h *Handler) PhpMyAdminSignon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate a signed token with credentials and expiry
-	token, err := generatePMAToken(dbUser, dbPassword, dbName)
+	// Generate a signed token with credentials, system username, and expiry
+	token, err := generatePMAToken(dbUser, dbPassword, dbName, user.Username)
 	if err != nil {
 		h.error(w, http.StatusInternalServerError, "failed to generate token")
 		return
@@ -716,10 +716,9 @@ func extractToken(r *http.Request) string {
 }
 
 // generatePMAToken creates an encrypted token for phpMyAdmin signon
-func generatePMAToken(dbUser, dbPassword, dbName string) (string, error) {
-	// Token format: user|password|dbname|expiry (encrypted)
+func generatePMAToken(dbUser, dbPassword, dbName, sysUsername string) (string, error) {
 	expiry := time.Now().Add(5 * time.Minute).Unix()
-	payload := fmt.Sprintf("%s|%s|%s|%d", dbUser, dbPassword, dbName, expiry)
+	payload := fmt.Sprintf("%s|%s|%s|%s|%d", dbUser, dbPassword, dbName, sysUsername, expiry)
 
 	encrypted, err := crypto.EncryptURLSafe(payload)
 	if err != nil {

@@ -37,6 +37,7 @@ const (
 // runStartupMigrations fixes configuration drift on agent startup (e.g. after updates).
 func (s *Server) runStartupMigrations() {
 	s.ensureRunDir()
+	s.ensureCaddyBinary()
 	s.ensurePHPIniConfig()
 	s.ensureServiceFiles()
 	s.ensurePMAConfig()
@@ -51,6 +52,32 @@ func (s *Server) ensureRunDir() {
 
 	// Clean up old tmpfs-based runtime dir
 	os.Remove("/etc/tmpfiles.d/fastcp.conf")
+}
+
+func (s *Server) ensureCaddyBinary() {
+	caddyPath := "/usr/local/bin/caddy"
+	if _, err := os.Stat(caddyPath); err == nil {
+		return
+	}
+
+	slog.Info("downloading plain Caddy binary")
+	arch := "amd64"
+	if output, err := exec.Command("uname", "-m").Output(); err == nil {
+		m := strings.TrimSpace(string(output))
+		if m == "aarch64" || m == "arm64" {
+			arch = "arm64"
+		}
+	}
+
+	downloadURL := fmt.Sprintf("https://caddyserver.com/api/download?os=linux&arch=%s", arch)
+	if output, err := exec.Command("curl", "-fsSL", "-o", caddyPath, downloadURL).CombinedOutput(); err != nil {
+		slog.Error("failed to download Caddy", "error", err, "output", string(output))
+		return
+	}
+	os.Chmod(caddyPath, 0755)
+	slog.Info("installed plain Caddy binary", "path", caddyPath)
+
+	exec.Command("systemctl", "restart", "fastcp-caddy").Run()
 }
 
 func (s *Server) ensurePHPIniConfig() {
@@ -94,14 +121,19 @@ func (s *Server) ensureServiceFiles() {
 		}
 	}
 
-	// Ensure fastcp-caddy.service has PHP_INI_SCAN_DIR
+	// Migrate fastcp-caddy.service to use plain Caddy instead of FrankenPHP
 	caddyUnit := "/etc/systemd/system/fastcp-caddy.service"
 	if data, err := os.ReadFile(caddyUnit); err == nil {
 		content := string(data)
-		if !strings.Contains(content, "PHP_INI_SCAN_DIR") {
-			content = strings.Replace(content, "RestartSec=5\n", "RestartSec=5\nEnvironment=PHP_INI_SCAN_DIR=:/opt/fastcp/config/php\n", 1)
+		if strings.Contains(content, "frankenphp") || strings.Contains(content, "PHP_INI_SCAN_DIR") {
+			content = strings.ReplaceAll(content, "/usr/local/bin/frankenphp", "/usr/local/bin/caddy")
+			content = strings.ReplaceAll(content, "Environment=PHP_INI_SCAN_DIR=:/opt/fastcp/config/php\n", "")
+			if !strings.Contains(content, "ExecReload") {
+				content = strings.Replace(content, "RestartSec=5\n", "RestartSec=5\nExecReload=/usr/local/bin/caddy reload --config /opt/fastcp/config/Caddyfile\n", 1)
+			}
 			os.WriteFile(caddyUnit, []byte(content), 0644)
 			needsReload = true
+			slog.Info("migrated fastcp-caddy.service to plain Caddy")
 		}
 	}
 
@@ -191,7 +223,7 @@ func (s *Server) ensureUserSocketDirs() {
 	if err := s.generateCaddyfile(); err != nil {
 		slog.Error("failed to regenerate Caddyfile during migration", "error", err)
 	} else {
-		exec.Command("pkill", "-USR1", "frankenphp").Run()
+		s.reloadCaddy()
 		slog.Info("regenerated Caddyfile with new user socket paths")
 	}
 }
@@ -223,7 +255,7 @@ func (s *Server) cleanStaleSocketsAndReload() {
 	if err := s.generateCaddyfile(); err != nil {
 		slog.Error("failed to regenerate Caddyfile on startup", "error", err)
 	} else {
-		exec.Command("pkill", "-USR1", "frankenphp").Run()
+		s.reloadCaddy()
 	}
 }
 
@@ -330,6 +362,11 @@ func (s *Server) ensurePMAConfig() {
 	}
 	if !strings.Contains(content, "ShowCreateDb") {
 		content = strings.Replace(content, "$cfg['LoginCookieValidity']", "$cfg['ShowCreateDb'] = false;\n$cfg['LoginCookieValidity']", 1)
+		changed = true
+	}
+	// Migrate TempDir from shared /tmp/phpmyadmin to per-user path
+	if strings.Contains(content, "'/tmp/phpmyadmin'") {
+		content = strings.Replace(content, "$cfg['TempDir'] = '/tmp/phpmyadmin'", "$cfg['TempDir'] = (getenv('HOME') ?: '/tmp') . '/.tmp/phpmyadmin'", 1)
 		changed = true
 	}
 	if changed {
@@ -764,68 +801,60 @@ func generateRandomString(length int) string {
 func (s *Server) handleReloadCaddy(ctx context.Context, params json.RawMessage) (any, error) {
 	slog.Info("regenerating and reloading Caddy configuration")
 
-	// Generate Caddyfile from database
 	if err := s.generateCaddyfile(); err != nil {
 		return nil, fmt.Errorf("failed to generate Caddyfile: %w", err)
 	}
 
-	// Check if FrankenPHP is running
-	if !s.isFrankenPHPRunning() {
-		slog.Info("FrankenPHP not running, starting it")
-		if err := s.startFrankenPHP(); err != nil {
-			return nil, fmt.Errorf("failed to start FrankenPHP: %w", err)
+	if !s.isCaddyRunning() {
+		slog.Info("Caddy not running, starting it")
+		if err := s.startCaddy(); err != nil {
+			return nil, fmt.Errorf("failed to start Caddy: %w", err)
 		}
 		return map[string]string{"status": "ok", "action": "started"}, nil
 	}
 
-	// Use Caddy's admin API to reload
-	cmd := exec.Command("curl", "-s", "-X", "POST", "http://localhost:2019/load",
-		"-H", "Content-Type: text/caddyfile",
-		"--data-binary", fmt.Sprintf("@%s", caddyConfig))
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		// Admin API failed, FrankenPHP might have crashed - restart it
-		slog.Warn("admin API reload failed, restarting FrankenPHP", "error", err, "output", string(output))
-		if err := s.startFrankenPHP(); err != nil {
-			return nil, fmt.Errorf("failed to restart FrankenPHP: %w", err)
-		}
-		return map[string]string{"status": "ok", "action": "restarted"}, nil
-	}
-
+	s.reloadCaddy()
 	return map[string]string{"status": "ok", "action": "reloaded"}, nil
 }
 
-func (s *Server) isFrankenPHPRunning() bool {
-	cmd := exec.Command("pgrep", "-x", "frankenphp")
-	err := cmd.Run()
-	return err == nil
+func (s *Server) isCaddyRunning() bool {
+	if s.hasSystemd() {
+		return exec.Command("systemctl", "is-active", "--quiet", "fastcp-caddy").Run() == nil
+	}
+	return exec.Command("pgrep", "-x", "caddy").Run() == nil
 }
 
-func (s *Server) startFrankenPHP() error {
-	// Kill any existing (possibly zombie) processes
-	exec.Command("pkill", "-9", "frankenphp").Run()
-	
-	// Give it a moment
-	exec.Command("sleep", "1").Run()
-
-	// Start FrankenPHP in background
-	cmd := exec.Command("/usr/local/bin/frankenphp", "run", "--config", caddyConfig)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start FrankenPHP: %w", err)
+func (s *Server) startCaddy() error {
+	if s.hasSystemd() {
+		output, err := exec.Command("systemctl", "restart", "fastcp-caddy").CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to restart caddy service: %w: %s", err, output)
+		}
+		slog.Info("Caddy restarted via systemd")
+		return nil
 	}
 
-	// Don't wait for it - let it run in background
+	exec.Command("pkill", "-9", "caddy").Run()
+	time.Sleep(1 * time.Second)
+
+	cmd := exec.Command("/usr/local/bin/caddy", "run", "--config", caddyConfig)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start Caddy: %w", err)
+	}
 	go cmd.Wait()
-
-	// Give it time to start
-	exec.Command("sleep", "2").Run()
-
-	slog.Info("FrankenPHP started", "pid", cmd.Process.Pid)
+	time.Sleep(2 * time.Second)
+	slog.Info("Caddy started", "pid", cmd.Process.Pid)
 	return nil
+}
+
+func (s *Server) reloadCaddy() {
+	if s.hasSystemd() {
+		exec.Command("systemctl", "reload", "fastcp-caddy").Run()
+	} else {
+		exec.Command("/usr/local/bin/caddy", "reload", "--config", caddyConfig).Run()
+	}
 }
 
 func (s *Server) hasSystemd() bool {
@@ -1083,14 +1112,7 @@ func (s *Server) generateCaddyfile() error {
 		}
 	}
 
-	// Add phpMyAdmin (internal only - accessed via FastCP reverse proxy)
-	mainBuf.WriteString(`# phpMyAdmin (internal only - accessed via FastCP reverse proxy)
-http://localhost:8088 {
-    root * /opt/fastcp/phpmyadmin
-    php_server
-}
-
-# Default fallback for unconfigured domains
+	mainBuf.WriteString(`# Default fallback for unconfigured domains
 :80, :443 {
     respond "FastCP - No site configured for this domain" 404
 }
@@ -1217,6 +1239,15 @@ func (s *Server) generateUserCaddyfile(username string, sites []siteInfo) error 
 
 `, username, socketPath))
 
+	// phpMyAdmin handler -- only reachable when Go proxy sets Host: phpmyadmin.internal
+	buf.WriteString(`    @phpmyadmin host phpmyadmin.internal
+    handle @phpmyadmin {
+        root * /opt/fastcp/phpmyadmin
+        php_server
+    }
+
+`)
+
 	for _, site := range sites {
 		// Get all domains that should serve content (not redirecting)
 		var servingDomains []string
@@ -1245,6 +1276,7 @@ func (s *Server) generateUserCaddyfile(username string, sites []siteInfo) error 
 	userTmpDir := filepath.Join(homeBase, username, ".tmp")
 	userSessionDir := filepath.Join(userTmpDir, "sessions")
 	userUploadDir := filepath.Join(userTmpDir, "uploads")
+	userPmaTmpDir := filepath.Join(userTmpDir, "phpmyadmin")
 
 	// Get user info for ownership
 	u, err := user.Lookup(username)
@@ -1252,7 +1284,7 @@ func (s *Server) generateUserCaddyfile(username string, sites []siteInfo) error 
 		uid, _ := strconv.Atoi(u.Uid)
 		gid, _ := strconv.Atoi(u.Gid)
 
-		for _, dir := range []string{userTmpDir, userSessionDir, userUploadDir} {
+		for _, dir := range []string{userTmpDir, userSessionDir, userUploadDir, userPmaTmpDir} {
 			os.MkdirAll(dir, 0700)
 			os.Chown(dir, uid, gid)
 		}
@@ -1265,7 +1297,7 @@ func (s *Server) generateUserCaddyfile(username string, sites []siteInfo) error 
 		docRoots = append(docRoots, site.DocumentRoot)
 	}
 	// Include user's own temp directory, NOT shared /tmp
-	openBasedir := strings.Join(docRoots, ":") + ":" + userTmpDir
+	openBasedir := strings.Join(docRoots, ":") + ":" + userTmpDir + ":/opt/fastcp/phpmyadmin"
 
 	// Additional cache directories
 	userCacheDir := filepath.Join(userTmpDir, "cache")
@@ -2012,7 +2044,7 @@ func (s *Server) handleDeleteUser(ctx context.Context, params json.RawMessage) (
 	if err := s.generateCaddyfile(); err != nil {
 		slog.Warn("failed to regenerate Caddyfile", "error", err)
 	}
-	exec.Command("pkill", "-USR1", "frankenphp").Run()
+	s.reloadCaddy()
 
 	return map[string]string{"status": "ok"}, nil
 }
