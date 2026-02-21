@@ -2,14 +2,17 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rehmatworks/fastcp/internal/agent"
+	"github.com/rehmatworks/fastcp/internal/crypto"
 	"github.com/rehmatworks/fastcp/internal/database"
 )
 
@@ -399,6 +402,29 @@ func (h *Handler) DeleteDatabase(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// PhpMyAdminSignon generates a signed token for phpMyAdmin auto-login
+func (h *Handler) PhpMyAdminSignon(w http.ResponseWriter, r *http.Request) {
+	user := h.getUser(r)
+	id := chi.URLParam(r, "id")
+
+	dbUser, dbPassword, dbName, err := h.dbService.GetCredentials(r.Context(), id, user.Username)
+	if err != nil {
+		h.error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Generate a signed token with credentials and expiry
+	token, err := generatePMAToken(dbUser, dbPassword, dbName)
+	if err != nil {
+		h.error(w, http.StatusInternalServerError, "failed to generate token")
+		return
+	}
+
+	h.json(w, http.StatusOK, map[string]string{
+		"url": "/phpmyadmin/signon.php?token=" + token,
+	})
+}
+
 // SSH Key handlers
 func (h *Handler) ListSSHKeys(w http.ResponseWriter, r *http.Request) {
 	user := h.getUser(r)
@@ -665,4 +691,19 @@ func extractToken(r *http.Request) string {
 	}
 
 	return ""
+}
+
+// generatePMAToken creates an encrypted token for phpMyAdmin signon
+func generatePMAToken(dbUser, dbPassword, dbName string) (string, error) {
+	// Token format: user|password|dbname|expiry (encrypted)
+	expiry := time.Now().Add(5 * time.Minute).Unix()
+	payload := fmt.Sprintf("%s|%s|%s|%d", dbUser, dbPassword, dbName, expiry)
+
+	encrypted, err := crypto.Encrypt(payload)
+	if err != nil {
+		return "", err
+	}
+
+	// URL-safe base64
+	return base64.URLEncoding.EncodeToString([]byte(encrypted)), nil
 }

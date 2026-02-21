@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rehmatworks/fastcp/internal/agent"
+	"github.com/rehmatworks/fastcp/internal/crypto"
 	"github.com/rehmatworks/fastcp/internal/database"
 )
 
@@ -97,12 +98,20 @@ func (s *DatabaseService) Create(ctx context.Context, req *CreateDatabaseRequest
 		return nil, fmt.Errorf("failed to create database: %w", err)
 	}
 
+	// Encrypt password for storage
+	encryptedPassword, err := crypto.Encrypt(password)
+	if err != nil {
+		// Log but don't fail - password just won't be available for phpMyAdmin
+		encryptedPassword = ""
+	}
+
 	// Save to local database
 	dbRecord := &database.Database{
-		ID:       id,
-		Username: req.Username,
-		DBName:   dbName,
-		DBUser:   dbUser,
+		ID:         id,
+		Username:   req.Username,
+		DBName:     dbName,
+		DBUser:     dbUser,
+		DBPassword: encryptedPassword,
 	}
 	if err := s.db.CreateDatabase(ctx, dbRecord); err != nil {
 		return nil, fmt.Errorf("failed to save database record: %w", err)
@@ -143,6 +152,29 @@ func (s *DatabaseService) Delete(ctx context.Context, id, username string) error
 	}
 
 	return nil
+}
+
+// GetCredentials returns decrypted database credentials for phpMyAdmin access
+func (s *DatabaseService) GetCredentials(ctx context.Context, id, username string) (dbUser, dbPassword, dbName string, err error) {
+	dbRecord, err := s.db.GetDatabase(ctx, id)
+	if err != nil {
+		return "", "", "", fmt.Errorf("database not found")
+	}
+
+	if dbRecord.Username != username {
+		return "", "", "", fmt.Errorf("database not found")
+	}
+
+	if dbRecord.DBPassword == "" {
+		return "", "", "", fmt.Errorf("password not available (database created before this feature)")
+	}
+
+	password, err := crypto.Decrypt(dbRecord.DBPassword)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to decrypt password")
+	}
+
+	return dbRecord.DBUser, password, dbRecord.DBName, nil
 }
 
 func generatePassword(length int) string {

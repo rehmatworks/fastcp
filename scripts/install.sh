@@ -90,6 +90,13 @@ mkdir -p /var/run/fastcp
 mkdir -p /var/log/fastcp
 chmod 755 /var/run/fastcp
 
+# Generate encryption key for database passwords (if not exists)
+if [[ ! -f /opt/fastcp/data/.secret ]]; then
+    openssl rand -base64 32 > /opt/fastcp/data/.secret
+    chmod 600 /opt/fastcp/data/.secret
+    log "Generated encryption key"
+fi
+
 # Download FrankenPHP
 log "Downloading FrankenPHP..."
 FRANKENPHP_URL="https://github.com/dunglas/frankenphp/releases/latest/download/frankenphp-linux-${ARCH}"
@@ -253,26 +260,163 @@ curl -fsSL "https://files.phpmyadmin.net/phpMyAdmin/${PHPMYADMIN_VERSION}/phpMyA
 # Generate phpMyAdmin blowfish secret
 PMA_SECRET=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
 
-# Create phpMyAdmin config
-cat > /opt/fastcp/phpmyadmin/config.inc.php << PMAEOF
+# Create phpMyAdmin config with signon auth
+cat > /opt/fastcp/phpmyadmin/config.inc.php << 'PMAEOF'
 <?php
-\$cfg['blowfish_secret'] = '${PMA_SECRET}';
-\$cfg['TempDir'] = '/tmp/phpmyadmin';
-\$cfg['UploadDir'] = '';
-\$cfg['SaveDir'] = '';
+$cfg['blowfish_secret'] = 'FASTCP_PMA_SECRET_PLACEHOLDER';
+$cfg['TempDir'] = '/tmp/phpmyadmin';
+$cfg['UploadDir'] = '';
+$cfg['SaveDir'] = '';
 
-\$i = 0;
-\$i++;
-\$cfg['Servers'][\$i]['host'] = 'localhost';
-\$cfg['Servers'][\$i]['auth_type'] = 'cookie';
-\$cfg['Servers'][\$i]['AllowNoPassword'] = false;
-\$cfg['Servers'][\$i]['hide_db'] = '^(information_schema|performance_schema|mysql|sys)\$';
+$i = 0;
+$i++;
+$cfg['Servers'][$i]['host'] = 'localhost';
+$cfg['Servers'][$i]['auth_type'] = 'signon';
+$cfg['Servers'][$i]['SignonSession'] = 'SignonSession';
+$cfg['Servers'][$i]['SignonURL'] = '/phpmyadmin/signon.php';
+$cfg['Servers'][$i]['LogoutURL'] = '/';
+$cfg['Servers'][$i]['AllowNoPassword'] = false;
+$cfg['Servers'][$i]['hide_db'] = '^(information_schema|performance_schema|mysql|sys)$';
 
 // Security settings
-\$cfg['LoginCookieValidity'] = 3600;
-\$cfg['LoginCookieStore'] = 0;
-\$cfg['LoginCookieDeleteAll'] = true;
+$cfg['LoginCookieValidity'] = 3600;
+$cfg['LoginCookieStore'] = 0;
+$cfg['LoginCookieDeleteAll'] = true;
 PMAEOF
+
+# Replace the placeholder with actual secret
+sed -i "s/FASTCP_PMA_SECRET_PLACEHOLDER/${PMA_SECRET}/" /opt/fastcp/phpmyadmin/config.inc.php
+
+# Create signon.php script for one-click phpMyAdmin login
+cat > /opt/fastcp/phpmyadmin/signon.php << 'SIGNONEOF'
+<?php
+/**
+ * FastCP phpMyAdmin Signon Script
+ * Validates encrypted tokens from FastCP and auto-logs into phpMyAdmin
+ */
+
+// Start session for phpMyAdmin
+session_name('SignonSession');
+session_start();
+
+// Function to decrypt AES-GCM (compatible with Go's crypto implementation)
+function decryptToken($encryptedBase64) {
+    // Read the secret key
+    $secretPath = '/opt/fastcp/data/.secret';
+    if (!file_exists($secretPath)) {
+        return false;
+    }
+    
+    $secret = trim(file_get_contents($secretPath));
+    $decodedSecret = base64_decode($secret);
+    if ($decodedSecret === false) {
+        return false;
+    }
+    
+    // Hash to get 32 bytes for AES-256
+    $key = hash('sha256', $decodedSecret, true);
+    
+    // URL-decode and base64-decode the token
+    $encrypted = base64_decode(urldecode($_GET['token'] ?? ''));
+    if ($encrypted === false) {
+        return false;
+    }
+    
+    // The token is base64-encoded ciphertext from Go
+    $ciphertext = base64_decode($encrypted);
+    if ($ciphertext === false) {
+        return false;
+    }
+    
+    // AES-GCM: nonce (12 bytes) + ciphertext + tag (16 bytes)
+    $nonceSize = 12;
+    $tagSize = 16;
+    
+    if (strlen($ciphertext) < $nonceSize + $tagSize) {
+        return false;
+    }
+    
+    $nonce = substr($ciphertext, 0, $nonceSize);
+    $tag = substr($ciphertext, -$tagSize);
+    $encrypted = substr($ciphertext, $nonceSize, -$tagSize);
+    
+    // Decrypt using AES-256-GCM
+    $plaintext = openssl_decrypt(
+        $encrypted,
+        'aes-256-gcm',
+        $key,
+        OPENSSL_RAW_DATA,
+        $nonce,
+        $tag
+    );
+    
+    return $plaintext;
+}
+
+// Check for token parameter
+if (!isset($_GET['token']) || empty($_GET['token'])) {
+    // Show login form or redirect
+    ?>
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>phpMyAdmin - FastCP</title>
+        <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+                   display: flex; justify-content: center; align-items: center; min-height: 100vh;
+                   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: 0; }
+            .container { background: white; padding: 40px; border-radius: 16px; text-align: center; 
+                         box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
+            h2 { color: #333; margin-bottom: 20px; }
+            p { color: #666; margin-bottom: 30px; }
+            a { display: inline-block; padding: 12px 24px; background: #667eea; color: white; 
+                text-decoration: none; border-radius: 8px; font-weight: 500; }
+            a:hover { background: #5a6fd6; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h2>phpMyAdmin Access</h2>
+            <p>Please access phpMyAdmin through the FastCP control panel.<br>
+               Go to Databases and click "Open in phpMyAdmin" next to your database.</p>
+            <a href="/">Back to FastCP</a>
+        </div>
+    </body>
+    </html>
+    <?php
+    exit;
+}
+
+// Decrypt and validate the token
+$payload = decryptToken($_GET['token']);
+if ($payload === false) {
+    die('Invalid or expired token. Please try again from the FastCP control panel.');
+}
+
+// Parse the payload: user|password|dbname|expiry
+$parts = explode('|', $payload);
+if (count($parts) !== 4) {
+    die('Invalid token format.');
+}
+
+list($dbUser, $dbPassword, $dbName, $expiry) = $parts;
+
+// Check expiry
+if (time() > intval($expiry)) {
+    die('Token has expired. Please generate a new one from the FastCP control panel.');
+}
+
+// Set up phpMyAdmin session
+$_SESSION['PMA_single_signon_user'] = $dbUser;
+$_SESSION['PMA_single_signon_password'] = $dbPassword;
+$_SESSION['PMA_single_signon_host'] = 'localhost';
+
+// Redirect to phpMyAdmin with the selected database
+header('Location: index.php?db=' . urlencode($dbName));
+exit;
+SIGNONEOF
+
+chmod 644 /opt/fastcp/phpmyadmin/signon.php
 
 # Create phpMyAdmin temp directory
 mkdir -p /tmp/phpmyadmin

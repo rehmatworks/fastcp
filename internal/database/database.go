@@ -153,6 +153,9 @@ func migrate(db *sql.DB) error {
 
 		// Add is_suspended column to users table
 		`ALTER TABLE users ADD COLUMN is_suspended INTEGER DEFAULT 0`,
+
+		// Add db_password column to databases table (encrypted)
+		`ALTER TABLE databases ADD COLUMN db_password TEXT DEFAULT ''`,
 	}
 
 	for _, m := range migrations {
@@ -209,11 +212,12 @@ type SiteDomain struct {
 
 // Database represents a MySQL database
 type Database struct {
-	ID        string    `json:"id"`
-	Username  string    `json:"username"`
-	DBName    string    `json:"db_name"`
-	DBUser    string    `json:"db_user"`
-	CreatedAt time.Time `json:"created_at"`
+	ID         string    `json:"id"`
+	Username   string    `json:"username"`
+	DBName     string    `json:"db_name"`
+	DBUser     string    `json:"db_user"`
+	DBPassword string    `json:"db_password,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 // SSHKey represents an SSH public key
@@ -669,8 +673,8 @@ func (db *DB) GetAllSiteDomainsGrouped(ctx context.Context) (map[string][]*SiteD
 // Database operations
 func (db *DB) CreateDatabase(ctx context.Context, database *Database) error {
 	_, err := db.ExecContext(ctx,
-		"INSERT INTO databases (id, username, db_name, db_user) VALUES (?, ?, ?, ?)",
-		database.ID, database.Username, database.DBName, database.DBUser,
+		"INSERT INTO databases (id, username, db_name, db_user, db_password) VALUES (?, ?, ?, ?, ?)",
+		database.ID, database.Username, database.DBName, database.DBUser, database.DBPassword,
 	)
 	return err
 }
@@ -678,9 +682,9 @@ func (db *DB) CreateDatabase(ctx context.Context, database *Database) error {
 func (db *DB) GetDatabase(ctx context.Context, id string) (*Database, error) {
 	var d Database
 	err := db.QueryRowContext(ctx,
-		"SELECT id, username, db_name, db_user, created_at FROM databases WHERE id = ?",
+		"SELECT id, username, db_name, db_user, COALESCE(db_password, ''), created_at FROM databases WHERE id = ?",
 		id,
-	).Scan(&d.ID, &d.Username, &d.DBName, &d.DBUser, &d.CreatedAt)
+	).Scan(&d.ID, &d.Username, &d.DBName, &d.DBUser, &d.DBPassword, &d.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -689,7 +693,7 @@ func (db *DB) GetDatabase(ctx context.Context, id string) (*Database, error) {
 
 func (db *DB) ListDatabases(ctx context.Context, username string) ([]*Database, error) {
 	rows, err := db.QueryContext(ctx,
-		"SELECT id, username, db_name, db_user, created_at FROM databases WHERE username = ? ORDER BY created_at DESC",
+		"SELECT id, username, db_name, db_user, COALESCE(db_password, ''), created_at FROM databases WHERE username = ? ORDER BY created_at DESC",
 		username,
 	)
 	if err != nil {
@@ -700,7 +704,7 @@ func (db *DB) ListDatabases(ctx context.Context, username string) ([]*Database, 
 	var databases []*Database
 	for rows.Next() {
 		var d Database
-		if err := rows.Scan(&d.ID, &d.Username, &d.DBName, &d.DBUser, &d.CreatedAt); err != nil {
+		if err := rows.Scan(&d.ID, &d.Username, &d.DBName, &d.DBUser, &d.DBPassword, &d.CreatedAt); err != nil {
 			return nil, err
 		}
 		databases = append(databases, &d)
@@ -725,7 +729,7 @@ func (db *DB) ListDatabasesPaginated(ctx context.Context, username string, page,
 
 	// Get paginated results
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, username, db_name, db_user, created_at 
+		`SELECT id, username, db_name, db_user, COALESCE(db_password, ''), created_at 
 		 FROM databases WHERE username = ? AND (db_name LIKE ? OR db_user LIKE ?)
 		 ORDER BY created_at DESC LIMIT ? OFFSET ?`,
 		username, search, search, limit, offset,
@@ -738,7 +742,7 @@ func (db *DB) ListDatabasesPaginated(ctx context.Context, username string, page,
 	var databases []*Database
 	for rows.Next() {
 		var d Database
-		if err := rows.Scan(&d.ID, &d.Username, &d.DBName, &d.DBUser, &d.CreatedAt); err != nil {
+		if err := rows.Scan(&d.ID, &d.Username, &d.DBName, &d.DBUser, &d.DBPassword, &d.CreatedAt); err != nil {
 			return nil, 0, err
 		}
 		databases = append(databases, &d)

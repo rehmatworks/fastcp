@@ -123,6 +123,7 @@ func main() {
 			r.Get("/databases", apiHandler.ListDatabases)
 			r.Post("/databases", apiHandler.CreateDatabase)
 			r.Delete("/databases/{id}", apiHandler.DeleteDatabase)
+			r.Get("/databases/{id}/phpmyadmin", apiHandler.PhpMyAdminSignon)
 
 			// SSH Keys
 			r.Get("/ssh-keys", apiHandler.ListSSHKeys)
@@ -158,21 +159,33 @@ func main() {
 		})
 	})
 
-	// phpMyAdmin reverse proxy (requires authentication)
+	// phpMyAdmin reverse proxy
 	phpMyAdminURL, _ := url.Parse("http://localhost:8088")
 	phpMyAdminProxy := httputil.NewSingleHostReverseProxy(phpMyAdminURL)
 	r.HandleFunc("/phpmyadmin", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/phpmyadmin/", http.StatusMovedPermanently)
 	})
 	r.HandleFunc("/phpmyadmin/*", func(w http.ResponseWriter, req *http.Request) {
-		// Check authentication (via cookie or Authorization header)
-		if !apiHandler.IsAuthenticated(req) {
+		path := strings.TrimPrefix(req.URL.Path, "/phpmyadmin")
+		
+		// Allow signon.php with token (token is the authentication)
+		// Also allow access if user has valid FastCP session (for subsequent requests after signon)
+		isSignonWithToken := strings.HasPrefix(path, "/signon.php") && req.URL.Query().Get("token") != ""
+		hasPhpMyAdminSession := false
+		for _, cookie := range req.Cookies() {
+			if cookie.Name == "SignonSession" || cookie.Name == "phpMyAdmin" {
+				hasPhpMyAdminSession = true
+				break
+			}
+		}
+		
+		if !isSignonWithToken && !hasPhpMyAdminSession && !apiHandler.IsAuthenticated(req) {
 			http.Redirect(w, req, "/?redirect=phpmyadmin", http.StatusFound)
 			return
 		}
 
 		// Strip /phpmyadmin prefix for the backend
-		req.URL.Path = strings.TrimPrefix(req.URL.Path, "/phpmyadmin")
+		req.URL.Path = path
 		if req.URL.Path == "" {
 			req.URL.Path = "/"
 		}
