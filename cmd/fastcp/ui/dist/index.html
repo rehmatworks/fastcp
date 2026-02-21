@@ -305,7 +305,7 @@
                         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                             <h3 class="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h3>
                             <div class="grid grid-cols-2 gap-3">
-                                <button @click="tab = 'sites'; showCreateSite = true" class="flex items-center justify-center p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
+                                <button x-show="user?.username !== 'root'" @click="tab = 'sites'; showCreateSite = true" class="flex items-center justify-center p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
                                     <svg class="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                                     </svg>
@@ -336,6 +336,19 @@
 
                 <!-- Sites Tab -->
                 <div x-show="tab === 'sites'">
+                    <!-- Root user warning -->
+                    <div x-show="user?.username === 'root'" class="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4">
+                        <div class="flex items-start">
+                            <svg class="w-5 h-5 text-amber-500 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            <div>
+                                <h4 class="font-semibold text-amber-800">Website creation disabled for root</h4>
+                                <p class="text-sm text-amber-700 mt-1">For security reasons, the root user cannot create websites. Running PHP processes as root is a security risk. Please log in as or create a non-root admin user (e.g., <strong>fastcp</strong>) to manage websites.</p>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                         <div class="flex items-center gap-4">
                             <div class="relative">
@@ -348,7 +361,7 @@
                             </div>
                             <span class="text-sm text-gray-500" x-text="sitesTotal + ' site' + (sitesTotal !== 1 ? 's' : '')"></span>
                         </div>
-                        <button @click="showCreateSite = true" 
+                        <button x-show="user?.username !== 'root'" @click="showCreateSite = true" 
                                 class="inline-flex items-center px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>

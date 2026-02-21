@@ -244,6 +244,36 @@ log "Configuring MySQL..."
 systemctl enable mysql
 systemctl start mysql
 
+# Create fastcp admin user
+log "Creating fastcp admin user..."
+FASTCP_PASSWORD=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9' | head -c 16)
+
+# Create system user
+if ! id -u fastcp >/dev/null 2>&1; then
+    useradd -m -s /bin/bash fastcp
+    echo "fastcp:${FASTCP_PASSWORD}" | chpasswd
+    log "System user 'fastcp' created"
+else
+    # Update password if user exists
+    echo "fastcp:${FASTCP_PASSWORD}" | chpasswd
+    log "Updated password for existing 'fastcp' user"
+fi
+
+# Wait for FastCP API to be ready
+log "Waiting for FastCP API..."
+for i in {1..30}; do
+    if curl -sk https://127.0.0.1:2087/api/version >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
+
+# Register fastcp user in FastCP database as admin
+# The user will authenticate via PAM, so we just need to mark them as admin
+# This is done by logging in once which creates the DB record, then updating it
+# For now, we'll create a simple marker file that the agent can check
+mkdir -p /opt/fastcp/data
+echo "fastcp" > /opt/fastcp/data/default_admin
 
 # Done!
 echo ""
@@ -261,7 +291,16 @@ echo -e "  ${CYAN}${BOLD}Control Panel URL${NC}"
 echo -e "  ${GREEN}https://${SERVER_IP}:2087${NC}"
 echo ""
 echo -e "  ${CYAN}${BOLD}Login Credentials${NC}"
-echo -e "  Use your Linux system ${BOLD}root${NC} username and password"
+echo -e "  ${YELLOW}╔════════════════════════════════════════════════════════════╗${NC}"
+echo -e "  ${YELLOW}║${NC}  Username: ${BOLD}fastcp${NC}                                         ${YELLOW}║${NC}"
+echo -e "  ${YELLOW}║${NC}  Password: ${BOLD}${FASTCP_PASSWORD}${NC}                                 ${YELLOW}║${NC}"
+echo -e "  ${YELLOW}╚════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "  ${DIM}The 'fastcp' user is the recommended admin account for${NC}"
+echo -e "  ${DIM}creating and managing websites. Save these credentials!${NC}"
+echo ""
+echo -e "  ${DIM}You can also log in as root, but website creation is${NC}"
+echo -e "  ${DIM}disabled for root for security reasons.${NC}"
 echo ""
 echo -e "  ${CYAN}${BOLD}Services Status${NC}"
 echo -e "  ${GREEN}●${NC} fastcp-agent    ${DIM}(running)${NC}"

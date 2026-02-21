@@ -132,6 +132,11 @@ func (h *Handler) ListSites(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreateSite(w http.ResponseWriter, r *http.Request) {
 	user := h.getUser(r)
 
+	if user.Username == "root" {
+		h.error(w, http.StatusForbidden, "root user cannot create websites for security reasons. Please create websites using a non-root user account.")
+		return
+	}
+
 	var req CreateSiteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.error(w, http.StatusBadRequest, "invalid request body")

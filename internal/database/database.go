@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -292,10 +293,20 @@ func (db *DB) EnsureUser(ctx context.Context, username string) (*User, error) {
 	user, err := db.GetUser(ctx, username)
 	if err == sql.ErrNoRows {
 		// Root user is always admin
-		isAdmin := username == "root"
+		// Also check for default admin user created during installation
+		isAdmin := username == "root" || db.isDefaultAdmin(username)
 		return db.CreateUser(ctx, username, isAdmin)
 	}
 	return user, err
+}
+
+func (db *DB) isDefaultAdmin(username string) bool {
+	data, err := os.ReadFile("/opt/fastcp/data/default_admin")
+	if err != nil {
+		return false
+	}
+	defaultAdmin := strings.TrimSpace(string(data))
+	return defaultAdmin == username
 }
 
 func (db *DB) ListUsers(ctx context.Context) ([]*User, error) {
