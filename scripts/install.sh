@@ -297,6 +297,13 @@ sed -i "s/FASTCP_PMA_SECRET_PLACEHOLDER/${PMA_SECRET}/" /opt/fastcp/phpmyadmin/c
 # Remove signon.php if it exists from a previous install
 rm -f /opt/fastcp/phpmyadmin/signon.php
 
+# Suppress PHP 8.4 deprecation warnings before any code runs (including vendor autoloader).
+# Without this, warnings output text before session_start(), breaking "headers already sent".
+cat > /opt/fastcp/phpmyadmin/.user.ini << 'INIEOF'
+display_errors = Off
+error_reporting = 22527
+INIEOF
+
 # Create phpMyAdmin temp directory
 mkdir -p /tmp/phpmyadmin
 chmod 777 /tmp/phpmyadmin
