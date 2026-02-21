@@ -260,7 +260,7 @@ systemctl start mysql
 
 # Install phpMyAdmin
 log "Installing phpMyAdmin..."
-PHPMYADMIN_VERSION="5.2.1"
+PHPMYADMIN_VERSION="5.2.2"
 mkdir -p /opt/fastcp/phpmyadmin
 curl -fsSL "https://files.phpmyadmin.net/phpMyAdmin/${PHPMYADMIN_VERSION}/phpMyAdmin-${PHPMYADMIN_VERSION}-all-languages.tar.gz" | tar xz --strip-components=1 -C /opt/fastcp/phpmyadmin
 
@@ -270,6 +270,9 @@ PMA_SECRET=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
 # Create phpMyAdmin config with signon auth
 cat > /opt/fastcp/phpmyadmin/config.inc.php << 'PMAEOF'
 <?php
+// Suppress deprecation warnings for PHP 8.4 compatibility
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
+
 $cfg['blowfish_secret'] = 'FASTCP_PMA_SECRET_PLACEHOLDER';
 $cfg['TempDir'] = '/tmp/phpmyadmin';
 $cfg['UploadDir'] = '';
