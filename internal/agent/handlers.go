@@ -137,7 +137,7 @@ func (s *Server) ensureServiceFiles() {
 		}
 	}
 
-	// Migrate all fastcp-php service files: remove shared run dir from ReadWritePaths
+	// Migrate all fastcp-php service files
 	phpUnits, _ := filepath.Glob("/etc/systemd/system/fastcp-php@*.service")
 	for _, phpUnit := range phpUnits {
 		data, err := os.ReadFile(phpUnit)
@@ -152,6 +152,10 @@ func (s *Server) ensureServiceFiles() {
 		}
 		if strings.Contains(content, " /opt/fastcp/run") {
 			content = strings.ReplaceAll(content, " /opt/fastcp/run", "")
+			changed = true
+		}
+		if !strings.Contains(content, "ExecReload") {
+			content = strings.Replace(content, "Restart=always", "ExecReload=/bin/kill -USR1 $MAINPID\nRestart=always", 1)
 			changed = true
 		}
 		if changed {
@@ -1103,14 +1107,13 @@ func (s *Server) generateCaddyfile() error {
 			slog.Warn("failed to generate user Caddyfile", "username", username, "error", err)
 		}
 
-		// Start user's PHP service (skip if suspended)
+		// Start or reload user's PHP service (skip if suspended)
 		if len(sites) > 0 && !isSuspended {
 			bootstrapUserEnvironment(username)
 			if useSystemd {
 				serviceName := fmt.Sprintf("fastcp-php@%s.service", username)
-				exec.Command("systemctl", "start", serviceName).Run()
+				exec.Command("systemctl", "reload-or-restart", serviceName).Run()
 			} else {
-				// Without systemd, start process directly
 				if err := s.startUserPHP(username); err != nil {
 					slog.Warn("failed to start user PHP", "username", username, "error", err)
 				}
@@ -1351,11 +1354,6 @@ session.cookie_samesite = Strict
 	if err := os.WriteFile(caddyfilePath, []byte(buf.String()), 0644); err != nil {
 		return fmt.Errorf("failed to write user Caddyfile: %w", err)
 	}
-
-	// Reload user's FrankenPHP service
-	bootstrapUserEnvironment(username)
-	serviceName := fmt.Sprintf("fastcp-php@%s.service", username)
-	exec.Command("systemctl", "reload-or-restart", serviceName).Run()
 
 	return nil
 }
@@ -1938,6 +1936,7 @@ Group=%s
 Environment=HOME=/home/%s
 Environment=PHP_INI_SCAN_DIR=/opt/fastcp/config/users/%s
 ExecStart=/usr/local/bin/frankenphp run --config /opt/fastcp/config/users/%s/Caddyfile
+ExecReload=/bin/kill -USR1 $MAINPID
 Restart=always
 RestartSec=5
 

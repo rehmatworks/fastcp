@@ -267,6 +267,7 @@ Group=%i
 Environment=HOME=/home/%i
 Environment=PHP_INI_SCAN_DIR=/opt/fastcp/config/users/%i
 ExecStart=/usr/local/bin/frankenphp run --config /opt/fastcp/config/users/%i/Caddyfile
+ExecReload=/bin/kill -USR1 $MAINPID
 Restart=always
 RestartSec=5
 
