@@ -39,6 +39,7 @@ func (s *Server) runStartupMigrations() {
 	s.ensurePHPIniConfig()
 	s.ensureServiceFiles()
 	s.ensurePMAConfig()
+	s.ensureUserSocketDirs()
 }
 
 func (s *Server) ensureRunDir() {
@@ -126,6 +127,68 @@ func (s *Server) ensureServiceFiles() {
 
 	if needsReload {
 		exec.Command("systemctl", "daemon-reload").Run()
+	}
+}
+
+func (s *Server) ensureUserSocketDirs() {
+	// Check if any old-style sockets exist in the shared dir -- if so, we need to migrate
+	oldSockets, _ := filepath.Glob(filepath.Join(fastcpRunDir, "php-*.sock"))
+	if len(oldSockets) == 0 {
+		// Also check if any user config dirs exist without the new socket dir
+		userDirs, _ := filepath.Glob("/opt/fastcp/config/users/*")
+		needsMigration := false
+		for _, dir := range userDirs {
+			username := filepath.Base(dir)
+			sockDir := userSocketDir(username)
+			if _, err := os.Stat(sockDir); err != nil {
+				needsMigration = true
+				break
+			}
+		}
+		if !needsMigration {
+			return
+		}
+	}
+
+	slog.Info("migrating user socket directories to home directories")
+
+	// Create ~/.fastcp/run/ for all existing users with config dirs
+	userDirs, _ := filepath.Glob("/opt/fastcp/config/users/*")
+	for _, dir := range userDirs {
+		username := filepath.Base(dir)
+		u, err := user.Lookup(username)
+		if err != nil {
+			continue
+		}
+		uid, _ := strconv.Atoi(u.Uid)
+		gid, _ := strconv.Atoi(u.Gid)
+
+		sockDir := userSocketDir(username)
+		os.MkdirAll(sockDir, 0755)
+		os.Chown(sockDir, uid, gid)
+		// Also ensure parent .fastcp dir has correct ownership
+		os.Chown(filepath.Dir(sockDir), uid, gid)
+	}
+
+	// Remove old sockets so user PHP processes restart with new paths
+	for _, sock := range oldSockets {
+		os.Remove(sock)
+	}
+	oldPids, _ := filepath.Glob(filepath.Join(fastcpRunDir, "php-*.pid"))
+	for _, pid := range oldPids {
+		os.Remove(pid)
+	}
+
+	// Kill old user FrankenPHP processes so they restart with new socket paths
+	exec.Command("pkill", "-f", "frankenphp run --config /opt/fastcp/config/users").Run()
+	time.Sleep(1 * time.Second)
+
+	// Regenerate Caddyfiles with new socket paths and reload
+	if err := s.generateCaddyfile(); err != nil {
+		slog.Error("failed to regenerate Caddyfile during migration", "error", err)
+	} else {
+		exec.Command("pkill", "-USR1", "frankenphp").Run()
+		slog.Info("regenerated Caddyfile with new user socket paths")
 	}
 }
 
