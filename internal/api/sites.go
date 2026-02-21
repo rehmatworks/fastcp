@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rehmatworks/fastcp/internal/agent"
+	"github.com/rehmatworks/fastcp/internal/crypto"
 	"github.com/rehmatworks/fastcp/internal/database"
 )
 
@@ -218,12 +219,20 @@ func (s *SiteService) Create(ctx context.Context, req *CreateSiteRequest) (*Site
 			return nil, fmt.Errorf("failed to install WordPress: %w", err)
 		}
 
+		// Encrypt password for storage
+		encryptedPassword, err := crypto.Encrypt(dbPass)
+		if err != nil {
+			fmt.Printf("warning: failed to encrypt WordPress database password: %v\n", err)
+			encryptedPassword = ""
+		}
+
 		// Save database record to FastCP database so it appears in the UI
 		dbRecord := &database.Database{
-			ID:       uuid.New().String(),
-			Username: req.Username,
-			DBName:   dbName,
-			DBUser:   dbUser,
+			ID:         uuid.New().String(),
+			Username:   req.Username,
+			DBName:     dbName,
+			DBUser:     dbUser,
+			DBPassword: encryptedPassword,
 		}
 		if err := s.db.CreateDatabase(ctx, dbRecord); err != nil {
 			// Log but don't fail - WordPress is already installed
