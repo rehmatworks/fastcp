@@ -191,6 +191,7 @@ func main() {
 		}
 		req.Header.Set("X-Forwarded-Host", req.Host)
 		req.Header.Set("X-Forwarded-Proto", "https")
+		req.Host = "localhost"
 		phpMyAdminProxy.ServeHTTP(w, req)
 	})
 
