@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 // Server is the fastcp-agent server
@@ -61,6 +62,7 @@ func (s *Server) Run(ctx context.Context) error {
 
 	// Accept connections
 	go func() {
+		var errDelay time.Duration
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
@@ -68,10 +70,20 @@ func (s *Server) Run(ctx context.Context) error {
 				case <-ctx.Done():
 					return
 				default:
-					slog.Error("accept error", "error", err)
+					if errDelay == 0 {
+						errDelay = 50 * time.Millisecond
+					} else {
+						errDelay *= 2
+					}
+					if errDelay > 5*time.Second {
+						errDelay = 5 * time.Second
+					}
+					slog.Error("accept error, backing off", "error", err, "delay", errDelay)
+					time.Sleep(errDelay)
 					continue
 				}
 			}
+			errDelay = 0
 
 			s.wg.Add(1)
 			go s.handleConnection(ctx, conn)

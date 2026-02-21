@@ -270,8 +270,11 @@ PMA_SECRET=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
 # Create phpMyAdmin config with signon auth
 cat > /opt/fastcp/phpmyadmin/config.inc.php << 'PMAEOF'
 <?php
-// Suppress deprecation warnings for PHP 8.4 compatibility
 error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
+
+// Ensure sessions are saved to a known location (FrankenPHP embedded PHP may differ)
+ini_set('session.save_handler', 'files');
+ini_set('session.save_path', '/tmp');
 
 $cfg['blowfish_secret'] = 'FASTCP_PMA_SECRET_PLACEHOLDER';
 $cfg['TempDir'] = '/tmp/phpmyadmin';
@@ -284,11 +287,17 @@ $cfg['Servers'][$i]['host'] = 'localhost';
 $cfg['Servers'][$i]['auth_type'] = 'signon';
 $cfg['Servers'][$i]['SignonSession'] = 'SignonSession';
 $cfg['Servers'][$i]['SignonURL'] = '/phpmyadmin/signon.php';
+$cfg['Servers'][$i]['SignonCookieParams'] = [
+    'lifetime' => 0,
+    'path' => '/',
+    'domain' => '',
+    'secure' => false,
+    'httponly' => true,
+];
 $cfg['Servers'][$i]['LogoutURL'] = '/';
 $cfg['Servers'][$i]['AllowNoPassword'] = false;
 $cfg['Servers'][$i]['hide_db'] = '^(information_schema|performance_schema|mysql|sys)$';
 
-// Security settings
 $cfg['LoginCookieValidity'] = 3600;
 $cfg['LoginCookieStore'] = 0;
 $cfg['LoginCookieDeleteAll'] = true;
@@ -305,14 +314,7 @@ cat > /opt/fastcp/phpmyadmin/signon.php << 'SIGNONEOF'
  * Validates encrypted tokens from FastCP and auto-logs into phpMyAdmin
  */
 
-// Match phpMyAdmin's session serialize handler (phpMyAdmin uses php_serialize)
-ini_set('session.serialize_handler', 'php_serialize');
-session_name('SignonSession');
-session_start();
-
-// Function to decrypt AES-GCM (compatible with Go's crypto implementation)
 function decryptToken($token) {
-    // Read the secret key
     $secretPath = '/opt/fastcp/data/.secret';
     if (!file_exists($secretPath)) {
         return false;
@@ -324,12 +326,9 @@ function decryptToken($token) {
         return false;
     }
     
-    // Hash to get 32 bytes for AES-256
     $key = hash('sha256', $decodedSecret, true);
     
-    // URL-safe base64 decode: replace - with + and _ with /
     $token = strtr($token, '-_', '+/');
-    // Add padding if necessary
     $padding = strlen($token) % 4;
     if ($padding > 0) {
         $token .= str_repeat('=', 4 - $padding);
@@ -339,7 +338,6 @@ function decryptToken($token) {
         return false;
     }
     
-    // AES-GCM: nonce (12 bytes) + ciphertext + tag (16 bytes)
     $nonceSize = 12;
     $tagSize = 16;
     
@@ -351,7 +349,6 @@ function decryptToken($token) {
     $tag = substr($ciphertext, -$tagSize);
     $encrypted = substr($ciphertext, $nonceSize, -$tagSize);
     
-    // Decrypt using AES-256-GCM
     $plaintext = openssl_decrypt(
         $encrypted,
         'aes-256-gcm',
@@ -364,9 +361,7 @@ function decryptToken($token) {
     return $plaintext;
 }
 
-// Check for token parameter
 if (!isset($_GET['token']) || empty($_GET['token'])) {
-    // Show login form or redirect
     ?>
     <!DOCTYPE html>
     <html>
@@ -398,13 +393,11 @@ if (!isset($_GET['token']) || empty($_GET['token'])) {
     exit;
 }
 
-// Decrypt and validate the token
 $payload = decryptToken($_GET['token']);
 if ($payload === false) {
     die('Invalid or expired token. Please try again from the FastCP control panel.');
 }
 
-// Parse the payload: user|password|dbname|expiry
 $parts = explode('|', $payload);
 if (count($parts) !== 4) {
     die('Invalid token format.');
@@ -412,17 +405,25 @@ if (count($parts) !== 4) {
 
 list($dbUser, $dbPassword, $dbName, $expiry) = $parts;
 
-// Check expiry
 if (time() > intval($expiry)) {
     die('Token has expired. Please generate a new one from the FastCP control panel.');
 }
 
-// Set up phpMyAdmin session
+// Configure session identically to how phpMyAdmin will read it
+ini_set('session.save_handler', 'files');
+ini_set('session.save_path', '/tmp');
+ini_set('session.serialize_handler', 'php_serialize');
+session_name('SignonSession');
+session_set_cookie_params(0, '/', '', false, true);
+session_start();
+
 $_SESSION['PMA_single_signon_user'] = $dbUser;
 $_SESSION['PMA_single_signon_password'] = $dbPassword;
 $_SESSION['PMA_single_signon_host'] = 'localhost';
 
-// Redirect to phpMyAdmin with the selected database
+// Explicitly flush session to disk - FrankenPHP may not auto-save on exit
+session_write_close();
+
 header('Location: index.php?db=' . urlencode($dbName));
 exit;
 SIGNONEOF
