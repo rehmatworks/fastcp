@@ -36,6 +36,10 @@
             </div>
             
             <form @submit.prevent="login">
+                <div x-show="new URLSearchParams(window.location.search).get('redirect') === 'phpmyadmin'" 
+                     class="bg-blue-500/20 border border-blue-500/50 text-blue-200 px-4 py-3 rounded-lg mb-4">
+                    <span>Please log in to access phpMyAdmin</span>
+                </div>
                 <div x-show="error" class="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-3 rounded-lg mb-4">
                     <span x-text="error"></span>
                 </div>
@@ -1414,6 +1418,20 @@
                         localStorage.setItem('fastcp_token', this.token);
                         this.authenticated = true;
                         this.password = '';
+                        
+                        // Check for redirect parameter (e.g., from phpMyAdmin)
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const redirect = urlParams.get('redirect');
+                        if (redirect === 'phpmyadmin') {
+                            window.location.href = '/phpmyadmin/';
+                            return;
+                        }
+                        
+                        // Clear URL params and continue
+                        if (window.location.search) {
+                            window.history.replaceState({}, '', window.location.pathname);
+                        }
+                        
                         window.addEventListener('hashchange', () => this.handleHashRoute());
                         this.handleHashRoute();
                         if (this.user?.is_admin) {
