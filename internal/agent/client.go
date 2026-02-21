@@ -182,6 +182,24 @@ func (c *Client) GetServices(ctx context.Context) ([]*ServiceStatus, error) {
 	return services, nil
 }
 
+// MySQL config operations
+func (c *Client) GetMySQLConfig(ctx context.Context) (*MySQLConfig, error) {
+	result, err := c.call(ctx, "system.getMysqlConfig", nil)
+	if err != nil {
+		return nil, err
+	}
+	var cfg MySQLConfig
+	if err := json.Unmarshal(result, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal mysql config: %w", err)
+	}
+	return &cfg, nil
+}
+
+func (c *Client) SetMySQLConfig(ctx context.Context, cfg *MySQLConfig) error {
+	_, err := c.call(ctx, "system.setMysqlConfig", cfg)
+	return err
+}
+
 // User operations
 func (c *Client) CreateUser(ctx context.Context, req *CreateUserRequest) error {
 	_, err := c.call(ctx, "user.create", req)

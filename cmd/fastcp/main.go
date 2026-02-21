@@ -169,6 +169,10 @@ func main() {
 				// System updates
 				r.Get("/system/check-update", apiHandler.CheckUpdate)
 				r.Post("/system/update", apiHandler.PerformUpdate)
+
+				// MySQL config
+				r.Get("/system/mysql-config", apiHandler.GetMySQLConfig)
+				r.Put("/system/mysql-config", apiHandler.SetMySQLConfig)
 			})
 		})
 	})

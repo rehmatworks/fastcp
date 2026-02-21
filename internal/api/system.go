@@ -118,6 +118,16 @@ func (s *SystemService) CheckUpdate(ctx context.Context) (*UpdateInfo, error) {
 	}, nil
 }
 
+// GetMySQLConfig returns current MySQL tuning settings
+func (s *SystemService) GetMySQLConfig(ctx context.Context) (*agent.MySQLConfig, error) {
+	return s.agent.GetMySQLConfig(ctx)
+}
+
+// SetMySQLConfig applies new MySQL tuning settings and restarts MySQL
+func (s *SystemService) SetMySQLConfig(ctx context.Context, cfg *agent.MySQLConfig) error {
+	return s.agent.SetMySQLConfig(ctx, cfg)
+}
+
 // PerformUpdate downloads and installs the latest version
 func (s *SystemService) PerformUpdate(ctx context.Context, targetVersion string) error {
 	return s.agent.PerformUpdate(ctx, targetVersion)

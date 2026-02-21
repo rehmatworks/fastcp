@@ -772,6 +772,54 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mt-6" x-show="mysqlConfig">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-1">MySQL Settings</h3>
+                        <p class="text-sm text-gray-500 mb-6">Adjust key performance settings. Changes will restart the MySQL service.</p>
+
+                        <div x-show="mysqlConfigError" class="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm" x-text="mysqlConfigError"></div>
+                        <div x-show="mysqlConfigSuccess" class="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm" x-text="mysqlConfigSuccess"></div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">InnoDB Buffer Pool Size (MB)</label>
+                                <input type="number" min="16" max="16384" x-model.number="mysqlConfig.buffer_pool_mb"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                <p class="text-xs text-gray-400 mt-1" x-show="mysqlConfig?.detected_ram_mb"
+                                   x-text="'Server RAM: ' + mysqlConfig.detected_ram_mb + ' MB. Recommended: ' + Math.max(64, Math.round(mysqlConfig.detected_ram_mb * 0.25)) + '-' + Math.round(mysqlConfig.detected_ram_mb * 0.5) + ' MB'"></p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Max Connections</label>
+                                <input type="number" min="5" max="5000" x-model.number="mysqlConfig.max_connections"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                <p class="text-xs text-gray-400 mt-1">Typical range: 20-500</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Performance Schema</label>
+                                <div class="flex items-center mt-2">
+                                    <button @click="mysqlConfig.perf_schema = !mysqlConfig.perf_schema"
+                                            :class="mysqlConfig.perf_schema ? 'bg-primary-500' : 'bg-gray-300'"
+                                            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">
+                                        <span :class="mysqlConfig.perf_schema ? 'translate-x-5' : 'translate-x-0'"
+                                              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out mt-0.5 ml-0.5"></span>
+                                    </button>
+                                    <span class="ml-3 text-sm text-gray-600" x-text="mysqlConfig.perf_schema ? 'ON' : 'OFF'"></span>
+                                </div>
+                                <p class="text-xs text-gray-400 mt-1">Disabling saves ~100 MB RAM</p>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 flex items-center">
+                            <button @click="saveMySQLConfig()" :disabled="mysqlConfigSaving"
+                                    class="inline-flex items-center px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50">
+                                <svg x-show="mysqlConfigSaving" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span x-text="mysqlConfigSaving ? 'Restarting MySQL...' : 'Save & Restart MySQL'"></span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Users Tab (Admin Only) -->
@@ -1323,6 +1371,13 @@
                 domainLoading: false,
                 domainError: '',
                 
+                // MySQL config
+                mysqlConfig: null,
+                mysqlConfigLoading: false,
+                mysqlConfigSaving: false,
+                mysqlConfigError: '',
+                mysqlConfigSuccess: '',
+
                 // Cron jobs
                 cronJobs: [],
                 showCreateCron: false,
@@ -1391,7 +1446,7 @@
                         case 'ssh': this.loadSSHKeys(); break;
                         case 'cron': this.loadCronJobs(); break;
                         case 'users': this.loadUsers(); break;
-                        case 'system': this.loadSystemStatus(); break;
+                        case 'system': this.loadSystemStatus(); this.loadMySQLConfig(); break;
                     }
                 },
 
@@ -1466,6 +1521,36 @@
                 async loadSSHKeys() { this.sshKeys = await this.api('/ssh-keys') || []; },
                 async loadCronJobs() { this.cronJobs = await this.api('/cron') || []; },
                 async loadSystemStatus() { this.systemStatus = await this.api('/system/status'); },
+                async loadMySQLConfig() {
+                    this.mysqlConfigLoading = true;
+                    this.mysqlConfigError = '';
+                    try {
+                        this.mysqlConfig = await this.api('/system/mysql-config');
+                    } catch (e) {
+                        this.mysqlConfigError = 'Failed to load MySQL config';
+                    }
+                    this.mysqlConfigLoading = false;
+                },
+                async saveMySQLConfig() {
+                    this.mysqlConfigSaving = true;
+                    this.mysqlConfigError = '';
+                    this.mysqlConfigSuccess = '';
+                    try {
+                        await this.api('/system/mysql-config', {
+                            method: 'PUT',
+                            body: JSON.stringify({
+                                buffer_pool_mb: parseInt(this.mysqlConfig.buffer_pool_mb),
+                                max_connections: parseInt(this.mysqlConfig.max_connections),
+                                perf_schema: this.mysqlConfig.perf_schema
+                            })
+                        });
+                        this.mysqlConfigSuccess = 'MySQL configuration updated and service restarted.';
+                        setTimeout(() => this.mysqlConfigSuccess = '', 5000);
+                    } catch (e) {
+                        this.mysqlConfigError = e.message || 'Failed to save MySQL config';
+                    }
+                    this.mysqlConfigSaving = false;
+                },
                 async loadUsers() { 
                     try { this.users = await this.api('/users') || []; } 
                     catch(e) { this.users = []; }

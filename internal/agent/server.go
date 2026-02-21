@@ -166,6 +166,8 @@ func (s *Server) registerHandlers() {
 	s.handlers["system.status"] = s.handleSystemStatus
 	s.handlers["system.services"] = s.handleSystemServices
 	s.handlers["system.update"] = s.handleSystemUpdate
+	s.handlers["system.getMysqlConfig"] = s.handleGetMySQLConfig
+	s.handlers["system.setMysqlConfig"] = s.handleSetMySQLConfig
 
 	// User handlers
 	s.handlers["user.create"] = s.handleCreateUser

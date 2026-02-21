@@ -95,6 +95,14 @@ type ServiceStatus struct {
 	Enabled bool   `json:"enabled"`
 }
 
+// MySQLConfig represents tunable MySQL settings
+type MySQLConfig struct {
+	BufferPoolMB   int  `json:"buffer_pool_mb"`
+	MaxConnections int  `json:"max_connections"`
+	PerfSchema     bool `json:"perf_schema"`
+	DetectedRAMMB  int  `json:"detected_ram_mb"`
+}
+
 // CreateUserRequest is the request for creating a system user
 type CreateUserRequest struct {
 	Username   string `json:"username"`

@@ -492,6 +492,29 @@ func (h *Handler) CheckUpdate(w http.ResponseWriter, r *http.Request) {
 	h.json(w, http.StatusOK, info)
 }
 
+func (h *Handler) GetMySQLConfig(w http.ResponseWriter, r *http.Request) {
+	cfg, err := h.sysService.GetMySQLConfig(r.Context())
+	if err != nil {
+		h.error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.json(w, http.StatusOK, cfg)
+}
+
+func (h *Handler) SetMySQLConfig(w http.ResponseWriter, r *http.Request) {
+	var cfg agent.MySQLConfig
+	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+		h.error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := h.sysService.SetMySQLConfig(r.Context(), &cfg); err != nil {
+		h.error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.json(w, http.StatusOK, map[string]string{"status": "ok", "message": "MySQL configuration updated and service restarted."})
+}
+
 func (h *Handler) PerformUpdate(w http.ResponseWriter, r *http.Request) {
 	var req PerformUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

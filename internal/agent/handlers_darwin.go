@@ -436,3 +436,13 @@ func (s *Server) handleSystemUpdate(ctx context.Context, params json.RawMessage)
 func (s *Server) handleSyncCronJobs(ctx context.Context, params json.RawMessage) (any, error) {
 	return nil, fmt.Errorf("cron job sync not supported on macOS - use Ubuntu for production")
 }
+
+func (s *Server) runStartupMigrations() {}
+
+func (s *Server) handleGetMySQLConfig(ctx context.Context, params json.RawMessage) (any, error) {
+	return &MySQLConfig{BufferPoolMB: 128, MaxConnections: 151, PerfSchema: true, DetectedRAMMB: 0}, nil
+}
+
+func (s *Server) handleSetMySQLConfig(ctx context.Context, params json.RawMessage) (any, error) {
+	return nil, fmt.Errorf("MySQL config not supported on macOS - use Ubuntu for production")
+}

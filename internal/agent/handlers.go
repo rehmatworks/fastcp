@@ -1630,6 +1630,87 @@ func (s *Server) handleSystemServices(ctx context.Context, params json.RawMessag
 	return result, nil
 }
 
+const mysqlCnfPath = "/etc/mysql/conf.d/fastcp.cnf"
+
+func (s *Server) handleGetMySQLConfig(ctx context.Context, params json.RawMessage) (any, error) {
+	cfg := &MySQLConfig{BufferPoolMB: 128, MaxConnections: 151, PerfSchema: true}
+
+	// Detect RAM
+	if data, err := os.ReadFile("/proc/meminfo"); err == nil {
+		var kb int
+		fmt.Sscanf(string(data), "MemTotal: %d", &kb)
+		cfg.DetectedRAMMB = kb / 1024
+	}
+
+	data, err := os.ReadFile(mysqlCnfPath)
+	if err != nil {
+		return cfg, nil
+	}
+
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "innodb_buffer_pool_size") {
+			var val int
+			fmt.Sscanf(line, "innodb_buffer_pool_size = %dM", &val)
+			if val > 0 {
+				cfg.BufferPoolMB = val
+			}
+		} else if strings.HasPrefix(line, "max_connections") {
+			fmt.Sscanf(line, "max_connections = %d", &cfg.MaxConnections)
+		} else if strings.HasPrefix(line, "performance_schema") {
+			cfg.PerfSchema = strings.Contains(line, "ON")
+		}
+	}
+
+	return cfg, nil
+}
+
+func (s *Server) handleSetMySQLConfig(ctx context.Context, params json.RawMessage) (any, error) {
+	var cfg MySQLConfig
+	if err := json.Unmarshal(params, &cfg); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+
+	if cfg.BufferPoolMB < 16 || cfg.BufferPoolMB > 16384 {
+		return nil, fmt.Errorf("buffer_pool_mb must be between 16 and 16384")
+	}
+	if cfg.MaxConnections < 5 || cfg.MaxConnections > 5000 {
+		return nil, fmt.Errorf("max_connections must be between 5 and 5000")
+	}
+
+	perfSchema := "OFF"
+	if cfg.PerfSchema {
+		perfSchema = "ON"
+	}
+
+	cnf := fmt.Sprintf(`[mysqld]
+# FastCP MySQL tuning
+innodb_buffer_pool_size = %dM
+innodb_log_file_size = 16M
+innodb_log_buffer_size = 8M
+innodb_flush_log_at_trx_commit = 2
+innodb_flush_method = O_DIRECT
+key_buffer_size = 4M
+max_connections = %d
+table_open_cache = 200
+thread_cache_size = 8
+performance_schema = %s
+skip-name-resolve
+`, cfg.BufferPoolMB, cfg.MaxConnections, perfSchema)
+
+	os.MkdirAll("/etc/mysql/conf.d", 0755)
+	if err := os.WriteFile(mysqlCnfPath, []byte(cnf), 0644); err != nil {
+		return nil, fmt.Errorf("failed to write config: %w", err)
+	}
+
+	if output, err := exec.Command("systemctl", "restart", "mysql").CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("failed to restart MySQL: %w: %s", err, output)
+	}
+
+	slog.Info("updated MySQL config", "buffer_pool_mb", cfg.BufferPoolMB, "max_connections", cfg.MaxConnections, "perf_schema", perfSchema)
+	return map[string]string{"status": "ok"}, nil
+}
+
 func (s *Server) handleSystemUpdate(ctx context.Context, params json.RawMessage) (any, error) {
 	var req PerformUpdateRequest
 	if err := json.Unmarshal(params, &req); err != nil {
