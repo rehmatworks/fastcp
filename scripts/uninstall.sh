@@ -75,8 +75,9 @@ systemctl daemon-reload
 # Remove FastCP directory
 print_step "Removing FastCP files..."
 rm -rf "$FASTCP_DIR"
-rm -rf /var/run/fastcp
+rm -rf /var/run/fastcp  # legacy location
 rm -rf /var/log/fastcp
+rm -f /etc/tmpfiles.d/fastcp.conf
 
 # Remove firewall rules
 print_step "Removing firewall rules..."

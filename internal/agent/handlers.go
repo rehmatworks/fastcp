@@ -30,13 +30,23 @@ const (
 	wpDownloadURL = "https://wordpress.org/latest.tar.gz"
 	caddyConfig   = "/opt/fastcp/config/Caddyfile"
 	mysqlSocket   = "/var/run/mysqld/mysqld.sock"
+	fastcpRunDir  = "/opt/fastcp/run"
 )
 
 // runStartupMigrations fixes configuration drift on agent startup (e.g. after updates).
 func (s *Server) runStartupMigrations() {
+	s.ensureRunDir()
 	s.ensurePHPIniConfig()
-	s.ensureSystemdRuntimeDir()
-	s.ensurePMASocketFix()
+	s.ensureServiceFiles()
+	s.ensurePMAConfig()
+}
+
+func (s *Server) ensureRunDir() {
+	os.MkdirAll(fastcpRunDir, 01777)
+	os.Chmod(fastcpRunDir, 01777)
+
+	// Clean up old tmpfs-based runtime dir
+	os.Remove("/etc/tmpfiles.d/fastcp.conf")
 }
 
 func (s *Server) ensurePHPIniConfig() {
@@ -51,20 +61,36 @@ func (s *Server) ensurePHPIniConfig() {
 	slog.Info("created PHP ini config", "path", iniFile)
 }
 
-func (s *Server) ensureSystemdRuntimeDir() {
+func (s *Server) ensureServiceFiles() {
 	needsReload := false
 
+	// Migrate fastcp-agent.service: remove RuntimeDirectory (no longer needed)
 	agentUnit := "/etc/systemd/system/fastcp-agent.service"
 	if data, err := os.ReadFile(agentUnit); err == nil {
 		content := string(data)
-		if !strings.Contains(content, "RuntimeDirectory=") {
-			content = strings.Replace(content, "RestartSec=5\n", "RestartSec=5\nRuntimeDirectory=fastcp\nRuntimeDirectoryMode=1777\nRuntimeDirectoryPreserve=yes\n", 1)
+		if strings.Contains(content, "RuntimeDirectory=") {
+			content = strings.Replace(content, "RuntimeDirectory=fastcp\n", "", 1)
+			content = strings.Replace(content, "RuntimeDirectoryMode=1777\n", "", 1)
+			content = strings.Replace(content, "RuntimeDirectoryPreserve=yes\n", "", 1)
 			os.WriteFile(agentUnit, []byte(content), 0644)
 			needsReload = true
-			slog.Info("patched fastcp-agent.service with RuntimeDirectory")
+			slog.Info("removed RuntimeDirectory from fastcp-agent.service")
 		}
 	}
 
+	// Migrate fastcp.service: update socket path
+	mainUnit := "/etc/systemd/system/fastcp.service"
+	if data, err := os.ReadFile(mainUnit); err == nil {
+		content := string(data)
+		if strings.Contains(content, "/var/run/fastcp/") {
+			content = strings.ReplaceAll(content, "/var/run/fastcp/", "/opt/fastcp/run/")
+			os.WriteFile(mainUnit, []byte(content), 0644)
+			needsReload = true
+			slog.Info("migrated fastcp.service socket path to /opt/fastcp/run/")
+		}
+	}
+
+	// Ensure fastcp-caddy.service has PHP_INI_SCAN_DIR
 	caddyUnit := "/etc/systemd/system/fastcp-caddy.service"
 	if data, err := os.ReadFile(caddyUnit); err == nil {
 		content := string(data)
@@ -72,17 +98,27 @@ func (s *Server) ensureSystemdRuntimeDir() {
 			content = strings.Replace(content, "RestartSec=5\n", "RestartSec=5\nEnvironment=PHP_INI_SCAN_DIR=:/opt/fastcp/config/php\n", 1)
 			os.WriteFile(caddyUnit, []byte(content), 0644)
 			needsReload = true
-			slog.Info("patched fastcp-caddy.service with PHP_INI_SCAN_DIR")
+		}
+	}
+
+	// Migrate fastcp-php@ template: update socket path
+	phpUnit := "/etc/systemd/system/fastcp-php@.service"
+	if data, err := os.ReadFile(phpUnit); err == nil {
+		content := string(data)
+		if strings.Contains(content, "/var/run/fastcp") {
+			content = strings.ReplaceAll(content, "/var/run/fastcp", "/opt/fastcp/run")
+			os.WriteFile(phpUnit, []byte(content), 0644)
+			needsReload = true
+			slog.Info("migrated fastcp-php@.service socket path to /opt/fastcp/run/")
 		}
 	}
 
 	if needsReload {
 		exec.Command("systemctl", "daemon-reload").Run()
-		exec.Command("systemctl", "restart", "fastcp-caddy").Run()
 	}
 }
 
-func (s *Server) ensurePMASocketFix() {
+func (s *Server) ensurePMAConfig() {
 	configFile := "/opt/fastcp/phpmyadmin/config.inc.php"
 	data, err := os.ReadFile(configFile)
 	if err != nil {
@@ -100,7 +136,7 @@ func (s *Server) ensurePMASocketFix() {
 	}
 	if changed {
 		os.WriteFile(configFile, []byte(content), 0644)
-		slog.Info("patched phpMyAdmin config to use TCP (127.0.0.1) instead of socket")
+		slog.Info("patched phpMyAdmin config")
 	}
 }
 
@@ -606,7 +642,7 @@ func (s *Server) hasSystemd() bool {
 }
 
 func (s *Server) startUserPHP(username string) error {
-	socketPath := fmt.Sprintf("/var/run/fastcp/php-%s.sock", username)
+	socketPath := fmt.Sprintf("%s/php-%s.sock", fastcpRunDir, username)
 	configPath := fmt.Sprintf("/opt/fastcp/config/users/%s/Caddyfile", username)
 	logPath := fmt.Sprintf("/var/log/fastcp/frankenphp-%s.log", username)
 	phpIniDir := filepath.Dir(configPath)
@@ -617,8 +653,8 @@ func (s *Server) startUserPHP(username string) error {
 		return nil
 	}
 
-	// Ensure socket directory is writable
-	os.Chmod("/var/run/fastcp", 0777)
+	os.MkdirAll(fastcpRunDir, 01777)
+	os.Chmod(fastcpRunDir, 01777)
 
 	// Ensure log file exists and is writable
 	os.MkdirAll("/var/log/fastcp", 0777)
@@ -635,7 +671,7 @@ func (s *Server) startUserPHP(username string) error {
 		"--start",
 		"--background",
 		"--make-pidfile",
-		"--pidfile", fmt.Sprintf("/var/run/fastcp/php-%s.pid", username),
+		"--pidfile", fmt.Sprintf("%s/php-%s.pid", fastcpRunDir, username),
 		"--chuid", username,
 		"--exec", "/usr/local/bin/frankenphp",
 		"--",
@@ -763,7 +799,7 @@ func (s *Server) generateCaddyfile() error {
 `)
 
 	for username, sites := range sitesByUser {
-		socketPath := fmt.Sprintf("/var/run/fastcp/php-%s.sock", username)
+		socketPath := fmt.Sprintf("%s/php-%s.sock", fastcpRunDir, username)
 		isSuspended := len(sites) > 0 && sites[0].IsSuspended
 
 		for _, site := range sites {
@@ -954,7 +990,7 @@ func (s *Server) generateUserCaddyfile(username string, sites []siteInfo) error 
 	userConfigDir := filepath.Join("/opt/fastcp/config/users", username)
 	os.MkdirAll(userConfigDir, 0755)
 
-	socketPath := fmt.Sprintf("/var/run/fastcp/php-%s.sock", username)
+	socketPath := fmt.Sprintf("%s/php-%s.sock", fastcpRunDir, username)
 
 	var buf strings.Builder
 	buf.WriteString(fmt.Sprintf(`# FrankenPHP config for user: %s
@@ -1471,8 +1507,7 @@ func (s *Server) handleSystemUpdate(ctx context.Context, params json.RawMessage)
 	os.RemoveAll(tmpDir)
 
 	// Ensure configs are up-to-date before restarting
-	s.ensurePHPIniConfig()
-	s.ensureSystemdRuntimeDir()
+	s.runStartupMigrations()
 
 	// Restart services
 	exec.Command("systemctl", "start", "fastcp").Run()
@@ -1538,9 +1573,8 @@ func (s *Server) handleCreateUser(ctx context.Context, params json.RawMessage) (
 `, req.Username)
 	os.WriteFile(userCaddyfile, []byte(initialCaddyfile), 0644)
 
-	// Create socket directory
-	socketDir := "/var/run/fastcp"
-	os.MkdirAll(socketDir, 0755)
+	os.MkdirAll(fastcpRunDir, 01777)
+	os.Chmod(fastcpRunDir, 01777)
 
 	// Create systemd user slice with resource limits (applies to ALL user processes)
 	if err := s.createUserResourceSlice(req.Username, uid, req.MemoryMB, req.CPUPercent); err != nil {
@@ -1625,7 +1659,7 @@ RestartSec=5
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/%s /var/run/fastcp /var/log/fastcp /tmp
+ReadWritePaths=/home/%s /opt/fastcp/run /var/log/fastcp /tmp
 
 [Install]
 WantedBy=multi-user.target

@@ -138,7 +138,7 @@ sudo make install
 {
     fastcp {
         data_dir /opt/fastcp/data
-        agent_socket /var/run/fastcp/agent.sock
+        agent_socket /opt/fastcp/run/agent.sock
         listen_port 2087
     }
     

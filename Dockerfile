@@ -62,8 +62,8 @@ RUN ARCH=${TARGETARCH:-amd64} && \
     -o /usr/local/bin/frankenphp && chmod +x /usr/local/bin/frankenphp
 
 # Create directories
-RUN mkdir -p /opt/fastcp/bin /opt/fastcp/data /opt/fastcp/config \
-    /var/run/fastcp /var/log/fastcp /var/log/supervisor /opt/fastcp/phpmyadmin
+RUN mkdir -p /opt/fastcp/bin /opt/fastcp/data /opt/fastcp/config /opt/fastcp/run \
+    /var/log/fastcp /var/log/supervisor /opt/fastcp/phpmyadmin && chmod 1777 /opt/fastcp/run
 
 # Create test user for development
 RUN useradd -m -s /bin/bash testuser && echo "testuser:testpass" | chpasswd
@@ -116,8 +116,8 @@ RUN ARCH=${TARGETARCH:-amd64} && \
     -o /usr/local/bin/frankenphp && chmod +x /usr/local/bin/frankenphp
 
 # Create directories
-RUN mkdir -p /opt/fastcp/bin /opt/fastcp/data /opt/fastcp/config \
-    /var/run/fastcp /var/log/fastcp /var/log/supervisor
+RUN mkdir -p /opt/fastcp/bin /opt/fastcp/data /opt/fastcp/config /opt/fastcp/run \
+    /var/log/fastcp /var/log/supervisor && chmod 1777 /opt/fastcp/run
 
 # Copy binaries from builder
 COPY --from=builder /build/bin/fastcp /opt/fastcp/bin/

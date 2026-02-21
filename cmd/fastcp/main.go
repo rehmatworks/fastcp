@@ -51,7 +51,7 @@ func main() {
 	// Flags
 	listenAddr := flag.String("listen", ":2087", "Listen address")
 	dataDir := flag.String("data-dir", "/opt/fastcp/data", "Data directory")
-	agentSocket := flag.String("agent-socket", "/var/run/fastcp/agent.sock", "Agent socket path")
+	agentSocket := flag.String("agent-socket", "/opt/fastcp/run/agent.sock", "Agent socket path")
 	tlsCert := flag.String("tls-cert", "/opt/fastcp/ssl/server.crt", "TLS certificate path")
 	tlsKey := flag.String("tls-key", "/opt/fastcp/ssl/server.key", "TLS private key path")
 	noTLS := flag.Bool("no-tls", false, "Disable TLS (not recommended)")

@@ -102,17 +102,15 @@ SERVER_IP=$(curl -s --connect-timeout 5 ifconfig.me 2>/dev/null || hostname -I |
 
 # Create directories
 log "Creating directories..."
-mkdir -p /opt/fastcp/{bin,data,config,ssl}
+mkdir -p /opt/fastcp/{bin,data,config,ssl,run}
 mkdir -p /opt/fastcp/config/users
-mkdir -p /var/run/fastcp
 mkdir -p /var/log/fastcp
-chmod 1777 /var/run/fastcp
+chmod 1777 /opt/fastcp/run
 chmod 1777 /var/log/fastcp
 
-# Create tmpfiles.d config to ensure /var/run/fastcp persists after reboot
-cat > /etc/tmpfiles.d/fastcp.conf << 'EOF'
-d /var/run/fastcp 1777 root root -
-EOF
+# Clean up old tmpfs-based runtime dir
+rm -f /etc/tmpfiles.d/fastcp.conf
+rm -rf /var/run/fastcp
 
 # Generate encryption key for database passwords (if not exists)
 if [[ ! -f /opt/fastcp/data/.secret ]]; then
@@ -197,9 +195,6 @@ Type=simple
 ExecStart=/opt/fastcp/bin/fastcp-agent
 Restart=always
 RestartSec=5
-RuntimeDirectory=fastcp
-RuntimeDirectoryMode=1777
-RuntimeDirectoryPreserve=yes
 
 [Install]
 WantedBy=multi-user.target
@@ -213,7 +208,7 @@ Requires=fastcp-agent.service
 
 [Service]
 Type=simple
-ExecStart=/opt/fastcp/bin/fastcp --listen :2087 --data-dir /opt/fastcp/data --agent-socket /var/run/fastcp/agent.sock --tls-cert /opt/fastcp/ssl/server.crt --tls-key /opt/fastcp/ssl/server.key
+ExecStart=/opt/fastcp/bin/fastcp --listen :2087 --data-dir /opt/fastcp/data --agent-socket /opt/fastcp/run/agent.sock --tls-cert /opt/fastcp/ssl/server.crt --tls-key /opt/fastcp/ssl/server.key
 Restart=always
 RestartSec=5
 
@@ -261,7 +256,7 @@ CPUQuota=100%
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/%i /var/run/fastcp /var/log/fastcp /tmp
+ReadWritePaths=/home/%i /opt/fastcp/run /var/log/fastcp /tmp
 
 [Install]
 WantedBy=multi-user.target

@@ -20,7 +20,7 @@ var (
 )
 
 func main() {
-	socketPath := flag.String("socket", "/var/run/fastcp/agent.sock", "Unix socket path")
+	socketPath := flag.String("socket", "/opt/fastcp/run/agent.sock", "Unix socket path")
 	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 	showVersion := flag.Bool("version", false, "Show version")
 	flag.Parse()
