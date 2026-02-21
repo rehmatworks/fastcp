@@ -876,6 +876,19 @@ func userSocketPath(username string) string {
 	return filepath.Join(userSocketDir(username), "php.sock")
 }
 
+func ensureUserSocketDir(username string) {
+	sockDir := userSocketDir(username)
+	u, err := user.Lookup(username)
+	if err != nil {
+		return
+	}
+	uid, _ := strconv.Atoi(u.Uid)
+	gid, _ := strconv.Atoi(u.Gid)
+	os.MkdirAll(sockDir, 0755)
+	os.Chown(sockDir, uid, gid)
+	os.Chown(filepath.Dir(sockDir), uid, gid)
+}
+
 func (s *Server) startUserPHP(username string) error {
 	sockDir := userSocketDir(username)
 	socketPath := userSocketPath(username)
@@ -1100,6 +1113,7 @@ func (s *Server) generateCaddyfile() error {
 
 		// Start user's PHP service (skip if suspended)
 		if len(sites) > 0 && !isSuspended {
+			ensureUserSocketDir(username)
 			if useSystemd {
 				serviceName := fmt.Sprintf("fastcp-php@%s.service", username)
 				exec.Command("systemctl", "start", serviceName).Run()
@@ -1372,6 +1386,7 @@ session.cookie_samesite = Strict
 	}
 
 	// Reload user's FrankenPHP service
+	ensureUserSocketDir(username)
 	serviceName := fmt.Sprintf("fastcp-php@%s.service", username)
 	exec.Command("systemctl", "reload-or-restart", serviceName).Run()
 
