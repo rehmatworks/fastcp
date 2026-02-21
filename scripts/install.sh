@@ -88,7 +88,7 @@ mkdir -p /opt/fastcp/{bin,data,config,ssl}
 mkdir -p /opt/fastcp/config/users
 mkdir -p /var/run/fastcp
 mkdir -p /var/log/fastcp
-chmod 755 /var/run/fastcp
+chmod 1777 /var/run/fastcp
 chmod 1777 /var/log/fastcp
 
 # Generate encryption key for database passwords (if not exists)
