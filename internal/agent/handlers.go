@@ -89,8 +89,16 @@ func (s *Server) ensurePMASocketFix() {
 		return
 	}
 	content := string(data)
+	changed := false
 	if strings.Contains(content, "'host'] = 'localhost'") {
 		content = strings.Replace(content, "'host'] = 'localhost'", "'host'] = '127.0.0.1'", 1)
+		changed = true
+	}
+	if !strings.Contains(content, "ShowCreateDb") {
+		content = strings.Replace(content, "$cfg['LoginCookieValidity']", "$cfg['ShowCreateDb'] = false;\n$cfg['LoginCookieValidity']", 1)
+		changed = true
+	}
+	if changed {
 		os.WriteFile(configFile, []byte(content), 0644)
 		slog.Info("patched phpMyAdmin config to use TCP (127.0.0.1) instead of socket")
 	}

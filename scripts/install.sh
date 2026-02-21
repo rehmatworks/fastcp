@@ -290,6 +290,7 @@ $cfg['Servers'][$i]['password'] = $_SERVER['PHP_AUTH_PW'] ?? '';
 $cfg['Servers'][$i]['AllowNoPassword'] = false;
 $cfg['Servers'][$i]['hide_db'] = '^(information_schema|performance_schema|mysql|sys)$';
 
+$cfg['ShowCreateDb'] = false;
 $cfg['LoginCookieValidity'] = 3600;
 $cfg['LoginCookieStore'] = 0;
 $cfg['LoginCookieDeleteAll'] = true;
