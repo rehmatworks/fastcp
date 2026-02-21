@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -699,11 +698,10 @@ func generatePMAToken(dbUser, dbPassword, dbName string) (string, error) {
 	expiry := time.Now().Add(5 * time.Minute).Unix()
 	payload := fmt.Sprintf("%s|%s|%s|%d", dbUser, dbPassword, dbName, expiry)
 
-	encrypted, err := crypto.Encrypt(payload)
+	encrypted, err := crypto.EncryptURLSafe(payload)
 	if err != nil {
 		return "", err
 	}
 
-	// URL-safe base64
-	return base64.URLEncoding.EncodeToString([]byte(encrypted)), nil
+	return encrypted, nil
 }

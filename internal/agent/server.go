@@ -52,15 +52,10 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 	s.listener = listener
 
-	// Set socket permissions (allow www-data to connect)
+	// Set socket permissions (allow fastcp control panel to connect)
 	if err := os.Chmod(s.socketPath, 0660); err != nil {
 		return fmt.Errorf("failed to set socket permissions: %w", err)
 	}
-
-	// Set socket ownership to root:www-data
-	// This allows the FrankenPHP process (running as www-data) to connect
-	// In production, you'd look up the GID for www-data
-	// For now, we just set permissive permissions
 
 	slog.Info("agent listening", "socket", s.socketPath)
 

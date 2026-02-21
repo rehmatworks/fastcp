@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/mattn/go-sqlite3"
@@ -536,6 +537,7 @@ func (s *Server) startUserPHP(username string) error {
 	socketPath := fmt.Sprintf("/var/run/fastcp/php-%s.sock", username)
 	configPath := fmt.Sprintf("/opt/fastcp/config/users/%s/Caddyfile", username)
 	logPath := fmt.Sprintf("/var/log/fastcp/frankenphp-%s.log", username)
+	phpIniDir := filepath.Dir(configPath)
 
 	// Check if already running
 	if _, err := os.Stat(socketPath); err == nil {
@@ -547,7 +549,7 @@ func (s *Server) startUserPHP(username string) error {
 	os.Chmod("/var/run/fastcp", 0777)
 
 	// Ensure log file exists and is writable
-	os.MkdirAll("/var/log/fastcp", 0755)
+	os.MkdirAll("/var/log/fastcp", 0777)
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		slog.Warn("failed to create log file", "error", err)
@@ -555,14 +557,38 @@ func (s *Server) startUserPHP(username string) error {
 		logFile.Close()
 	}
 
-	// Start FrankenPHP as the user using su, with custom php.ini
-	phpIniDir := filepath.Dir(configPath)
-	cmd := exec.Command("su", "-s", "/bin/bash", username, "-c",
-		fmt.Sprintf("export PHP_INI_SCAN_DIR=%s && nohup /usr/local/bin/frankenphp run --config %s >> %s 2>&1 &", phpIniDir, configPath, logPath))
+	// Start FrankenPHP as the user using start-stop-daemon for proper daemonization
+	// This ensures the process is properly detached and won't become a zombie
+	cmd := exec.Command("start-stop-daemon",
+		"--start",
+		"--background",
+		"--make-pidfile",
+		"--pidfile", fmt.Sprintf("/var/run/fastcp/php-%s.pid", username),
+		"--chuid", username,
+		"--exec", "/usr/local/bin/frankenphp",
+		"--",
+		"run",
+		"--config", configPath,
+	)
+	cmd.Env = append(os.Environ(), fmt.Sprintf("PHP_INI_SCAN_DIR=%s", phpIniDir))
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to start FrankenPHP for user %s: %w", username, err)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		slog.Warn("start-stop-daemon failed, trying fallback", "error", err, "output", string(output))
+
+		// Fallback: use shell backgrounding with disown
+		fallbackCmd := fmt.Sprintf(
+			"su -s /bin/bash %s -c 'export PHP_INI_SCAN_DIR=%s; nohup /usr/local/bin/frankenphp run --config %s >> %s 2>&1 & disown'",
+			username, phpIniDir, configPath, logPath,
+		)
+		cmd2 := exec.Command("bash", "-c", fallbackCmd)
+		if err2 := cmd2.Run(); err2 != nil {
+			return fmt.Errorf("failed to start FrankenPHP for user %s: %w (fallback also failed: %v)", username, err, err2)
+		}
 	}
+
+	// Wait a bit for socket to appear
+	time.Sleep(2 * time.Second)
 
 	slog.Info("started user PHP process", "username", username)
 	return nil
@@ -1512,6 +1538,8 @@ After=network.target
 Type=simple
 User=%s
 Group=%s
+Environment=HOME=/home/%s
+Environment=PHP_INI_SCAN_DIR=/opt/fastcp/config/users/%s
 ExecStart=/usr/local/bin/frankenphp run --config /opt/fastcp/config/users/%s/Caddyfile
 Restart=always
 RestartSec=5
@@ -1520,14 +1548,11 @@ RestartSec=5
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/%s /var/run/fastcp /tmp
-
-# Environment
-Environment=HOME=/home/%s
+ReadWritePaths=/home/%s /var/run/fastcp /var/log/fastcp /tmp
 
 [Install]
 WantedBy=multi-user.target
-`, username, username, username, username, username, username)
+`, username, username, username, username, username, username, username)
 
 	if err := os.WriteFile(servicePath, []byte(serviceContent), 0644); err != nil {
 		return fmt.Errorf("failed to write service file: %w", err)

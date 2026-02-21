@@ -45,23 +45,31 @@ After installation:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    FastCP + FrankenPHP                          │
-│                 (runs as www-data, ports 80/443/2087)           │
-├─────────────────────────────────────────────────────────────────┤
-│  Caddy Web Server                                                │
-│  ├── Automatic HTTPS (Let's Encrypt)                            │
-│  ├── FastCP UI Module (control panel)                           │
-│  ├── FastCP Admin API                                           │
-│  └── FrankenPHP (PHP sites)                                     │
+│                    FastCP Control Panel                          │
+│                    (Go binary, port 2087 HTTPS)                  │
+│  - Web UI & REST API                                             │
+│  - User authentication (PAM)                                     │
+│  - phpMyAdmin reverse proxy                                      │
 └────────────────────────────┬────────────────────────────────────┘
                              │ Unix Socket
 ┌────────────────────────────▼────────────────────────────────────┐
-│                    FastCP Agent                                  │
-│                    (runs as root)                                │
-│  - User management                                               │
-│  - ACL configuration                                             │
-│  - MySQL administration                                          │
+│                    FastCP Agent (runs as root)                   │
+│  - User/database management                                      │
+│  - Caddyfile generation                                          │
 │  - SSH key management                                            │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│              FrankenPHP/Caddy (ports 80/443)                     │
+│  - Main reverse proxy for all websites                           │
+│  - Automatic HTTPS (Let's Encrypt)                               │
+│  - phpMyAdmin served internally                                  │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ Unix Sockets
+┌────────────────────────────▼────────────────────────────────────┐
+│              Per-User FrankenPHP (runs as each user)             │
+│  - Isolated PHP execution per user                               │
+│  - Resource limits (CPU/RAM) via cgroups                         │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -170,10 +178,11 @@ curl -X POST http://localhost:2019/fastcp/sites \
 
 ## Security
 
-- **User Isolation**: Each user's files are isolated using Linux ACLs
-- **Privilege Separation**: Control panel runs as `www-data`, agent runs as `root`
-- **PAM Authentication**: Uses system authentication, no separate passwords
-- **No Root Web Access**: FrankenPHP never runs as root
+- **User Isolation**: Each user's PHP runs in isolated FrankenPHP process
+- **Privilege Separation**: Agent runs as root, per-user PHP runs as each user
+- **PAM Authentication**: Uses Linux system authentication
+- **Root Login Disabled**: Only non-root users (like `fastcp`) can access the panel
+- **Encrypted Credentials**: Database passwords stored with AES-256-GCM encryption
 
 ## Troubleshooting
 

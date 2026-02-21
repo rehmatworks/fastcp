@@ -63,10 +63,17 @@ RUN ARCH=${TARGETARCH:-amd64} && \
 
 # Create directories
 RUN mkdir -p /opt/fastcp/bin /opt/fastcp/data /opt/fastcp/config \
-    /var/run/fastcp /var/log/fastcp /var/log/supervisor
+    /var/run/fastcp /var/log/fastcp /var/log/supervisor /opt/fastcp/phpmyadmin
 
 # Create test user for development
 RUN useradd -m -s /bin/bash testuser && echo "testuser:testpass" | chpasswd
+
+# Download and configure phpMyAdmin
+RUN curl -fsSL https://files.phpmyadmin.net/phpMyAdmin/5.2.1/phpMyAdmin-5.2.1-all-languages.tar.gz \
+    | tar -xz -C /opt/fastcp/phpmyadmin --strip-components=1
+
+# Generate encryption secret for dev
+RUN openssl rand -base64 32 > /opt/fastcp/data/.secret && chmod 600 /opt/fastcp/data/.secret
 
 # Initialize MySQL data directory
 RUN mkdir -p /var/run/mysqld && chown mysql:mysql /var/run/mysqld

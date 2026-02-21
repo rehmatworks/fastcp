@@ -89,6 +89,7 @@ mkdir -p /opt/fastcp/config/users
 mkdir -p /var/run/fastcp
 mkdir -p /var/log/fastcp
 chmod 755 /var/run/fastcp
+chmod 1777 /var/log/fastcp
 
 # Generate encryption key for database passwords (if not exists)
 if [[ ! -f /opt/fastcp/data/.secret ]]; then
@@ -219,6 +220,7 @@ After=network.target
 Type=simple
 User=%i
 Group=%i
+Environment=HOME=/home/%i
 Environment=PHP_INI_SCAN_DIR=/opt/fastcp/config/users/%i
 ExecStart=/usr/local/bin/frankenphp run --config /opt/fastcp/config/users/%i/Caddyfile
 Restart=always
@@ -232,7 +234,7 @@ CPUQuota=100%
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/%i /var/run/fastcp /var/log/fastcp
+ReadWritePaths=/home/%i /var/run/fastcp /var/log/fastcp /tmp
 
 [Install]
 WantedBy=multi-user.target
@@ -300,7 +302,7 @@ session_name('SignonSession');
 session_start();
 
 // Function to decrypt AES-GCM (compatible with Go's crypto implementation)
-function decryptToken($encryptedBase64) {
+function decryptToken($token) {
     // Read the secret key
     $secretPath = '/opt/fastcp/data/.secret';
     if (!file_exists($secretPath)) {
@@ -316,14 +318,14 @@ function decryptToken($encryptedBase64) {
     // Hash to get 32 bytes for AES-256
     $key = hash('sha256', $decodedSecret, true);
     
-    // URL-decode and base64-decode the token
-    $encrypted = base64_decode(urldecode($_GET['token'] ?? ''));
-    if ($encrypted === false) {
-        return false;
+    // URL-safe base64 decode: replace - with + and _ with /
+    $token = strtr($token, '-_', '+/');
+    // Add padding if necessary
+    $padding = strlen($token) % 4;
+    if ($padding > 0) {
+        $token .= str_repeat('=', 4 - $padding);
     }
-    
-    // The token is base64-encoded ciphertext from Go
-    $ciphertext = base64_decode($encrypted);
+    $ciphertext = base64_decode($token);
     if ($ciphertext === false) {
         return false;
     }
@@ -470,10 +472,10 @@ echo -e "  ${CYAN}${BOLD}Control Panel URL${NC}"
 echo -e "  ${GREEN}https://${SERVER_IP}:2087${NC}"
 echo ""
 echo -e "  ${CYAN}${BOLD}Login Credentials${NC}"
-echo -e "  ${YELLOW}╔════════════════════════════════════════════════════════════╗${NC}"
-echo -e "  ${YELLOW}║${NC}  Username: ${BOLD}fastcp${NC}                                         ${YELLOW}║${NC}"
-echo -e "  ${YELLOW}║${NC}  Password: ${BOLD}${FASTCP_PASSWORD}${NC}                                 ${YELLOW}║${NC}"
-echo -e "  ${YELLOW}╚════════════════════════════════════════════════════════════╝${NC}"
+echo -e "  ${YELLOW}╔════════════════════════════════════════════╗${NC}"
+printf "  ${YELLOW}║${NC}  Username: ${BOLD}%-32s${NC}${YELLOW}║${NC}\n" "fastcp"
+printf "  ${YELLOW}║${NC}  Password: ${BOLD}%-32s${NC}${YELLOW}║${NC}\n" "${FASTCP_PASSWORD}"
+echo -e "  ${YELLOW}╚════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "  ${DIM}The 'fastcp' user is the recommended admin account for${NC}"
 echo -e "  ${DIM}creating and managing websites. Save these credentials!${NC}"

@@ -41,7 +41,7 @@ func getKey() ([]byte, error) {
 	return encryptionKey, keyErr
 }
 
-// Encrypt encrypts plaintext using AES-GCM
+// Encrypt encrypts plaintext using AES-GCM and returns standard base64
 func Encrypt(plaintext string) (string, error) {
 	key, err := getKey()
 	if err != nil {
@@ -65,6 +65,32 @@ func Encrypt(plaintext string) (string, error) {
 
 	ciphertext := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
 	return base64.StdEncoding.EncodeToString(ciphertext), nil
+}
+
+// EncryptURLSafe encrypts plaintext using AES-GCM and returns URL-safe base64
+func EncryptURLSafe(plaintext string) (string, error) {
+	key, err := getKey()
+	if err != nil {
+		return "", err
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+
+	ciphertext := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
+	return base64.URLEncoding.EncodeToString(ciphertext), nil
 }
 
 // Decrypt decrypts ciphertext using AES-GCM
