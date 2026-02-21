@@ -27,6 +27,11 @@ func NewAuthService(db *database.DB) *AuthService {
 
 // Login authenticates a user using PAM (or mock on macOS)
 func (s *AuthService) Login(ctx context.Context, req *LoginRequest) (*LoginResponse, error) {
+	// Block root login for security
+	if req.Username == "root" {
+		return nil, fmt.Errorf("root login is disabled. Please use the 'fastcp' admin account or another non-root user")
+	}
+
 	// Authenticate using PAM (platform-specific)
 	if err := s.pamAuth(req.Username, req.Password); err != nil {
 		return nil, fmt.Errorf("invalid credentials")
