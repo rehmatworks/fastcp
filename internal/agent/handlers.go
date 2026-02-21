@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/exec"
 	"os/user"
@@ -40,6 +41,7 @@ func (s *Server) runStartupMigrations() {
 	s.ensureServiceFiles()
 	s.ensurePMAConfig()
 	s.ensureUserSocketDirs()
+	s.cleanStaleSocketsAndReload()
 }
 
 func (s *Server) ensureRunDir() {
@@ -189,6 +191,37 @@ func (s *Server) ensureUserSocketDirs() {
 	} else {
 		exec.Command("pkill", "-USR1", "frankenphp").Run()
 		slog.Info("regenerated Caddyfile with new user socket paths")
+	}
+}
+
+func (s *Server) cleanStaleSocketsAndReload() {
+	// After a reboot, socket files persist on disk but the processes are dead.
+	// Remove stale sockets so FrankenPHP can bind fresh, then regenerate and reload.
+	userDirs, _ := filepath.Glob("/opt/fastcp/config/users/*")
+	for _, dir := range userDirs {
+		username := filepath.Base(dir)
+		sockFile := userSocketPath(username)
+		if _, err := os.Stat(sockFile); err != nil {
+			continue
+		}
+		// Socket file exists -- check if a process is actually listening
+		conn, err := net.Dial("unix", sockFile)
+		if err != nil {
+			// Can't connect: stale socket from a previous boot
+			os.Remove(sockFile)
+			pidFile := filepath.Join(userSocketDir(username), "php.pid")
+			os.Remove(pidFile)
+			slog.Info("removed stale socket", "username", username)
+		} else {
+			conn.Close()
+		}
+	}
+
+	// Regenerate Caddyfile and start any stopped user PHP processes
+	if err := s.generateCaddyfile(); err != nil {
+		slog.Error("failed to regenerate Caddyfile on startup", "error", err)
+	} else {
+		exec.Command("pkill", "-USR1", "frankenphp").Run()
 	}
 }
 
