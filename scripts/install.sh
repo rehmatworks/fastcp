@@ -305,7 +305,8 @@ cat > /opt/fastcp/phpmyadmin/signon.php << 'SIGNONEOF'
  * Validates encrypted tokens from FastCP and auto-logs into phpMyAdmin
  */
 
-// Start session for phpMyAdmin
+// Match phpMyAdmin's session serialize handler (phpMyAdmin uses php_serialize)
+ini_set('session.serialize_handler', 'php_serialize');
 session_name('SignonSession');
 session_start();
 
