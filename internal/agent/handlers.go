@@ -975,12 +975,20 @@ func (s *Server) generateCaddyfile() error {
 		}
 	}
 
-	// Fetch all sites
-	rows, err := db.Query("SELECT id, domain, username, document_root FROM sites")
+	// Fetch all sites (with fallback for older schemas during rolling updates)
+	rows, err := db.Query(`SELECT id, domain, username, document_root,
+		COALESCE(compression_enabled, 1), COALESCE(gzip_enabled, 1), COALESCE(zstd_enabled, 1),
+		COALESCE(cache_control_enabled, 0), COALESCE(cache_control_value, '')
+		FROM sites`)
+	legacySchema := false
 	if err != nil {
-		// If no sites table yet, use default config
-		slog.Warn("no sites table found, using default config", "error", err)
-		return nil
+		rows, err = db.Query("SELECT id, domain, username, document_root FROM sites")
+		if err != nil {
+			// If no sites table yet, use default config
+			slog.Warn("no sites table found, using default config", "error", err)
+			return nil
+		}
+		legacySchema = true
 	}
 	defer rows.Close()
 
@@ -988,8 +996,23 @@ func (s *Server) generateCaddyfile() error {
 	sitesMap := make(map[string]*siteInfo)
 	for rows.Next() {
 		var site siteInfo
-		if err := rows.Scan(&site.ID, &site.Domain, &site.Username, &site.DocumentRoot); err != nil {
-			continue
+		if legacySchema {
+			if err := rows.Scan(&site.ID, &site.Domain, &site.Username, &site.DocumentRoot); err != nil {
+				continue
+			}
+			site.CompressionEnabled = true
+			site.GzipEnabled = true
+			site.ZstdEnabled = true
+			site.CacheControlEnabled = false
+			site.CacheControlValue = ""
+		} else {
+			if err := rows.Scan(
+				&site.ID, &site.Domain, &site.Username, &site.DocumentRoot,
+				&site.CompressionEnabled, &site.GzipEnabled, &site.ZstdEnabled,
+				&site.CacheControlEnabled, &site.CacheControlValue,
+			); err != nil {
+				continue
+			}
 		}
 		site.SafeDomain = strings.ReplaceAll(site.Domain, ".", "_")
 		site.PrimaryDomain = site.Domain // Default to main domain
@@ -1272,13 +1295,38 @@ func (s *Server) generateUserCaddyfile(username string, sites []siteInfo) error 
 
 		matcherName := strings.ReplaceAll(site.SafeDomain, "-", "_")
 		hostList := strings.Join(servingDomains, " ")
+		compressionLine := ""
+		if site.CompressionEnabled {
+			var algos []string
+			if site.ZstdEnabled {
+				algos = append(algos, "zstd")
+			}
+			if site.GzipEnabled {
+				algos = append(algos, "gzip")
+			}
+			if len(algos) > 0 {
+				compressionLine = fmt.Sprintf("        encode %s\n", strings.Join(algos, " "))
+			}
+		}
+
+		cacheControlLine := ""
+		if site.CacheControlEnabled {
+			cacheVal := strings.TrimSpace(site.CacheControlValue)
+			cacheVal = strings.ReplaceAll(cacheVal, "\r", "")
+			cacheVal = strings.ReplaceAll(cacheVal, "\n", "")
+			if cacheVal != "" {
+				cacheControlLine = fmt.Sprintf("        header Cache-Control %q\n", cacheVal)
+			}
+		}
+
 		buf.WriteString(fmt.Sprintf(`    @%s host %s
     handle @%s {
         root * %s
+%s%s
         php_server
     }
 
-`, matcherName, hostList, matcherName, site.DocumentRoot))
+`, matcherName, hostList, matcherName, site.DocumentRoot, compressionLine, cacheControlLine))
 	}
 
 	// Per-user temp directory paths (directories are created by bootstrapUserEnvironment)
@@ -1359,14 +1407,19 @@ session.cookie_samesite = Strict
 }
 
 type siteInfo struct {
-	ID            string
-	Domain        string
-	Username      string
-	DocumentRoot  string
-	SafeDomain    string
-	Domains       []siteDomainInfo
-	PrimaryDomain string
-	IsSuspended   bool
+	ID                  string
+	Domain              string
+	Username            string
+	DocumentRoot        string
+	SafeDomain          string
+	Domains             []siteDomainInfo
+	PrimaryDomain       string
+	IsSuspended         bool
+	CompressionEnabled  bool
+	GzipEnabled         bool
+	ZstdEnabled         bool
+	CacheControlEnabled bool
+	CacheControlValue   string
 }
 
 type siteDomainInfo struct {

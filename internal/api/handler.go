@@ -209,6 +209,25 @@ func (h *Handler) DeleteSite(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) UpdateSiteSettings(w http.ResponseWriter, r *http.Request) {
+	user := h.getUser(r)
+	id := chi.URLParam(r, "id")
+
+	var req UpdateSiteSettingsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	req.Username = user.Username
+
+	site, err := h.siteService.UpdateSettings(r.Context(), id, user.Username, &req)
+	if err != nil {
+		h.error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	h.json(w, http.StatusOK, site)
+}
+
 // Domain handlers
 func (h *Handler) AddDomain(w http.ResponseWriter, r *http.Request) {
 	user := h.getUser(r)

@@ -40,15 +40,30 @@ type CreateSiteRequest struct {
 
 // Site represents a website
 type Site struct {
-	ID           string       `json:"id"`
-	Username     string       `json:"username"`
-	Domain       string       `json:"domain"`
-	Slug         string       `json:"slug"`
-	SiteType     string       `json:"site_type"`
-	DocumentRoot string       `json:"document_root"`
-	SSLEnabled   bool         `json:"ssl_enabled"`
-	CreatedAt    time.Time    `json:"created_at"`
-	Domains      []SiteDomain `json:"domains,omitempty"`
+	ID                  string       `json:"id"`
+	Username            string       `json:"username"`
+	Domain              string       `json:"domain"`
+	Slug                string       `json:"slug"`
+	SiteType            string       `json:"site_type"`
+	DocumentRoot        string       `json:"document_root"`
+	SSLEnabled          bool         `json:"ssl_enabled"`
+	CompressionEnabled  bool         `json:"compression_enabled"`
+	GzipEnabled         bool         `json:"gzip_enabled"`
+	ZstdEnabled         bool         `json:"zstd_enabled"`
+	CacheControlEnabled bool         `json:"cache_control_enabled"`
+	CacheControlValue   string       `json:"cache_control_value"`
+	CreatedAt           time.Time    `json:"created_at"`
+	Domains             []SiteDomain `json:"domains,omitempty"`
+}
+
+// UpdateSiteSettingsRequest is the request body for updating site runtime settings
+type UpdateSiteSettingsRequest struct {
+	Username            string `json:"-"` // Set from auth
+	CompressionEnabled  bool   `json:"compression_enabled"`
+	GzipEnabled         bool   `json:"gzip_enabled"`
+	ZstdEnabled         bool   `json:"zstd_enabled"`
+	CacheControlEnabled bool   `json:"cache_control_enabled"`
+	CacheControlValue   string `json:"cache_control_value"`
 }
 
 // ValidateSlugRequest is the request body for validating a site slug

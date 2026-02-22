@@ -156,6 +156,13 @@ func migrate(db *sql.DB) error {
 
 		// Add db_password column to databases table (encrypted)
 		`ALTER TABLE databases ADD COLUMN db_password TEXT DEFAULT ''`,
+
+		// Per-site web settings
+		`ALTER TABLE sites ADD COLUMN compression_enabled INTEGER DEFAULT 1`,
+		`ALTER TABLE sites ADD COLUMN gzip_enabled INTEGER DEFAULT 1`,
+		`ALTER TABLE sites ADD COLUMN zstd_enabled INTEGER DEFAULT 1`,
+		`ALTER TABLE sites ADD COLUMN cache_control_enabled INTEGER DEFAULT 0`,
+		`ALTER TABLE sites ADD COLUMN cache_control_value TEXT DEFAULT ''`,
 	}
 
 	for _, m := range migrations {
@@ -188,16 +195,21 @@ type User struct {
 
 // Site represents a website
 type Site struct {
-	ID           string        `json:"id"`
-	Username     string        `json:"username"`
-	Domain       string        `json:"domain"`
-	Slug         string        `json:"slug"`
-	SiteType     string        `json:"site_type"`
-	DocumentRoot string        `json:"document_root"`
-	SSLEnabled   bool          `json:"ssl_enabled"`
-	CreatedAt    time.Time     `json:"created_at"`
-	UpdatedAt    time.Time     `json:"updated_at"`
-	Domains      []*SiteDomain `json:"domains,omitempty"`
+	ID                  string        `json:"id"`
+	Username            string        `json:"username"`
+	Domain              string        `json:"domain"`
+	Slug                string        `json:"slug"`
+	SiteType            string        `json:"site_type"`
+	DocumentRoot        string        `json:"document_root"`
+	SSLEnabled          bool          `json:"ssl_enabled"`
+	CompressionEnabled  bool          `json:"compression_enabled"`
+	GzipEnabled         bool          `json:"gzip_enabled"`
+	ZstdEnabled         bool          `json:"zstd_enabled"`
+	CacheControlEnabled bool          `json:"cache_control_enabled"`
+	CacheControlValue   string        `json:"cache_control_value"`
+	CreatedAt           time.Time     `json:"created_at"`
+	UpdatedAt           time.Time     `json:"updated_at"`
+	Domains             []*SiteDomain `json:"domains,omitempty"`
 }
 
 // SiteDomain represents a domain attached to a site
@@ -409,9 +421,10 @@ func (db *DB) CleanExpiredSessions(ctx context.Context) error {
 // Site operations
 func (db *DB) CreateSite(ctx context.Context, site *Site) error {
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO sites (id, username, domain, slug, site_type, document_root, ssl_enabled)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO sites (id, username, domain, slug, site_type, document_root, ssl_enabled, compression_enabled, gzip_enabled, zstd_enabled, cache_control_enabled, cache_control_value)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		site.ID, site.Username, site.Domain, site.Slug, site.SiteType, site.DocumentRoot, site.SSLEnabled,
+		site.CompressionEnabled, site.GzipEnabled, site.ZstdEnabled, site.CacheControlEnabled, site.CacheControlValue,
 	)
 	return err
 }
@@ -420,10 +433,15 @@ func (db *DB) GetSite(ctx context.Context, id string) (*Site, error) {
 	var s Site
 	var slug sql.NullString
 	err := db.QueryRowContext(ctx,
-		`SELECT id, username, domain, COALESCE(slug, ''), site_type, document_root, ssl_enabled, created_at, updated_at
+		`SELECT id, username, domain, COALESCE(slug, ''), site_type, document_root, ssl_enabled,
+		        COALESCE(compression_enabled, 1), COALESCE(gzip_enabled, 1), COALESCE(zstd_enabled, 1),
+		        COALESCE(cache_control_enabled, 0), COALESCE(cache_control_value, ''),
+		        created_at, updated_at
 		 FROM sites WHERE id = ?`,
 		id,
-	).Scan(&s.ID, &s.Username, &s.Domain, &slug, &s.SiteType, &s.DocumentRoot, &s.SSLEnabled, &s.CreatedAt, &s.UpdatedAt)
+	).Scan(&s.ID, &s.Username, &s.Domain, &slug, &s.SiteType, &s.DocumentRoot, &s.SSLEnabled,
+		&s.CompressionEnabled, &s.GzipEnabled, &s.ZstdEnabled, &s.CacheControlEnabled, &s.CacheControlValue,
+		&s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -433,7 +451,10 @@ func (db *DB) GetSite(ctx context.Context, id string) (*Site, error) {
 
 func (db *DB) ListSites(ctx context.Context, username string) ([]*Site, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, username, domain, COALESCE(slug, ''), site_type, document_root, ssl_enabled, created_at, updated_at
+		`SELECT id, username, domain, COALESCE(slug, ''), site_type, document_root, ssl_enabled,
+		        COALESCE(compression_enabled, 1), COALESCE(gzip_enabled, 1), COALESCE(zstd_enabled, 1),
+		        COALESCE(cache_control_enabled, 0), COALESCE(cache_control_value, ''),
+		        created_at, updated_at
 		 FROM sites WHERE username = ? ORDER BY created_at DESC`,
 		username,
 	)
@@ -445,7 +466,9 @@ func (db *DB) ListSites(ctx context.Context, username string) ([]*Site, error) {
 	var sites []*Site
 	for rows.Next() {
 		var s Site
-		if err := rows.Scan(&s.ID, &s.Username, &s.Domain, &s.Slug, &s.SiteType, &s.DocumentRoot, &s.SSLEnabled, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.Username, &s.Domain, &s.Slug, &s.SiteType, &s.DocumentRoot, &s.SSLEnabled,
+			&s.CompressionEnabled, &s.GzipEnabled, &s.ZstdEnabled, &s.CacheControlEnabled, &s.CacheControlValue,
+			&s.CreatedAt, &s.UpdatedAt); err != nil {
 			return nil, err
 		}
 		sites = append(sites, &s)
@@ -488,7 +511,10 @@ func (db *DB) ListSitesPaginated(ctx context.Context, username string, page, lim
 
 	// Get paginated results
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, username, domain, COALESCE(slug, ''), site_type, document_root, ssl_enabled, created_at, updated_at
+		`SELECT id, username, domain, COALESCE(slug, ''), site_type, document_root, ssl_enabled,
+		        COALESCE(compression_enabled, 1), COALESCE(gzip_enabled, 1), COALESCE(zstd_enabled, 1),
+		        COALESCE(cache_control_enabled, 0), COALESCE(cache_control_value, ''),
+		        created_at, updated_at
 		 FROM sites WHERE username = ? AND (domain LIKE ? OR slug LIKE ?)
 		 ORDER BY created_at DESC LIMIT ? OFFSET ?`,
 		username, search, search, limit, offset,
@@ -501,7 +527,9 @@ func (db *DB) ListSitesPaginated(ctx context.Context, username string, page, lim
 	var sites []*Site
 	for rows.Next() {
 		var s Site
-		if err := rows.Scan(&s.ID, &s.Username, &s.Domain, &s.Slug, &s.SiteType, &s.DocumentRoot, &s.SSLEnabled, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.Username, &s.Domain, &s.Slug, &s.SiteType, &s.DocumentRoot, &s.SSLEnabled,
+			&s.CompressionEnabled, &s.GzipEnabled, &s.ZstdEnabled, &s.CacheControlEnabled, &s.CacheControlValue,
+			&s.CreatedAt, &s.UpdatedAt); err != nil {
 			return nil, 0, err
 		}
 		sites = append(sites, &s)
@@ -511,7 +539,10 @@ func (db *DB) ListSitesPaginated(ctx context.Context, username string, page, lim
 
 func (db *DB) ListAllSites(ctx context.Context) ([]*Site, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, username, domain, COALESCE(slug, ''), site_type, document_root, ssl_enabled, created_at, updated_at
+		`SELECT id, username, domain, COALESCE(slug, ''), site_type, document_root, ssl_enabled,
+		        COALESCE(compression_enabled, 1), COALESCE(gzip_enabled, 1), COALESCE(zstd_enabled, 1),
+		        COALESCE(cache_control_enabled, 0), COALESCE(cache_control_value, ''),
+		        created_at, updated_at
 		 FROM sites ORDER BY username, domain`,
 	)
 	if err != nil {
@@ -522,12 +553,32 @@ func (db *DB) ListAllSites(ctx context.Context) ([]*Site, error) {
 	var sites []*Site
 	for rows.Next() {
 		var s Site
-		if err := rows.Scan(&s.ID, &s.Username, &s.Domain, &s.Slug, &s.SiteType, &s.DocumentRoot, &s.SSLEnabled, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.Username, &s.Domain, &s.Slug, &s.SiteType, &s.DocumentRoot, &s.SSLEnabled,
+			&s.CompressionEnabled, &s.GzipEnabled, &s.ZstdEnabled, &s.CacheControlEnabled, &s.CacheControlValue,
+			&s.CreatedAt, &s.UpdatedAt); err != nil {
 			return nil, err
 		}
 		sites = append(sites, &s)
 	}
 	return sites, nil
+}
+
+func (db *DB) UpdateSiteSettings(ctx context.Context, siteID, username string, compressionEnabled, gzipEnabled, zstdEnabled, cacheControlEnabled bool, cacheControlValue string) error {
+	result, err := db.ExecContext(ctx,
+		`UPDATE sites
+		 SET compression_enabled = ?, gzip_enabled = ?, zstd_enabled = ?, cache_control_enabled = ?, cache_control_value = ?, updated_at = CURRENT_TIMESTAMP
+		 WHERE id = ? AND username = ?`,
+		compressionEnabled, gzipEnabled, zstdEnabled, cacheControlEnabled, cacheControlValue, siteID, username,
+	)
+	if err != nil {
+		return err
+	}
+
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 // SlugExists checks if a slug already exists for a username

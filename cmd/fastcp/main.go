@@ -122,6 +122,7 @@ func main() {
 			r.Get("/sites", apiHandler.ListSites)
 			r.Post("/sites", apiHandler.CreateSite)
 			r.Get("/sites/{id}", apiHandler.GetSite)
+			r.Put("/sites/{id}/settings", apiHandler.UpdateSiteSettings)
 			r.Delete("/sites/{id}", apiHandler.DeleteSite)
 
 			// Site domains

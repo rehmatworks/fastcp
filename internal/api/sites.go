@@ -40,15 +40,20 @@ func (s *SiteService) List(ctx context.Context, username string) ([]*Site, error
 		// Get domains for this site
 		domains, _ := s.db.GetSiteDomains(ctx, dbSite.ID)
 		sites[i] = &Site{
-			ID:           dbSite.ID,
-			Username:     dbSite.Username,
-			Domain:       dbSite.Domain,
-			Slug:         dbSite.Slug,
-			SiteType:     dbSite.SiteType,
-			DocumentRoot: dbSite.DocumentRoot,
-			SSLEnabled:   dbSite.SSLEnabled,
-			CreatedAt:    dbSite.CreatedAt,
-			Domains:      convertDomains(domains),
+			ID:                  dbSite.ID,
+			Username:            dbSite.Username,
+			Domain:              dbSite.Domain,
+			Slug:                dbSite.Slug,
+			SiteType:            dbSite.SiteType,
+			DocumentRoot:        dbSite.DocumentRoot,
+			SSLEnabled:          dbSite.SSLEnabled,
+			CompressionEnabled:  dbSite.CompressionEnabled,
+			GzipEnabled:         dbSite.GzipEnabled,
+			ZstdEnabled:         dbSite.ZstdEnabled,
+			CacheControlEnabled: dbSite.CacheControlEnabled,
+			CacheControlValue:   dbSite.CacheControlValue,
+			CreatedAt:           dbSite.CreatedAt,
+			Domains:             convertDomains(domains),
 		}
 	}
 	return sites, nil
@@ -65,15 +70,20 @@ func (s *SiteService) ListPaginated(ctx context.Context, username string, page, 
 	for i, dbSite := range dbSites {
 		domains, _ := s.db.GetSiteDomains(ctx, dbSite.ID)
 		sites[i] = &Site{
-			ID:           dbSite.ID,
-			Username:     dbSite.Username,
-			Domain:       dbSite.Domain,
-			Slug:         dbSite.Slug,
-			SiteType:     dbSite.SiteType,
-			DocumentRoot: dbSite.DocumentRoot,
-			SSLEnabled:   dbSite.SSLEnabled,
-			CreatedAt:    dbSite.CreatedAt,
-			Domains:      convertDomains(domains),
+			ID:                  dbSite.ID,
+			Username:            dbSite.Username,
+			Domain:              dbSite.Domain,
+			Slug:                dbSite.Slug,
+			SiteType:            dbSite.SiteType,
+			DocumentRoot:        dbSite.DocumentRoot,
+			SSLEnabled:          dbSite.SSLEnabled,
+			CompressionEnabled:  dbSite.CompressionEnabled,
+			GzipEnabled:         dbSite.GzipEnabled,
+			ZstdEnabled:         dbSite.ZstdEnabled,
+			CacheControlEnabled: dbSite.CacheControlEnabled,
+			CacheControlValue:   dbSite.CacheControlValue,
+			CreatedAt:           dbSite.CreatedAt,
+			Domains:             convertDomains(domains),
 		}
 	}
 	return sites, total, nil
@@ -113,15 +123,20 @@ func (s *SiteService) Get(ctx context.Context, id, username string) (*Site, erro
 	domains, _ := s.db.GetSiteDomains(ctx, dbSite.ID)
 
 	return &Site{
-		ID:           dbSite.ID,
-		Username:     dbSite.Username,
-		Domain:       dbSite.Domain,
-		Slug:         dbSite.Slug,
-		SiteType:     dbSite.SiteType,
-		DocumentRoot: dbSite.DocumentRoot,
-		SSLEnabled:   dbSite.SSLEnabled,
-		CreatedAt:    dbSite.CreatedAt,
-		Domains:      convertDomains(domains),
+		ID:                  dbSite.ID,
+		Username:            dbSite.Username,
+		Domain:              dbSite.Domain,
+		Slug:                dbSite.Slug,
+		SiteType:            dbSite.SiteType,
+		DocumentRoot:        dbSite.DocumentRoot,
+		SSLEnabled:          dbSite.SSLEnabled,
+		CompressionEnabled:  dbSite.CompressionEnabled,
+		GzipEnabled:         dbSite.GzipEnabled,
+		ZstdEnabled:         dbSite.ZstdEnabled,
+		CacheControlEnabled: dbSite.CacheControlEnabled,
+		CacheControlValue:   dbSite.CacheControlValue,
+		CreatedAt:           dbSite.CreatedAt,
+		Domains:             convertDomains(domains),
 	}, nil
 }
 
@@ -242,13 +257,18 @@ func (s *SiteService) Create(ctx context.Context, req *CreateSiteRequest) (*Site
 
 	// Save to database
 	dbSite := &database.Site{
-		ID:           id,
-		Username:     req.Username,
-		Domain:       domain,
-		Slug:         slug,
-		SiteType:     siteType,
-		DocumentRoot: documentRoot,
-		SSLEnabled:   true,
+		ID:                  id,
+		Username:            req.Username,
+		Domain:              domain,
+		Slug:                slug,
+		SiteType:            siteType,
+		DocumentRoot:        documentRoot,
+		SSLEnabled:          true,
+		CompressionEnabled:  true,
+		GzipEnabled:         true,
+		ZstdEnabled:         true,
+		CacheControlEnabled: false,
+		CacheControlValue:   "",
 	}
 	if err := s.db.CreateSite(ctx, dbSite); err != nil {
 		return nil, fmt.Errorf("failed to save site: %w", err)
@@ -272,13 +292,18 @@ func (s *SiteService) Create(ctx context.Context, req *CreateSiteRequest) (*Site
 	}
 
 	return &Site{
-		ID:           id,
-		Username:     req.Username,
-		Domain:       domain,
-		Slug:         slug,
-		SiteType:     siteType,
-		DocumentRoot: documentRoot,
-		SSLEnabled:   true,
+		ID:                  id,
+		Username:            req.Username,
+		Domain:              domain,
+		Slug:                slug,
+		SiteType:            siteType,
+		DocumentRoot:        documentRoot,
+		SSLEnabled:          true,
+		CompressionEnabled:  true,
+		GzipEnabled:         true,
+		ZstdEnabled:         true,
+		CacheControlEnabled: false,
+		CacheControlValue:   "",
 		Domains: []SiteDomain{{
 			ID:                primaryDomain.ID,
 			SiteID:            id,
@@ -321,6 +346,51 @@ func (s *SiteService) Delete(ctx context.Context, id, username string) error {
 	}
 
 	return nil
+}
+
+// UpdateSettings updates per-site runtime settings and regenerates Caddy configuration.
+func (s *SiteService) UpdateSettings(ctx context.Context, siteID, username string, req *UpdateSiteSettingsRequest) (*Site, error) {
+	// Verify ownership first
+	dbSite, err := s.db.GetSite(ctx, siteID)
+	if err != nil || dbSite.Username != username {
+		return nil, fmt.Errorf("site not found")
+	}
+
+	cacheControlValue := strings.TrimSpace(req.CacheControlValue)
+	cacheControlValue = strings.ReplaceAll(cacheControlValue, "\r", "")
+	cacheControlValue = strings.ReplaceAll(cacheControlValue, "\n", "")
+	if len(cacheControlValue) > 255 {
+		return nil, fmt.Errorf("cache-control value is too long")
+	}
+
+	if req.CompressionEnabled && !req.GzipEnabled && !req.ZstdEnabled {
+		return nil, fmt.Errorf("enable at least one compression algorithm (gzip or zstd)")
+	}
+	if req.CacheControlEnabled && cacheControlValue == "" {
+		return nil, fmt.Errorf("cache-control value is required when cache-control is enabled")
+	}
+
+	// When compression is disabled, force algorithms off for clarity.
+	gzipEnabled := req.GzipEnabled
+	zstdEnabled := req.ZstdEnabled
+	if !req.CompressionEnabled {
+		gzipEnabled = false
+		zstdEnabled = false
+	}
+
+	if err := s.db.UpdateSiteSettings(ctx, siteID, username, req.CompressionEnabled, gzipEnabled, zstdEnabled, req.CacheControlEnabled, cacheControlValue); err != nil {
+		if err == context.Canceled {
+			return nil, err
+		}
+		return nil, fmt.Errorf("failed to update site settings: %w", err)
+	}
+
+	// Reload Caddy configuration
+	if err := s.agent.ReloadCaddy(ctx); err != nil {
+		fmt.Printf("warning: failed to reload Caddy: %v\n", err)
+	}
+
+	return s.Get(ctx, siteID, username)
 }
 
 const maxDomainsPerSite = 20
