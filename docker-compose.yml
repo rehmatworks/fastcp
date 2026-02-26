@@ -1,0 +1,87 @@
+# FastCP Development Environment
+# Usage: docker compose up
+
+services:
+  dev:
+    build:
+      context: .
+      target: development
+    container_name: fastcp-dev
+    hostname: fastcp-dev
+    
+    volumes:
+      - .:/app:cached
+      - fastcp-data:/opt/fastcp/data
+      - mysql-data:/var/lib/mysql
+      - go-cache:/root/go/pkg/mod
+      
+    ports:
+      - "2050:2050"
+      - "80:80"
+      - "443:443"
+      - "3306:3306"
+    
+    tty: true
+    stdin_open: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    
+    command:
+      - /bin/bash
+      - -c
+      - |
+        echo "Starting development environment..."
+        service mysql start
+        sleep 3
+        echo "MySQL started."
+        echo ""
+        echo "========================================"
+        echo "  FastCP Development Environment"
+        echo "========================================"
+        echo ""
+        echo "Build and run FastCP:"
+        echo "  cd /app"
+        echo "  go build -o /opt/fastcp/bin/fastcp ./cmd/fastcp"
+        echo "  go build -o /opt/fastcp/bin/fastcp-agent ./cmd/fastcp-agent"
+        echo "  /opt/fastcp/bin/fastcp-agent &"
+        echo "  /opt/fastcp/bin/fastcp"
+        echo ""
+        echo "Or use the helper script:"
+        echo "  /app/docker/dev-run.sh"
+        echo ""
+        echo "Test user credentials:"
+        echo "  Username: testuser"
+        echo "  Password: testpass"
+        echo ""
+        tail -f /dev/null
+    
+    environment:
+      - FASTCP_DEV=1
+      - CGO_ENABLED=1
+
+  prod:
+    build:
+      context: .
+      target: production
+    container_name: fastcp-prod
+    hostname: fastcp-prod
+    
+    volumes:
+      - fastcp-prod-data:/opt/fastcp/data
+      - mysql-prod-data:/var/lib/mysql
+    
+    ports:
+      - "2050:2050"
+      - "80:80"
+      - "443:443"
+    
+    profiles:
+      - prod
+
+volumes:
+  fastcp-data:
+  mysql-data:
+  go-cache:
+  fastcp-prod-data:
+  mysql-prod-data:

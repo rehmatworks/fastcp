@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+            goarch: amd64
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            goarch: arm64
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpam0g-dev
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Build binaries
+        env:
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 1
+        run: |
+          go build -ldflags "-s -w -X main.Version=${{ steps.version.outputs.VERSION }}" -o fastcp-linux-${{ matrix.arch }} ./cmd/fastcp
+          go build -ldflags "-s -w -X main.Version=${{ steps.version.outputs.VERSION }}" -o fastcp-agent-linux-${{ matrix.arch }} ./cmd/fastcp-agent
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.arch }}
+          path: |
+            fastcp-linux-${{ matrix.arch }}
+            fastcp-agent-linux-${{ matrix.arch }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Download AMD64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries-amd64
+
+      - name: Download ARM64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries-arm64
+
+      - name: Prepare install script
+        run: |
+          cp scripts/install.sh install.sh
+          chmod +x install.sh
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: FastCP ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## FastCP ${{ steps.version.outputs.VERSION }}
+            
+            ### Quick Install
+            
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/rehmatworks/fastcp/main/scripts/install.sh | bash
+            ```
+            
+            ### Requirements
+            
+            - Ubuntu 22.04 or 24.04 (Debian 11/12 also supported)
+            - Root access
+            - Clean server (no existing web server)
+            
+            ### What's Included
+            
+            | File | Architecture | Description |
+            |------|-------------|-------------|
+            | `fastcp-linux-amd64` | x86_64 | Control panel |
+            | `fastcp-linux-arm64` | ARM64 | Control panel |
+            | `fastcp-agent-linux-amd64` | x86_64 | Privileged agent |
+            | `fastcp-agent-linux-arm64` | ARM64 | Privileged agent |
+            | `install.sh` | - | Installer script |
+            
+          files: |
+            fastcp-linux-amd64
+            fastcp-linux-arm64
+            fastcp-agent-linux-amd64
+            fastcp-agent-linux-arm64
+            install.sh
+          draft: false
+          prerelease: false

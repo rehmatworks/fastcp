@@ -1,0 +1,62 @@
+# Binaries
+bin/
+/dist/
+/fastcp
+/fastcp-agent
+!cmd/fastcp/ui/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+vendor/
+
+# Local development
+dev/
+*.local
+.env
+.env.local
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+
+# Cursor
+.cursor/
+
+# Certificates
+*.pem
+*.key
+*.crt
+
+# Reference data
+ref-data/
+
+# Local backup repositories/artifacts
+backups/
