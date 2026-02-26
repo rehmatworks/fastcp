@@ -23,13 +23,13 @@ A lightweight, modern server control panel for Ubuntu servers powered by Caddy a
 ## Quick Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rehmatworks/fastcp/main/scripts/install.sh | bash
+curl -fsSL https://get.fastcp.org | bash
 ```
 
 Or manually:
 
 ```bash
-wget https://raw.githubusercontent.com/rehmat/fastcp/main/scripts/install.sh
+wget -O install.sh https://get.fastcp.org
 chmod +x install.sh
 sudo ./install.sh
 ```
