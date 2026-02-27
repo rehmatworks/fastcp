@@ -35,11 +35,13 @@ const (
 	caddyConfig   = "/opt/fastcp/config/Caddyfile"
 	mysqlSocket   = "/var/run/mysqld/mysqld.sock"
 	fastcpRunDir  = "/opt/fastcp/run"
+	fastcpMotd    = "/etc/update-motd.d/99-fastcp"
 )
 
 // runStartupMigrations fixes configuration drift on agent startup (e.g. after updates).
 func (s *Server) runStartupMigrations() {
 	s.ensureRunDir()
+	s.ensureMOTDWelcome()
 	s.ensureCaddyBinary()
 	s.ensureBackupDependencies()
 	s.ensurePHPIniConfig()
@@ -88,6 +90,90 @@ func (s *Server) ensureRunDir() {
 
 	// Clean up old tmpfs-based runtime dir
 	os.Remove("/etc/tmpfiles.d/fastcp.conf")
+}
+
+func (s *Server) ensureMOTDWelcome() {
+	content := `#!/bin/sh
+#
+# FastCP login welcome message (MOTD)
+#
+
+host_name="$(hostname 2>/dev/null)"
+host_ips="$(hostname -I 2>/dev/null || true)"
+primary_ipv4="$(echo "$host_ips" | tr ' ' '\n' | awk '/^([0-9]{1,3}\.){3}[0-9]{1,3}$/ {print; exit}')"
+primary_ipv6="$(echo "$host_ips" | tr ' ' '\n' | awk 'index($0, ":") > 0 {gsub(/%.*/, "", $0); print; exit}')"
+if [ -n "$primary_ipv4" ]; then
+  panel_host="$primary_ipv4"
+elif [ -n "$primary_ipv6" ]; then
+  panel_host="[$primary_ipv6]"
+else
+  panel_host="127.0.0.1"
+fi
+
+uptime_human="$(uptime -p 2>/dev/null | sed 's/^up //')"
+[ -z "$uptime_human" ] && uptime_human="$(uptime 2>/dev/null | sed 's/.*up \([^,]*\),.*/\1/')"
+[ -z "$uptime_human" ] && uptime_human="N/A"
+
+load_avg="$(awk '{print $1" "$2" "$3}' /proc/loadavg 2>/dev/null)"
+[ -z "$load_avg" ] && load_avg="N/A"
+
+mem_total_mb="$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)"
+mem_avail_mb="$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)"
+if [ -n "$mem_total_mb" ] && [ -n "$mem_avail_mb" ]; then
+  mem_used_mb=$((mem_total_mb - mem_avail_mb))
+  memory_line="${mem_used_mb}MB / ${mem_total_mb}MB"
+else
+  memory_line="N/A"
+fi
+
+disk_root="$(df -h / 2>/dev/null | awk 'NR==2 {print $3" / "$2" ("$5" used)"}')"
+[ -z "$disk_root" ] && disk_root="N/A"
+
+fastcp_version=""
+if [ -x /opt/fastcp/bin/fastcp ]; then
+  fastcp_version="$(/opt/fastcp/bin/fastcp --version 2>/dev/null | awk '{print $2}')"
+  case "$fastcp_version" in
+    ""|dev|unknown) fastcp_version="" ;;
+  esac
+fi
+
+panel_url="https://${panel_host}:2050"
+
+service_line=""
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+  panel_status="$(systemctl is-active fastcp 2>/dev/null || echo unknown)"
+  agent_status="$(systemctl is-active fastcp-agent 2>/dev/null || echo unknown)"
+  service_line="fastcp=${panel_status}, agent=${agent_status}"
+fi
+
+printf "\n"
+printf "FastCP Server Welcome\n"
+printf "---------------------\n"
+printf "Control Panel: %s\n" "$panel_url"
+printf "Host: %s\n" "${host_name:-N/A}"
+printf "Uptime: %s\n" "$uptime_human"
+printf "Load Average: %s\n" "$load_avg"
+printf "Memory Usage: %s\n" "$memory_line"
+printf "Disk Usage (/): %s\n" "$disk_root"
+[ -n "$service_line" ] && printf "Services: %s\n" "$service_line"
+[ -n "$fastcp_version" ] && printf "FastCP Version: %s\n" "$fastcp_version"
+printf "Docs: https://fastcp.org/docs\n"
+printf "GitHub: https://github.com/rehmatworks/fastcp\n"
+printf "\n"
+`
+
+	existing, err := os.ReadFile(fastcpMotd)
+	if err == nil && string(existing) == content {
+		return
+	}
+
+	if err := os.WriteFile(fastcpMotd, []byte(content), 0755); err != nil {
+		slog.Warn("failed to write FastCP MOTD script", "path", fastcpMotd, "error", err)
+		return
+	}
+	if err := os.Chmod(fastcpMotd, 0755); err != nil {
+		slog.Warn("failed to set executable bit on FastCP MOTD script", "path", fastcpMotd, "error", err)
+	}
 }
 
 func (s *Server) ensureCaddyBinary() {

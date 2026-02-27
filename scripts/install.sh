@@ -28,18 +28,18 @@ print_banner() {
     echo ""
     echo -e "${CYAN}${BOLD}"
     cat << 'EOF'
-    ______           __  __________ 
-   / ____/___ ______/ /_/ ____/ __ \
-  / /_  / __ `/ ___/ __/ /   / /_/ /
- / __/ / /_/ (__  ) /_/ /___/ ____/ 
-/_/    \__,_/____/\__/\____/_/      
-                                    
+███████╗ █████╗ ███████╗████████╗ ██████╗██████╗ 
+██╔════╝██╔══██╗██╔════╝╚══██╔══╝██╔════╝██╔══██╗
+█████╗  ███████║███████╗   ██║   ██║     ██████╔╝
+██╔══╝  ██╔══██║╚════██║   ██║   ██║     ██╔═══╝ 
+██║     ██║  ██║███████║   ██║   ╚██████╗██║     
+╚═╝     ╚═╝  ╚═╝╚══════╝   ╚═╝    ╚═════╝╚═╝                                  
 EOF
     echo -e "${NC}"
     echo -e "${DIM}Lightweight Server Control Panel${NC}"
     echo ""
     echo -e "${BLUE}Author:${NC}    Rehmat Alam"
-    echo -e "${BLUE}Website:${NC}   https://github.com/rehmatworks/fastcp"
+    echo -e "${BLUE}Website:${NC}   https://fastcp.org"
     echo -e "${BLUE}License:${NC}   MIT"
     echo ""
     echo -e "${DIM}────────────────────────────────────────────${NC}"
@@ -96,6 +96,9 @@ fi
 USE_SYSTEMD=0
 FASTCP_READY=0
 DISPLAY_HOST="127.0.0.1"
+SERVER_IPV4=""
+SERVER_IPV6=""
+CERT_SAN_IP="127.0.0.1"
 
 # Wait for any existing apt locks (e.g. unattended-upgrades on fresh VPS)
 wait_for_apt() {
@@ -126,12 +129,24 @@ else
 fi
 apt-get install -y -qq $BASE_DEPS > /dev/null
 
-# Get server IP early (needed for SSL cert)
-SERVER_IP=$(curl -s --connect-timeout 5 ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
+# Detect server IPs early (needed for SSL cert and display URLs)
+HOST_IPS="$(hostname -I 2>/dev/null || true)"
+SERVER_IPV4="$(echo "$HOST_IPS" | tr ' ' '\n' | awk '/^([0-9]{1,3}\.){3}[0-9]{1,3}$/ {print; exit}')"
+SERVER_IPV6="$(echo "$HOST_IPS" | tr ' ' '\n' | awk 'index($0, ":") > 0 {gsub(/%.*/, "", $0); print; exit}')"
 if [[ $IN_CONTAINER -eq 1 ]]; then
     DISPLAY_HOST="localhost"
+    CERT_SAN_IP="127.0.0.1"
 else
-    DISPLAY_HOST="${SERVER_IP:-127.0.0.1}"
+    if [[ -n "$SERVER_IPV4" ]]; then
+        DISPLAY_HOST="$SERVER_IPV4"
+        CERT_SAN_IP="$SERVER_IPV4"
+    elif [[ -n "$SERVER_IPV6" ]]; then
+        DISPLAY_HOST="[$SERVER_IPV6]"
+        CERT_SAN_IP="$SERVER_IPV6"
+    else
+        DISPLAY_HOST="127.0.0.1"
+        CERT_SAN_IP="127.0.0.1"
+    fi
 fi
 
 # Ensure swap exists on low-memory servers
@@ -311,7 +326,7 @@ if [[ ! -f /opt/fastcp/ssl/server.crt ]]; then
         -keyout /opt/fastcp/ssl/server.key \
         -out /opt/fastcp/ssl/server.crt \
         -subj "/C=US/ST=State/L=City/O=FastCP/CN=$(hostname -f)" \
-        -addext "subjectAltName=DNS:$(hostname -f),DNS:localhost,IP:127.0.0.1,IP:${SERVER_IP:-127.0.0.1}" \
+        -addext "subjectAltName=DNS:$(hostname -f),DNS:localhost,IP:127.0.0.1,IP:${CERT_SAN_IP}" \
         2>/dev/null
     chmod 600 /opt/fastcp/ssl/server.key
     chmod 644 /opt/fastcp/ssl/server.crt
