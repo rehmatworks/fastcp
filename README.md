@@ -215,8 +215,11 @@ sudo systemctl restart fastcp
 ## Uninstall
 
 ```bash
-curl -fsSL https://get.fastcp.org/uninstall.sh | sudo bash
+curl -fsSL https://get.fastcp.org/uninstall.sh -o /tmp/fastcp-uninstall.sh
+sudo bash /tmp/fastcp-uninstall.sh
 ```
+
+The uninstaller is interactive and asks for confirmation before destructive actions.
 
 ## Contributing
 
