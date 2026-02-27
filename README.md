@@ -215,7 +215,7 @@ sudo systemctl restart fastcp
 ## Uninstall
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rehmat/fastcp/main/scripts/uninstall.sh | sudo bash
+curl -fsSL https://get.fastcp.org/uninstall.sh | sudo bash
 ```
 
 ## Contributing
