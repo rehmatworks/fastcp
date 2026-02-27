@@ -7,6 +7,7 @@ import (
 	"context"
 	cryptoRand "crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -522,31 +523,14 @@ func (s *Server) handleCreateSiteDirectory(ctx context.Context, params json.RawM
 	if err := copyDefaultSiteLogo(filepath.Join(siteDir, "public")); err != nil {
 		slog.Warn("failed to copy default site logo", "error", err)
 	}
+	logoDataURI := defaultSiteLogoDataURI()
 
 	// Create default index.php with minimalist welcome page
 	indexPath := filepath.Join(siteDir, "public", "index.php")
 	indexContent := fmt.Sprintf(`<?php
 $domain = '%s';
 $docRoot = '%s';
-$logoPath = '';
-$logoCandidates = ['/.fastcp/logo.svg', '/.fastcp/logo-small.png', '/.fastcp/icon.png'];
-foreach ($logoCandidates as $candidate) {
-    $full = __DIR__ . $candidate;
-    if (!is_file($full)) {
-        continue;
-    }
-    // Skip malformed svg files from old templates.
-    if (str_ends_with($candidate, '.svg')) {
-        $snippet = @file_get_contents($full, false, null, 0, 2048);
-        if ($snippet === false || strpos($snippet, '%%') !== false) {
-            continue;
-        }
-    }
-    if (is_file($full)) {
-        $logoPath = $candidate;
-        break;
-    }
-}
+$logoDataUri = '%s';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -667,11 +651,9 @@ foreach ($logoCandidates as $candidate) {
 </head>
 <body>
     <main class="shell">
-        <?php if ($logoPath !== ''): ?>
         <div class="brand">
-            <img src="<?php echo htmlspecialchars($logoPath, ENT_QUOTES, 'UTF-8'); ?>" alt="FastCP logo">
+            <img src="<?php echo htmlspecialchars($logoDataUri, ENT_QUOTES, 'UTF-8'); ?>" alt="FastCP logo">
         </div>
-        <?php endif; ?>
 
         <h1>Your website is ready</h1>
         <p class="domain"><?php echo $domain; ?></p>
@@ -684,7 +666,7 @@ foreach ($logoCandidates as $candidate) {
     </main>
 </body>
 </html>
-`, req.Domain, filepath.Join(siteDir, "public"))
+`, req.Domain, filepath.Join(siteDir, "public"), logoDataURI)
 
 	if err := os.WriteFile(indexPath, []byte(indexContent), 0644); err != nil {
 		return nil, fmt.Errorf("failed to create index.php: %w", err)
@@ -754,6 +736,29 @@ func copyDefaultSiteLogo(publicDir string) error {
 		return err
 	}
 	return nil
+}
+
+func defaultSiteLogoDataURI() string {
+	baseDirs := []string{
+		"/opt/fastcp/ui/dist/assets",
+		"/app/cmd/fastcp/ui/dist/assets",
+		filepath.Join(".", "cmd", "fastcp", "ui", "dist", "assets"),
+	}
+	for _, baseDir := range baseDirs {
+		src := filepath.Join(baseDir, "logo.svg")
+		raw, err := os.ReadFile(src)
+		if err != nil || len(raw) == 0 {
+			continue
+		}
+		svg := strings.TrimSpace(string(raw))
+		if svg == "" || strings.Contains(svg, "%%") {
+			continue
+		}
+		return "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(svg))
+	}
+
+	fallback := `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="90" viewBox="0 0 420 90" fill="none"><text x="50%" y="56%" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Arial, sans-serif" font-size="44" font-weight="700" fill="#004AAD">FastCP</text></svg>`
+	return "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(fallback))
 }
 
 func (s *Server) handleDeleteSiteDirectory(ctx context.Context, params json.RawMessage) (any, error) {
