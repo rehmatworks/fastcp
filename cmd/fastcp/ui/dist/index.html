@@ -975,7 +975,7 @@
                                             <span class="text-xs text-gray-500" x-text="snapshotContentsSummary(snap)"></span>
                                         </div>
                                         <div class="flex items-center gap-1.5 shrink-0" @click.stop>
-                                            <button @click="if(confirm('Download this snapshot as a ZIP file? This may take a while for large backups.')) downloadSelectedBackupSnapshot(snap.id)"
+                                            <button @click="confirmDownloadSnapshot(snap.id)"
                                                     :disabled="backupSnapshotDownloading"
                                                     class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-md disabled:opacity-40"
                                                     title="Download ZIP">
@@ -1023,7 +1023,7 @@
                                                             <div class="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2">
                                                                 <span class="text-sm text-gray-800 truncate" x-text="domain"></span>
                                                                 <template x-if="snapshotRestoreSiteByDomain(snap, domain)">
-                                                                    <button @click="if(confirm('Restore ' + domain + ' from this snapshot? This will overwrite the current site files.')) restoreSiteFromSnapshot(snapshotRestoreSiteByDomain(snap, domain).id, snap.id)"
+                                                                    <button @click="confirmRestoreSiteSnapshot(snap, domain)"
                                                                             :disabled="restoreLoading"
                                                                             class="shrink-0 px-2.5 py-1 text-xs font-medium text-primary-600 bg-primary-50 rounded-md hover:bg-primary-100 disabled:opacity-50">
                                                                         Restore
@@ -1049,7 +1049,7 @@
                                                             <div class="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2">
                                                                 <span class="text-sm text-gray-800 font-mono truncate" x-text="dbName"></span>
                                                                 <template x-if="snapshotRestoreDBByName(snap, dbName)">
-                                                                    <button @click="if(confirm('Restore database \'' + dbName + '\' from this snapshot? This will overwrite the current database.')) restoreDatabaseFromSnapshot(snapshotRestoreDBByName(snap, dbName).id, snap.id)"
+                                                                    <button @click="confirmRestoreDatabaseSnapshot(snap, dbName)"
                                                                             :disabled="restoreLoading"
                                                                             class="shrink-0 px-2.5 py-1 text-xs font-medium text-emerald-600 bg-emerald-50 rounded-md hover:bg-emerald-100 disabled:opacity-50">
                                                                         Restore
@@ -2591,6 +2591,26 @@
         </div>
     </div>
 
+    <!-- Notice Modal -->
+    <div x-show="showNoticeModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" x-transition @keydown.escape.window="closeNotice()">
+        <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4" @click.away="closeNotice()">
+            <div class="flex items-start">
+                <div class="w-11 h-11 rounded-full bg-blue-100 flex items-center justify-center mr-3 flex-shrink-0">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900" x-text="noticeModalTitle"></h3>
+                    <p class="text-sm text-gray-600 mt-1 whitespace-pre-line" x-text="noticeModalMessage"></p>
+                </div>
+            </div>
+            <div class="mt-6">
+                <button @click="closeNotice()" class="w-full px-4 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium" x-text="noticeModalButtonText"></button>
+            </div>
+        </div>
+    </div>
+
     <!-- Impersonate User Modal -->
     <div x-show="showImpersonateUserModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" x-transition>
         <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4" @click.away="if(!impersonationStarting) { showImpersonateUserModal = false; impersonationError = ''; }">
@@ -2675,6 +2695,11 @@
                 confirmModalMessage: '',
                 confirmModalConfirmText: 'Delete',
                 confirmModalResolver: null,
+                showNoticeModal: false,
+                noticeModalTitle: '',
+                noticeModalMessage: '',
+                noticeModalButtonText: 'OK',
+                noticeModalResolver: null,
                 sites: [],
                 sitesTotal: 0,
                 sitesPage: 1,
@@ -3220,7 +3245,12 @@
                         return;
                     }
                     const targetSnapshotID = snapshotID;
-                    if (!confirm('Delete this snapshot? This action cannot be undone.')) {
+                    const confirmed = await this.askConfirmation({
+                        title: 'Delete Snapshot',
+                        message: 'Delete this snapshot? This action cannot be undone.',
+                        confirmText: 'Delete Snapshot'
+                    });
+                    if (!confirmed) {
                         return;
                     }
                     this.backupSnapshotDeleting = true;
@@ -3235,6 +3265,37 @@
                     } finally {
                         this.backupSnapshotDeleting = false;
                     }
+                },
+                async confirmDownloadSnapshot(snapshotID = '') {
+                    const confirmed = await this.askConfirmation({
+                        title: 'Download Snapshot ZIP',
+                        message: 'Download this snapshot as a ZIP file? This may take a while for large backups.',
+                        confirmText: 'Download ZIP'
+                    });
+                    if (!confirmed) return;
+                    await this.downloadSelectedBackupSnapshot(snapshotID);
+                },
+                async confirmRestoreSiteSnapshot(snapshot, domain) {
+                    const target = this.snapshotRestoreSiteByDomain(snapshot, domain);
+                    if (!target) return;
+                    const confirmed = await this.askConfirmation({
+                        title: 'Restore Website',
+                        message: `Restore ${domain} from this snapshot? This will overwrite the current site files.`,
+                        confirmText: 'Restore Website'
+                    });
+                    if (!confirmed) return;
+                    await this.restoreSiteFromSnapshot(target.id, snapshot.id);
+                },
+                async confirmRestoreDatabaseSnapshot(snapshot, dbName) {
+                    const target = this.snapshotRestoreDBByName(snapshot, dbName);
+                    if (!target) return;
+                    const confirmed = await this.askConfirmation({
+                        title: 'Restore Database',
+                        message: `Restore database "${dbName}" from this snapshot? This will overwrite the current database.`,
+                        confirmText: 'Restore Database'
+                    });
+                    if (!confirmed) return;
+                    await this.restoreDatabaseFromSnapshot(target.id, snapshot.id);
                 },
                 snapshotTagValuesFor(snapshot, prefix) {
                     if (!snapshot || !Array.isArray(snapshot.tags)) return [];
@@ -3921,6 +3982,22 @@
                         this.confirmModalResolver = null;
                     }
                 },
+                showNotice({ title, message, buttonText = 'OK' }) {
+                    return new Promise((resolve) => {
+                        this.noticeModalTitle = title || 'Notice';
+                        this.noticeModalMessage = message || '';
+                        this.noticeModalButtonText = buttonText;
+                        this.noticeModalResolver = resolve;
+                        this.showNoticeModal = true;
+                    });
+                },
+                closeNotice() {
+                    this.showNoticeModal = false;
+                    if (this.noticeModalResolver) {
+                        this.noticeModalResolver(true);
+                        this.noticeModalResolver = null;
+                    }
+                },
 
                 async deleteSite(site) {
                     const confirmed = await this.askConfirmation({
@@ -3934,7 +4011,10 @@
                         await this.api(`/sites/${site.id}`, 'DELETE');
                         await this.loadSites();
                     } catch (e) {
-                        alert('Failed to delete site: ' + (e.message || 'Unknown error'));
+                        await this.showNotice({
+                            title: 'Delete Site Failed',
+                            message: e.message || 'Unknown error'
+                        });
                     } finally {
                         this.deletingSiteId = null;
                     }
@@ -4170,7 +4250,10 @@
                         await this.api(`/databases/${db.id}`, 'DELETE');
                         await this.loadDatabases();
                     } catch (e) {
-                        alert('Failed to delete database: ' + (e.message || 'Unknown error'));
+                        await this.showNotice({
+                            title: 'Delete Database Failed',
+                            message: e.message || 'Unknown error'
+                        });
                     } finally {
                         this.deletingDatabaseId = null;
                     }
@@ -4193,7 +4276,10 @@
                             window.open(resp.url, '_blank');
                         }
                     } catch(e) {
-                        alert('Could not open phpMyAdmin: ' + e.message + '\n\nNote: Databases created before this feature do not have stored credentials.');
+                        await this.showNotice({
+                            title: 'Could Not Open phpMyAdmin',
+                            message: (e.message || 'Request failed') + '\n\nNote: databases created before this feature do not have stored credentials.'
+                        });
                     }
                 },
 
@@ -4496,7 +4582,10 @@
                         await this.api(`/users/${u.username}`, 'DELETE');
                         this.loadUsers();
                     } catch(e) {
-                        alert('Failed to delete user: ' + e.message);
+                        await this.showNotice({
+                            title: 'Delete User Failed',
+                            message: e.message || 'Request failed'
+                        });
                     } finally {
                         this.deletingUser = null;
                     }
@@ -4504,13 +4593,21 @@
 
                 async toggleUserSuspension(u) {
                     const action = u.is_suspended ? 'unsuspend' : 'suspend';
-                    if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} user "${u.username}"?`)) return;
+                    const confirmed = await this.askConfirmation({
+                        title: `${action.charAt(0).toUpperCase() + action.slice(1)} User`,
+                        message: `${action.charAt(0).toUpperCase() + action.slice(1)} user "${u.username}"?`,
+                        confirmText: `${action.charAt(0).toUpperCase() + action.slice(1)} User`
+                    });
+                    if (!confirmed) return;
                     this.suspendingUser = u.username;
                     try {
                         await this.api(`/users/${u.username}/toggle-suspend`, 'POST');
                         this.loadUsers();
                     } catch(e) {
-                        alert('Failed to ' + action + ' user: ' + e.message);
+                        await this.showNotice({
+                            title: `${action.charAt(0).toUpperCase() + action.slice(1)} User Failed`,
+                            message: e.message || 'Request failed'
+                        });
                     } finally {
                         this.suspendingUser = null;
                     }
@@ -4533,7 +4630,12 @@
                 },
 
                 async performUpdate() {
-                    if (!confirm(`Update FastCP to ${this.updateInfo.latest_version}? The control panel will restart.`)) return;
+                    const confirmed = await this.askConfirmation({
+                        title: 'Update FastCP',
+                        message: `Update FastCP to ${this.updateInfo.latest_version}? The control panel will restart.`,
+                        confirmText: 'Update Now'
+                    });
+                    if (!confirmed) return;
                     this.updateLoading = true;
                     this.updateError = '';
                     this.updateProgress = 5;
