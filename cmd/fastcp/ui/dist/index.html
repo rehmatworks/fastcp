@@ -2985,13 +2985,61 @@
                 },
 
                 async logout() {
-                    await this.api('/auth/logout', 'POST').catch(() => {});
+                    const logoutToken = this.token;
+                    if (logoutToken) {
+                        try {
+                            await fetch(`${API}/auth/logout`, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${logoutToken}`,
+                                    'Content-Type': 'application/json'
+                                }
+                            });
+                        } catch (_e) {}
+                    }
                     localStorage.removeItem('fastcp_token');
                     localStorage.removeItem(ADMIN_IMPERSONATION_BACKUP_TOKEN_KEY);
                     localStorage.removeItem(ADMIN_IMPERSONATION_BACKUP_USER_KEY);
                     this.token = null;
                     this.authenticated = false;
                     this.user = null;
+                },
+
+                async restoreAdminSession(failedToken = '') {
+                    const adminToken = localStorage.getItem(ADMIN_IMPERSONATION_BACKUP_TOKEN_KEY);
+                    if (!adminToken || adminToken === failedToken) {
+                        return false;
+                    }
+
+                    this.token = adminToken;
+                    localStorage.setItem('fastcp_token', adminToken);
+                    try {
+                        await this.fetchUser();
+                        localStorage.removeItem(ADMIN_IMPERSONATION_BACKUP_TOKEN_KEY);
+                        localStorage.removeItem(ADMIN_IMPERSONATION_BACKUP_USER_KEY);
+                        this.authenticated = true;
+                        this.tab = this.user?.is_admin ? 'users' : 'dashboard';
+                        window.location.hash = this.tab;
+                        this.loadTabData(this.tab);
+                        return true;
+                    } catch (_e) {
+                        this.token = null;
+                        this.user = null;
+                        localStorage.removeItem('fastcp_token');
+                        localStorage.removeItem(ADMIN_IMPERSONATION_BACKUP_TOKEN_KEY);
+                        localStorage.removeItem(ADMIN_IMPERSONATION_BACKUP_USER_KEY);
+                        return false;
+                    }
+                },
+
+                async handleUnauthorized(requestToken = '') {
+                    if (requestToken && requestToken !== this.token) {
+                        return;
+                    }
+                    if (await this.restoreAdminSession(requestToken)) {
+                        return;
+                    }
+                    await this.logout();
                 },
 
                 async fetchUser() {
@@ -4461,7 +4509,7 @@
                         localStorage.setItem(ADMIN_IMPERSONATION_BACKUP_USER_KEY, this.user?.username || '');
                         this.token = result.token;
                         localStorage.setItem('fastcp_token', this.token);
-                        this.user = result.user;
+                        await this.fetchUser();
                         this.showImpersonateUserModal = false;
                         this.impersonateForm = { target_username: '', admin_password: '', reason: '' };
                         window.location.hash = 'dashboard';
@@ -4475,26 +4523,17 @@
                 async stopImpersonation() {
                     if (this.impersonationStopping) return;
                     this.impersonationStopping = true;
+                    const activeToken = this.token;
                     try {
                         await this.api('/auth/impersonation/stop', 'POST', {});
                     } catch (_e) {
                         // Continue with local token restore/log out even if server-side stop had an error.
                     }
-                    const adminToken = localStorage.getItem(ADMIN_IMPERSONATION_BACKUP_TOKEN_KEY);
-                    localStorage.removeItem(ADMIN_IMPERSONATION_BACKUP_TOKEN_KEY);
-                    localStorage.removeItem(ADMIN_IMPERSONATION_BACKUP_USER_KEY);
-                    if (!adminToken) {
-                        await this.logout();
-                        this.impersonationStopping = false;
-                        return;
-                    }
-                    this.token = adminToken;
-                    localStorage.setItem('fastcp_token', adminToken);
                     try {
-                        await this.fetchUser();
-                        this.tab = this.user?.is_admin ? 'users' : 'dashboard';
-                        window.location.hash = this.tab;
-                        this.loadTabData(this.tab);
+                        const restored = await this.restoreAdminSession(activeToken);
+                        if (!restored) {
+                            await this.logout();
+                        }
                     } catch (_e) {
                         await this.logout();
                     } finally {
@@ -4687,13 +4726,17 @@
                 },
 
                 async api(path, method = 'GET', body = null) {
+                    const requestToken = this.token;
                     const opts = {
                         method,
-                        headers: { 'Authorization': `Bearer ${this.token}`, 'Content-Type': 'application/json' }
+                        headers: { 'Authorization': `Bearer ${requestToken}`, 'Content-Type': 'application/json' }
                     };
                     if (body) opts.body = JSON.stringify(body);
                     const resp = await fetch(`${API}${path}`, opts);
-                    if (resp.status === 401) { this.logout(); throw new Error('Session expired'); }
+                    if (resp.status === 401) {
+                        await this.handleUnauthorized(requestToken);
+                        throw new Error('Session expired');
+                    }
                     if (resp.status === 204) return null;
                     const data = await resp.json();
                     if (!resp.ok) throw new Error(data.error || 'Request failed');
