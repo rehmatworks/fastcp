@@ -598,8 +598,8 @@ func (db *DB) CreateSession(ctx context.Context, token, username string, expires
 func (db *DB) GetSession(ctx context.Context, token string) (*Session, error) {
 	var s Session
 	err := db.QueryRowContext(ctx,
-		"SELECT id, token, username, expires_at, created_at FROM sessions WHERE token = ? AND expires_at > ?",
-		token, time.Now(),
+		"SELECT id, token, username, expires_at, created_at FROM sessions WHERE token = ? AND datetime(expires_at) > datetime(?)",
+		token, time.Now().UTC(),
 	).Scan(&s.ID, &s.Token, &s.Username, &s.ExpiresAt, &s.CreatedAt)
 	if err != nil {
 		return nil, err
@@ -613,7 +613,7 @@ func (db *DB) DeleteSession(ctx context.Context, token string) error {
 }
 
 func (db *DB) CleanExpiredSessions(ctx context.Context) error {
-	_, err := db.ExecContext(ctx, "DELETE FROM sessions WHERE expires_at < ?", time.Now())
+	_, err := db.ExecContext(ctx, "DELETE FROM sessions WHERE datetime(expires_at) < datetime(?)", time.Now().UTC())
 	return err
 }
 
@@ -632,8 +632,8 @@ func (db *DB) GetImpersonationSession(ctx context.Context, token string) (*Imper
 	err := db.QueryRowContext(ctx,
 		`SELECT token, admin_username, target_username, reason, ip_address, user_agent, expires_at, created_at
 		 FROM impersonation_sessions
-		 WHERE token = ? AND expires_at > ?`,
-		token, time.Now(),
+		 WHERE token = ? AND datetime(expires_at) > datetime(?)`,
+		token, time.Now().UTC(),
 	).Scan(
 		&s.Token, &s.AdminUsername, &s.TargetUsername, &s.Reason, &s.IPAddress, &s.UserAgent, &s.ExpiresAt, &s.CreatedAt,
 	)
@@ -649,7 +649,7 @@ func (db *DB) DeleteImpersonationSession(ctx context.Context, token string) erro
 }
 
 func (db *DB) CleanExpiredImpersonationSessions(ctx context.Context) error {
-	_, err := db.ExecContext(ctx, "DELETE FROM impersonation_sessions WHERE expires_at < ?", time.Now())
+	_, err := db.ExecContext(ctx, "DELETE FROM impersonation_sessions WHERE datetime(expires_at) < datetime(?)", time.Now().UTC())
 	return err
 }
 
