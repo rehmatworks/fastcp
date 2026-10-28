@@ -55,6 +55,9 @@ jobs:
       - name: Build
         env:
           CGO_ENABLED: '1'
+          # glibc before 2.36 only declares RTLD_NEXT (used by the PAM
+          # bindings) when _GNU_SOURCE is defined.
+          CGO_CFLAGS: '-O2 -g -D_GNU_SOURCE'
         run: |
           pkg=github.com/rehmatworks/fastcp/internal/version
           ldflags="-s -w -X $pkg.Version=$(cat VERSION) -X $pkg.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"

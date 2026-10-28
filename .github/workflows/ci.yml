@@ -59,6 +59,30 @@ jobs:
       - name: Vulnerability check
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
+  release-build:
+    name: Release build
+    runs-on: ubuntu-latest
+    # Same environment as the release build, so build problems show up
+    # before a tag is pushed.
+    container: ubuntu:22.04
+    steps:
+      - name: Install dependencies
+        run: apt-get update -qq && apt-get install -y -qq ca-certificates gcc libc6-dev libpam0g-dev >/dev/null
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.x'
+          check-latest: true
+          cache: false
+      - name: Build
+        env:
+          CGO_ENABLED: '1'
+          CGO_CFLAGS: '-O2 -g -D_GNU_SOURCE'
+        run: |
+          go build -trimpath -o /tmp/fastcp ./cmd/fastcp
+          go build -trimpath -o /tmp/fastcp-agent ./cmd/fastcp-agent
+          /tmp/fastcp --version
+
   scripts:
     name: Shell scripts
     runs-on: ubuntu-latest
