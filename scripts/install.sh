@@ -18,7 +18,7 @@ export NEEDRESTART_SUSPEND=1
 FASTCP_VERSION_DEFAULT="v3.0.0"
 # Ed25519 public key that signs SHA256SUMS in every release. Set with
 # `go run ./tools/releasekey gen -pub internal/release/signing.pub -installer scripts/install.sh`.
-FASTCP_SIGNING_PUBKEY="UNSET"
+FASTCP_SIGNING_PUBKEY="iTMGgOsWcbaI+uKYmjR3X1XcLgvUfAeJiGgBTWfx96g="
 
 FASTCP_VERSION="${FASTCP_VERSION:-$FASTCP_VERSION_DEFAULT}"
 REPO="rehmatworks/fastcp"
