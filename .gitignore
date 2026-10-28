@@ -59,4 +59,4 @@ logs/
 ref-data/
 
 # Local backup repositories/artifacts
-backups/
+/backups/
