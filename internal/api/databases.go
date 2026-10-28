@@ -2,216 +2,163 @@ package api
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"fmt"
+	"errors"
+	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/rehmatworks/fastcp/internal/agent"
 	"github.com/rehmatworks/fastcp/internal/crypto"
 	"github.com/rehmatworks/fastcp/internal/database"
+	"github.com/rehmatworks/fastcp/internal/validate"
 )
 
-var dbNameRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`)
+var dbPartRE = regexp.MustCompile(`^[a-z][a-z0-9_]{0,39}$`)
 
-// DatabaseService handles database operations
-type DatabaseService struct {
-	db    *database.DB
-	agent *agent.Client
-}
-
-// NewDatabaseService creates a new database service
-func NewDatabaseService(db *database.DB, agent *agent.Client) *DatabaseService {
-	return &DatabaseService{db: db, agent: agent}
-}
-
-// List returns all databases for a user
-func (s *DatabaseService) List(ctx context.Context, username string) ([]*Database, error) {
-	dbDatabases, err := s.db.ListDatabases(ctx, username)
-	if err != nil {
-		return nil, err
-	}
-
-	databases := make([]*Database, len(dbDatabases))
-	for i, d := range dbDatabases {
-		databases[i] = &Database{
-			ID:        d.ID,
-			Username:  d.Username,
-			DBName:    d.DBName,
-			DBUser:    d.DBUser,
-			CreatedAt: d.CreatedAt,
+// newDatabaseNames derives a database name and a MySQL account name for a
+// user. Names are prefixed with the account so tenants cannot collide, and
+// the account name gets a random suffix when it would exceed MySQL's limit.
+// With probe set, a numeric suffix is added until a free name is found.
+func (s *Server) newDatabaseNames(ctx context.Context, username, part string, probe bool) (string, string, error) {
+	prefix := strings.ReplaceAll(username, "-", "_") + "_"
+	for i := 1; i <= 50; i++ {
+		name := prefix + part
+		if i > 1 {
+			name += strconv.Itoa(i)
+		}
+		if len(name) > 64 {
+			return "", "", badRequest("The database name is too long; use a shorter name.")
+		}
+		user := name
+		if len(user) > 32 {
+			user = user[:27] + "_" + strings.ToLower(randomPassword(4))
+		}
+		if validate.DBName(name) != nil || validate.DBUser(user) != nil {
+			return "", "", badRequest("Database names must start with a letter and use only lowercase letters, digits and '_'.")
+		}
+		taken, err := s.db.DatabaseNameTaken(ctx, name, user)
+		if err != nil {
+			return "", "", err
+		}
+		if !taken {
+			return name, user, nil
+		}
+		if !probe {
+			return "", "", conflict("A database named %s already exists.", name)
 		}
 	}
-	return databases, nil
+	return "", "", conflict("Could not find a free database name.")
 }
 
-// ListPaginated returns paginated databases with search
-func (s *DatabaseService) ListPaginated(ctx context.Context, username string, page, limit int, search string) ([]*Database, int, error) {
-	dbDatabases, total, err := s.db.ListDatabasesPaginated(ctx, username, page, limit, search)
-	if err != nil {
-		return nil, 0, err
+func (s *Server) ownedDatabase(r *http.Request) (*database.Database, error) {
+	d, err := s.db.GetDatabase(r.Context(), chi.URLParam(r, "id"))
+	if errors.Is(err, database.ErrNotFound) || (err == nil && d.Username != current(r).User.Username) {
+		return nil, notFound("Database")
 	}
+	return d, err
+}
 
-	databases := make([]*Database, len(dbDatabases))
-	for i, d := range dbDatabases {
-		databases[i] = &Database{
-			ID:        d.ID,
-			Username:  d.Username,
-			DBName:    d.DBName,
-			DBUser:    d.DBUser,
-			CreatedAt: d.CreatedAt,
+func (s *Server) listDatabases(w http.ResponseWriter, r *http.Request) error {
+	dbs, err := s.db.ListDatabases(r.Context(), current(r).User.Username)
+	if err != nil {
+		return err
+	}
+	if dbs == nil {
+		dbs = []*database.Database{}
+	}
+	return ok(w, dbs)
+}
+
+type databaseCredentials struct {
+	*database.Database
+	Password string `json:"password"`
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+}
+
+func (s *Server) createDatabase(w http.ResponseWriter, r *http.Request) error {
+	p := current(r)
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	part := strings.ToLower(strings.TrimSpace(req.Name))
+	if !dbPartRE.MatchString(part) {
+		return badRequest("Database names must start with a letter, use only lowercase letters, digits and '_', and be at most 40 characters.")
+	}
+	ctx := r.Context()
+	name, user, err := s.newDatabaseNames(ctx, p.User.Username, part, false)
+	if err != nil {
+		return err
+	}
+	password := randomPassword(24)
+	enc, err := s.box.Seal(crypto.PurposeDatabasePassword, password)
+	if err != nil {
+		return err
+	}
+	rec := &database.Database{ID: uuid.NewString(), Username: p.User.Username, DBName: name, DBUser: user, PasswordEnc: enc}
+	if err := s.db.CreateDatabase(ctx, rec); err != nil {
+		if errors.Is(err, database.ErrConflict) {
+			return conflict("A database named %s already exists.", name)
 		}
+		return err
 	}
-	return databases, total, nil
+	if err := s.agent.CreateDatabase(ctx, &agent.CreateDatabaseRequest{DBName: name, DBUser: user, Password: password}); err != nil {
+		_ = s.db.DeleteDatabase(ctx, rec.ID)
+		return err
+	}
+	return created(w, databaseCredentials{Database: rec, Password: password, Host: "localhost", Port: 3306})
 }
 
-// Create creates a new MySQL database
-func (s *DatabaseService) Create(ctx context.Context, req *CreateDatabaseRequest) (*Database, error) {
-	// Validate name
-	name := strings.ToLower(strings.TrimSpace(req.Name))
-	if !dbNameRegex.MatchString(name) {
-		return nil, fmt.Errorf("invalid database name: must start with letter, contain only letters, numbers, underscores")
-	}
-
-	// Generate prefixed names
-	id := uuid.New().String()
-	dbName := fmt.Sprintf("%s_%s", req.Username, name)
-	dbUser := dbName
-	password := generatePassword(16)
-
-	// Truncate if too long (MySQL limit is 64 chars)
-	if len(dbName) > 64 {
-		dbName = dbName[:64]
-	}
-	if len(dbUser) > 32 {
-		dbUser = dbUser[:32]
-	}
-
-	// Create database via agent
-	if err := s.agent.CreateDatabase(ctx, &agent.CreateDatabaseRequest{
-		DBName:   dbName,
-		DBUser:   dbUser,
-		Password: password,
-	}); err != nil {
-		return nil, fmt.Errorf("failed to create database: %w", err)
-	}
-
-	// Encrypt password for storage
-	encryptedPassword, err := crypto.Encrypt(password)
+func (s *Server) deleteDatabase(w http.ResponseWriter, r *http.Request) error {
+	d, err := s.ownedDatabase(r)
 	if err != nil {
-		// Log but don't fail - password just won't be available for phpMyAdmin
-		encryptedPassword = ""
+		return err
 	}
-
-	// Save to local database
-	dbRecord := &database.Database{
-		ID:         id,
-		Username:   req.Username,
-		DBName:     dbName,
-		DBUser:     dbUser,
-		DBPassword: encryptedPassword,
+	ctx := r.Context()
+	if err := s.agent.DeleteDatabase(ctx, &agent.DatabaseTarget{DBName: d.DBName, DBUser: d.DBUser}); err != nil && agent.ErrorCode(err) != "not_found" {
+		return err
 	}
-	if err := s.db.CreateDatabase(ctx, dbRecord); err != nil {
-		return nil, fmt.Errorf("failed to save database record: %w", err)
+	if err := s.db.DeleteDatabase(ctx, d.ID); err != nil {
+		return err
 	}
-
-	return &Database{
-		ID:       id,
-		Username: req.Username,
-		DBName:   dbName,
-		DBUser:   dbUser,
-		Password: password, // Only returned on create
-	}, nil
+	return noContent(w)
 }
 
-// Delete deletes a MySQL database
-func (s *DatabaseService) Delete(ctx context.Context, id, username string) error {
-	// Get database first to check ownership
-	dbRecord, err := s.db.GetDatabase(ctx, id)
+func (s *Server) resetDatabasePassword(w http.ResponseWriter, r *http.Request) error {
+	d, err := s.ownedDatabase(r)
 	if err != nil {
-		return fmt.Errorf("database not found")
+		return err
 	}
-
-	if dbRecord.Username != username {
-		return fmt.Errorf("database not found")
+	ctx := r.Context()
+	password := randomPassword(24)
+	enc, err := s.box.Seal(crypto.PurposeDatabasePassword, password)
+	if err != nil {
+		return err
 	}
-
-	// Delete via agent
-	if err := s.agent.DeleteDatabase(ctx, &agent.DeleteDatabaseRequest{
-		DBName: dbRecord.DBName,
-		DBUser: dbRecord.DBUser,
-	}); err != nil {
-		return fmt.Errorf("failed to delete database: %w", err)
+	if err := s.agent.ResetDatabasePassword(ctx, &agent.ResetDatabasePasswordRequest{DBUser: d.DBUser, Password: password}); err != nil {
+		return err
 	}
-
-	// Delete from local database
-	if err := s.db.DeleteDatabase(ctx, id); err != nil {
-		return fmt.Errorf("failed to delete database record: %w", err)
+	if err := s.db.SetDatabasePassword(ctx, d.ID, enc); err != nil {
+		return err
 	}
-
-	return nil
+	return ok(w, databaseCredentials{Database: d, Password: password, Host: "localhost", Port: 3306})
 }
 
-// ResetPassword rotates a database user's password and returns the new value once.
-func (s *DatabaseService) ResetPassword(ctx context.Context, id, username string) (*Database, error) {
-	dbRecord, err := s.db.GetDatabase(ctx, id)
+func (s *Server) phpMyAdminLink(w http.ResponseWriter, r *http.Request) error {
+	d, err := s.ownedDatabase(r)
 	if err != nil {
-		return nil, fmt.Errorf("database not found")
+		return err
 	}
-	if dbRecord.Username != username {
-		return nil, fmt.Errorf("database not found")
+	password, err := s.box.Open(crypto.PurposeDatabasePassword, d.PasswordEnc)
+	if err != nil || password == "" {
+		return conflict("The stored password for %s cannot be read. Reset the password, then try again.", d.DBName)
 	}
-
-	newPassword := generatePassword(16)
-	if err := s.agent.ResetDatabasePassword(ctx, &agent.ResetDatabasePasswordRequest{
-		DBName:   dbRecord.DBName,
-		DBUser:   dbRecord.DBUser,
-		Password: newPassword,
-	}); err != nil {
-		return nil, fmt.Errorf("failed to reset database password: %w", err)
-	}
-
-	encryptedPassword, err := crypto.Encrypt(newPassword)
-	if err == nil {
-		_ = s.db.UpdateDatabasePassword(ctx, id, encryptedPassword)
-	}
-
-	return &Database{
-		ID:       dbRecord.ID,
-		Username: dbRecord.Username,
-		DBName:   dbRecord.DBName,
-		DBUser:   dbRecord.DBUser,
-		Password: newPassword,
-	}, nil
-}
-
-// GetCredentials returns decrypted database credentials for phpMyAdmin access
-func (s *DatabaseService) GetCredentials(ctx context.Context, id, username string) (dbUser, dbPassword, dbName string, err error) {
-	dbRecord, err := s.db.GetDatabase(ctx, id)
-	if err != nil {
-		return "", "", "", fmt.Errorf("database not found")
-	}
-
-	if dbRecord.Username != username {
-		return "", "", "", fmt.Errorf("database not found")
-	}
-
-	if dbRecord.DBPassword == "" {
-		return "", "", "", fmt.Errorf("password not available (database created before this feature)")
-	}
-
-	password, err := crypto.Decrypt(dbRecord.DBPassword)
-	if err != nil {
-		return "", "", "", fmt.Errorf("failed to decrypt password")
-	}
-
-	return dbRecord.DBUser, password, dbRecord.DBName, nil
-}
-
-func generatePassword(length int) string {
-	bytes := make([]byte, length)
-	rand.Read(bytes)
-	return hex.EncodeToString(bytes)[:length]
+	token := s.pma.links.put(pmaGrant{SessionHash: current(r).TokenHash, DBUser: d.DBUser, DBPass: password, DBName: d.DBName}, pmaLinkTTL)
+	return ok(w, map[string]string{"url": "/phpmyadmin/?token=" + token})
 }

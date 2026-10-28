@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  ui:
+    name: Web UI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        working-directory: web
+        run: npm ci
+      - name: Type check
+        working-directory: web
+        run: npm run check
+      - name: Unit tests
+        working-directory: web
+        run: npm test
+      - name: Build
+        working-directory: web
+        run: npm run build
+      - name: Committed build is up to date
+        run: |
+          if [ -n "$(git status --porcelain -- cmd/fastcp/ui/dist)" ]; then
+            git status --short -- cmd/fastcp/ui/dist
+            echo "::error::cmd/fastcp/ui/dist is out of date. Run 'make ui' and commit the result."
+            exit 1
+          fi
+
+  go:
+    name: Go
+    runs-on: ubuntu-latest
+    # Root in a container, so the integration tests can create users,
+    # change ownership and set ACLs.
+    container: golang:1.27-bookworm
+    env:
+      FASTCP_INTEGRATION: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install dependencies
+        run: apt-get update -qq && apt-get install -y -qq libpam0g-dev acl cron >/dev/null
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race -count=1 ./...
+      - name: Vulnerability check
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  scripts:
+    name: Shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: ShellCheck
+        run: shellcheck -S warning scripts/*.sh docker/*.sh

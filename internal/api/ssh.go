@@ -1,159 +1,85 @@
 package api
 
 import (
-	"context"
-	"crypto/sha256"
-	"encoding/base64"
-	"fmt"
+	"errors"
+	"net/http"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/rehmatworks/fastcp/internal/agent"
 	"github.com/rehmatworks/fastcp/internal/database"
+	"github.com/rehmatworks/fastcp/internal/validate"
 )
 
-// SSHKeyService handles SSH key operations
-type SSHKeyService struct {
-	db    *database.DB
-	agent *agent.Client
-}
+const maxSSHKeys = 50
 
-// NewSSHKeyService creates a new SSH key service
-func NewSSHKeyService(db *database.DB, agent *agent.Client) *SSHKeyService {
-	return &SSHKeyService{db: db, agent: agent}
-}
-
-// List returns all SSH keys for a user
-func (s *SSHKeyService) List(ctx context.Context, username string) ([]*SSHKey, error) {
-	dbKeys, err := s.db.ListSSHKeys(ctx, username)
+func (s *Server) listSSHKeys(w http.ResponseWriter, r *http.Request) error {
+	keys, err := s.db.ListSSHKeys(r.Context(), current(r).User.Username)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	if keys == nil {
+		keys = []*database.SSHKey{}
+	}
+	return ok(w, keys)
+}
 
-	keys := make([]*SSHKey, len(dbKeys))
-	for i, k := range dbKeys {
-		keys[i] = &SSHKey{
-			ID:          k.ID,
-			Username:    k.Username,
-			Name:        k.Name,
-			Fingerprint: k.Fingerprint,
-			CreatedAt:   k.CreatedAt,
+func (s *Server) addSSHKey(w http.ResponseWriter, r *http.Request) error {
+	p := current(r)
+	var req struct {
+		Name      string `json:"name"`
+		PublicKey string `json:"public_key"`
+	}
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	if err := validate.Label("name", req.Name, 100); err != nil {
+		return validation(err)
+	}
+	key, err := validate.ParseSSHPublicKey(req.PublicKey)
+	if err != nil {
+		return validation(err)
+	}
+	ctx := r.Context()
+	existing, err := s.db.ListSSHKeys(ctx, p.User.Username)
+	if err != nil {
+		return err
+	}
+	if len(existing) >= maxSSHKeys {
+		return badRequest("An account can have at most %d SSH keys.", maxSSHKeys)
+	}
+	for _, k := range existing {
+		if k.Fingerprint == key.Fingerprint {
+			return conflict("This key is already added as %q.", k.Name)
 		}
 	}
-	return keys, nil
+	rec := &database.SSHKey{ID: uuid.NewString(), Username: p.User.Username, Name: req.Name, PublicKey: key.Line, Fingerprint: key.Fingerprint}
+	if err := s.db.CreateSSHKey(ctx, rec); err != nil {
+		return err
+	}
+	if err := s.agent.AddSSHKey(ctx, &agent.AddSSHKeyRequest{Username: rec.Username, KeyID: rec.ID, PublicKey: rec.PublicKey}); err != nil {
+		_ = s.db.DeleteSSHKey(ctx, rec.ID)
+		return err
+	}
+	return created(w, rec)
 }
 
-// Add adds a new SSH key
-func (s *SSHKeyService) Add(ctx context.Context, req *AddSSHKeyRequest) (*SSHKey, error) {
-	// Validate and parse public key
-	publicKey := strings.TrimSpace(req.PublicKey)
-	if publicKey == "" {
-		return nil, fmt.Errorf("public key is required")
+func (s *Server) deleteSSHKey(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	k, err := s.db.GetSSHKey(ctx, chi.URLParam(r, "id"))
+	if errors.Is(err, database.ErrNotFound) || (err == nil && k.Username != current(r).User.Username) {
+		return notFound("SSH key")
 	}
-
-	// Parse SSH key to validate and get fingerprint
-	fingerprint, err := getSSHKeyFingerprint(publicKey)
 	if err != nil {
-		return nil, fmt.Errorf("invalid SSH public key: %w", err)
+		return err
 	}
-
-	id := uuid.New().String()
-	name := strings.TrimSpace(req.Name)
-	if name == "" {
-		name = "Unnamed key"
+	if err := s.agent.RemoveSSHKey(ctx, &agent.RemoveSSHKeyRequest{Username: k.Username, KeyID: k.ID}); err != nil && agent.ErrorCode(err) != "not_found" {
+		return err
 	}
-
-	// Add key via agent
-	if err := s.agent.AddSSHKey(ctx, &agent.AddSSHKeyRequest{
-		Username:  req.Username,
-		KeyID:     id,
-		Name:      name,
-		PublicKey: publicKey,
-	}); err != nil {
-		return nil, fmt.Errorf("failed to add SSH key: %w", err)
+	if err := s.db.DeleteSSHKey(ctx, k.ID); err != nil {
+		return err
 	}
-
-	// Save to database
-	dbKey := &database.SSHKey{
-		ID:          id,
-		Username:    req.Username,
-		Name:        name,
-		PublicKey:   publicKey,
-		Fingerprint: fingerprint,
-	}
-	if err := s.db.CreateSSHKey(ctx, dbKey); err != nil {
-		return nil, fmt.Errorf("failed to save SSH key: %w", err)
-	}
-
-	return &SSHKey{
-		ID:          id,
-		Username:    req.Username,
-		Name:        name,
-		Fingerprint: fingerprint,
-	}, nil
-}
-
-// Remove removes an SSH key
-func (s *SSHKeyService) Remove(ctx context.Context, id, username string) error {
-	// Get key first to check ownership
-	dbKey, err := s.db.GetSSHKey(ctx, id)
-	if err != nil {
-		return fmt.Errorf("SSH key not found")
-	}
-
-	if dbKey.Username != username {
-		return fmt.Errorf("SSH key not found")
-	}
-
-	// Remove via agent
-	if err := s.agent.RemoveSSHKey(ctx, &agent.RemoveSSHKeyRequest{
-		Username:  username,
-		KeyID:     id,
-		PublicKey: dbKey.PublicKey,
-	}); err != nil {
-		return fmt.Errorf("failed to remove SSH key: %w", err)
-	}
-
-	// Delete from database
-	if err := s.db.DeleteSSHKey(ctx, id); err != nil {
-		return fmt.Errorf("failed to delete SSH key record: %w", err)
-	}
-
-	return nil
-}
-
-// getSSHKeyFingerprint calculates the SHA256 fingerprint of an SSH public key
-func getSSHKeyFingerprint(publicKey string) (string, error) {
-	parts := strings.Fields(publicKey)
-	if len(parts) < 2 {
-		return "", fmt.Errorf("key must start with type (e.g., ssh-rsa, ssh-ed25519) followed by base64 data")
-	}
-
-	keyType := parts[0]
-	validTypes := []string{"ssh-rsa", "ssh-ed25519", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521", "ssh-dss"}
-	isValidType := false
-	for _, t := range validTypes {
-		if keyType == t {
-			isValidType = true
-			break
-		}
-	}
-	if !isValidType {
-		return "", fmt.Errorf("unsupported key type '%s'. Supported: ssh-rsa, ssh-ed25519, ecdsa-*", keyType)
-	}
-
-	keyData, err := base64.StdEncoding.DecodeString(parts[1])
-	if err != nil {
-		return "", fmt.Errorf("key data is not valid base64. Make sure you copied the entire key")
-	}
-
-	if len(keyData) < 20 {
-		return "", fmt.Errorf("key data is too short. Make sure you copied the entire public key")
-	}
-
-	hash := sha256.Sum256(keyData)
-	fingerprint := base64.StdEncoding.EncodeToString(hash[:])
-	fingerprint = strings.TrimRight(fingerprint, "=")
-
-	return fmt.Sprintf("SHA256:%s", fingerprint), nil
+	return noContent(w)
 }

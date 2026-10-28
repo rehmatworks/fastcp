@@ -1,5 +1,12 @@
-// FastCP Agent - Privileged helper daemon
-// Runs as root and handles system operations via Unix socket
+// Command fastcp-agent is FastCP's privileged helper. It runs as root and
+// serves the control panel over a Unix socket.
+//
+//	fastcp-agent [--socket PATH]       serve requests
+//	fastcp-agent setup                 create accounts, directories and units
+//	fastcp-agent provision             install Caddy, phpMyAdmin and the newest PHP
+//	fastcp-agent update-finish ...     internal: complete a self-update
+//	fastcp-agent export-zip --out F    internal: tar on stdin to zip, run as a tenant
+//	fastcp-agent --version
 package main
 
 import (
@@ -12,69 +19,82 @@ import (
 	"syscall"
 
 	"github.com/rehmatworks/fastcp/internal/agent"
-)
-
-var (
-	Version   = "dev"
-	BuildTime = "unknown"
+	"github.com/rehmatworks/fastcp/internal/version"
 )
 
 func main() {
-	socketPath := flag.String("socket", "/opt/fastcp/run/agent.sock", "Unix socket path")
-	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
-	showVersion := flag.Bool("version", false, "Show version")
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "setup":
+			setupLogging("info")
+			ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
+			if err := agent.RunSetup(ctx); err != nil {
+				fail(err)
+			}
+			return
+		case "provision":
+			setupLogging("info")
+			ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
+			if err := agent.Provision(ctx, os.Stdout); err != nil {
+				fail(err)
+			}
+			return
+		case "update-finish":
+			updateFinish(os.Args[2:])
+			return
+		case "export-zip":
+			if err := exportZip(os.Args[2:]); err != nil {
+				fmt.Fprintln(os.Stderr, "export-zip:", err)
+				os.Exit(1)
+			}
+			return
+		}
+	}
+
+	socketPath := flag.String("socket", agent.DefaultSocket, "Unix socket path")
+	logLevel := flag.String("log-level", "info", "log level: debug, info, warn or error")
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("FastCP Agent %s (built %s)\n", Version, BuildTime)
-		os.Exit(0)
+		fmt.Printf("FastCP agent %s (built %s)\n", version.Version, version.BuildTime)
+		return
 	}
+	setupLogging(*logLevel)
 
-	// Must run as root
-	if os.Getuid() != 0 {
-		slog.Error("fastcp-agent must run as root")
-		os.Exit(1)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	if err := agent.Run(ctx, *socketPath); err != nil {
+		fail(err)
 	}
+}
 
-	// Setup logging
-	var level slog.Level
-	switch *logLevel {
-	case "debug":
-		level = slog.LevelDebug
-	case "warn":
-		level = slog.LevelWarn
-	case "error":
-		level = slog.LevelError
-	default:
-		level = slog.LevelInfo
+func updateFinish(args []string) {
+	fs := flag.NewFlagSet("update-finish", flag.ExitOnError)
+	job := fs.String("job", "", "job ID")
+	tag := fs.String("version", "", "release tag")
+	dir := fs.String("dir", "", "staging directory")
+	fs.Parse(args)
+	setupLogging("info")
+	if *job == "" || *tag == "" || *dir == "" {
+		fail(fmt.Errorf("update-finish requires --job, --version and --dir"))
 	}
-
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
-	slog.SetDefault(logger)
-
-	// Create and start agent
-	agentServer, err := agent.New(*socketPath)
-	if err != nil {
-		slog.Error("failed to create agent", "error", err)
-		os.Exit(1)
+	if err := agent.FinishUpdate(context.Background(), *job, *tag, *dir); err != nil {
+		fail(err)
 	}
+}
 
-	// Handle shutdown signals
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		<-sigCh
-		slog.Info("shutting down agent...")
-		cancel()
-	}()
-
-	slog.Info("starting fastcp-agent", "socket", *socketPath)
-	if err := agentServer.Run(ctx); err != nil {
-		slog.Error("agent error", "error", err)
-		os.Exit(1)
+func setupLogging(level string) {
+	var l slog.Level
+	if err := l.UnmarshalText([]byte(level)); err != nil {
+		l = slog.LevelInfo
 	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: l})))
+}
+
+func fail(err error) {
+	slog.Error("fastcp-agent", "error", err)
+	os.Exit(1)
 }

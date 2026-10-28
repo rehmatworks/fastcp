@@ -2,231 +2,292 @@ package api
 
 import (
 	"context"
-	"fmt"
-	"regexp"
+	"errors"
+	"log/slog"
+	"net/http"
+	"slices"
+	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/rehmatworks/fastcp/internal/agent"
 	"github.com/rehmatworks/fastcp/internal/database"
+	"github.com/rehmatworks/fastcp/internal/validate"
 )
 
-var usernameRegex = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
-
-// UserService handles user operations
-type UserService struct {
-	db    *database.DB
-	agent *agent.Client
+type userLimits struct {
+	MemoryMB   *int `json:"memory_mb"`
+	CPUPercent *int `json:"cpu_percent"`
+	MaxSites   *int `json:"max_sites"`
+	StorageMB  *int `json:"storage_mb"`
 }
 
-// NewUserService creates a new user service
-func NewUserService(db *database.DB, agent *agent.Client) *UserService {
-	return &UserService{db: db, agent: agent}
-}
-
-// List returns all users (admin only)
-func (s *UserService) List(ctx context.Context) ([]*User, error) {
-	dbUsers, err := s.db.ListUsers(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	users := make([]*User, len(dbUsers))
-	for i, dbUser := range dbUsers {
-		siteCount, _ := s.db.CountUserSites(ctx, dbUser.Username)
-		users[i] = &User{
-			ID:          dbUser.ID,
-			Username:    dbUser.Username,
-			IsAdmin:     dbUser.IsAdmin,
-			IsSuspended: dbUser.IsSuspended,
-			MemoryMB:    dbUser.MemoryMB,
-			CPUPercent:  dbUser.CPUPercent,
-			MaxSites:    dbUser.MaxSites,
-			StorageMB:   dbUser.StorageMB,
-			SiteCount:   siteCount,
-			CreatedAt:   dbUser.CreatedAt,
+func (l *userLimits) apply(u *database.User) error {
+	if l.MemoryMB != nil {
+		if v := *l.MemoryMB; v != -1 && (v < 128 || v > 262144) {
+			return badRequest("Memory must be between 128 MB and 262144 MB, or -1 for unlimited.")
 		}
+		u.MemoryMB = *l.MemoryMB
 	}
-	return users, nil
-}
-
-// Create creates a new system user (admin only)
-func (s *UserService) Create(ctx context.Context, req *CreateUserRequest) (*User, error) {
-	// Validate username
-	if !usernameRegex.MatchString(req.Username) {
-		return nil, fmt.Errorf("invalid username: must start with lowercase letter or underscore, contain only lowercase letters, digits, underscores, and hyphens, max 32 characters")
+	if l.CPUPercent != nil {
+		if v := *l.CPUPercent; v != -1 && (v < 10 || v > 4000) {
+			return badRequest("CPU must be between 10%% and 4000%%, or -1 for unlimited.")
+		}
+		u.CPUPercent = *l.CPUPercent
 	}
-
-	// Validate password
-	if len(req.Password) < 8 {
-		return nil, fmt.Errorf("password must be at least 8 characters")
+	if l.MaxSites != nil {
+		if *l.MaxSites < -1 {
+			return badRequest("The site limit must be 0 or more, or -1 for unlimited.")
+		}
+		u.MaxSites = *l.MaxSites
 	}
-
-	// Reserved usernames
-	reserved := map[string]bool{
-		"root": true, "admin": true, "www-data": true, "mysql": true,
-		"nobody": true, "daemon": true, "bin": true, "sys": true,
+	if l.StorageMB != nil {
+		if *l.StorageMB < -1 {
+			return badRequest("The storage allowance must be 0 or more, or -1 for unlimited.")
+		}
+		u.StorageMB = *l.StorageMB
 	}
-	if reserved[req.Username] {
-		return nil, fmt.Errorf("username '%s' is reserved", req.Username)
-	}
-
-	// Set defaults for resource limits
-	memoryMB := req.MemoryMB
-	if memoryMB == 0 {
-		memoryMB = 512 // Default 512MB
-	}
-	cpuPercent := req.CPUPercent
-	if cpuPercent == 0 {
-		cpuPercent = 100 // Default 100% (1 core)
-	}
-	maxSites := req.MaxSites
-	if maxSites == 0 {
-		maxSites = -1 // Default unlimited
-	}
-	storageMB := req.StorageMB
-	if storageMB == 0 {
-		storageMB = -1 // Default unlimited
-	}
-
-	// Create system user via agent
-	if err := s.agent.CreateUser(ctx, &agent.CreateUserRequest{
-		Username:   req.Username,
-		Password:   req.Password,
-		MemoryMB:   memoryMB,
-		CPUPercent: cpuPercent,
-	}); err != nil {
-		return nil, fmt.Errorf("failed to create system user: %w", err)
-	}
-
-	// Save to database
-	dbUser, err := s.db.CreateUserWithLimits(ctx, req.Username, req.IsAdmin, memoryMB, cpuPercent, maxSites, storageMB)
-	if err != nil {
-		// Try to rollback system user creation
-		s.agent.DeleteUser(ctx, &agent.DeleteUserRequest{Username: req.Username})
-		return nil, fmt.Errorf("failed to save user: %w", err)
-	}
-
-	return &User{
-		ID:         dbUser.ID,
-		Username:   dbUser.Username,
-		IsAdmin:    dbUser.IsAdmin,
-		MemoryMB:   dbUser.MemoryMB,
-		CPUPercent: dbUser.CPUPercent,
-		MaxSites:   dbUser.MaxSites,
-		StorageMB:  dbUser.StorageMB,
-		SiteCount:  0,
-		CreatedAt:  dbUser.CreatedAt,
-	}, nil
-}
-
-// Delete deletes a system user (admin only)
-func (s *UserService) Delete(ctx context.Context, username string) error {
-	// Prevent deleting root
-	if username == "root" {
-		return fmt.Errorf("cannot delete root user")
-	}
-
-	// Delete system user via agent
-	if err := s.agent.DeleteUser(ctx, &agent.DeleteUserRequest{
-		Username: username,
-	}); err != nil {
-		return fmt.Errorf("failed to delete system user: %w", err)
-	}
-
-	// Delete from database (cascades to sites, databases, etc.)
-	if err := s.db.DeleteUser(ctx, username); err != nil {
-		return fmt.Errorf("failed to delete user from database: %w", err)
-	}
-
 	return nil
 }
 
-// ToggleSuspension toggles user suspension and regenerates Caddyfile
-func (s *UserService) ToggleSuspension(ctx context.Context, username string) (*User, error) {
-	// Prevent suspending root
-	if username == "root" {
-		return nil, fmt.Errorf("cannot suspend root user")
-	}
-
-	// Get current user
-	dbUser, err := s.db.GetUser(ctx, username)
+func (s *Server) listUsers(w http.ResponseWriter, r *http.Request) error {
+	users, err := s.db.ListUsers(r.Context())
 	if err != nil {
-		return nil, fmt.Errorf("user not found")
+		return err
 	}
-
-	// Toggle suspension
-	newStatus := !dbUser.IsSuspended
-	if err := s.db.SetUserSuspended(ctx, username, newStatus); err != nil {
-		return nil, fmt.Errorf("failed to update suspension status: %w", err)
+	if users == nil {
+		users = []*database.User{}
 	}
-
-	// Regenerate Caddyfile to apply changes
-	if err := s.agent.RegenerateCaddyfile(ctx); err != nil {
-		return nil, fmt.Errorf("failed to update web server config: %w", err)
-	}
-
-	// Return updated user
-	siteCount, _ := s.db.CountUserSites(ctx, username)
-	return &User{
-		ID:          dbUser.ID,
-		Username:    dbUser.Username,
-		IsAdmin:     dbUser.IsAdmin,
-		IsSuspended: newStatus,
-		MemoryMB:    dbUser.MemoryMB,
-		CPUPercent:  dbUser.CPUPercent,
-		MaxSites:    dbUser.MaxSites,
-		StorageMB:   dbUser.StorageMB,
-		SiteCount:   siteCount,
-		CreatedAt:   dbUser.CreatedAt,
-	}, nil
+	return ok(w, users)
 }
 
-// UpdateResources updates a user's resource limits and reapplies system constraints
-func (s *UserService) UpdateResources(ctx context.Context, username string, req *UpdateUserResourcesRequest) (*User, error) {
-	if username == "root" {
-		return nil, fmt.Errorf("cannot update root user limits")
+func (s *Server) targetUser(r *http.Request) (*database.User, error) {
+	u, err := s.db.GetUser(r.Context(), chi.URLParam(r, "username"))
+	if errors.Is(err, database.ErrNotFound) {
+		return nil, notFound("User")
 	}
-	if req.MemoryMB != -1 && (req.MemoryMB < 128 || req.MemoryMB > 262144) {
-		return nil, fmt.Errorf("memory_mb must be -1 (unlimited) or between 128 and 262144")
-	}
-	if req.CPUPercent != -1 && (req.CPUPercent < 10 || req.CPUPercent > 4000) {
-		return nil, fmt.Errorf("cpu_percent must be -1 (unlimited) or between 10 and 4000")
-	}
-	if req.MaxSites < -1 {
-		return nil, fmt.Errorf("max_sites must be -1 or greater")
-	}
-	if req.StorageMB < -1 {
-		return nil, fmt.Errorf("storage_mb must be -1 or greater")
-	}
+	return u, err
+}
 
-	// Ensure user exists in DB first
-	dbUser, err := s.db.GetUser(ctx, username)
+func (s *Server) createUser(w http.ResponseWriter, r *http.Request) error {
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+		IsAdmin  bool   `json:"is_admin"`
+		userLimits
+	}
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	req.Username = strings.TrimSpace(req.Username)
+	if err := validate.NewUsername(req.Username); err != nil {
+		return validation(err)
+	}
+	if err := validate.Password(req.Password); err != nil {
+		return validation(err)
+	}
+	u := &database.User{Username: req.Username, IsAdmin: req.IsAdmin, MemoryMB: 512, CPUPercent: 100, MaxSites: -1, StorageMB: -1}
+	if err := req.userLimits.apply(u); err != nil {
+		return err
+	}
+	ctx := r.Context()
+	if _, err := s.db.GetUser(ctx, u.Username); err == nil {
+		return conflict("A user named %s already exists.", u.Username)
+	}
+	if err := s.agent.CreateUser(ctx, &agent.CreateUserRequest{Username: u.Username, Password: req.Password}); err != nil {
+		return err
+	}
+	err := s.change(ctx, func() (func(), error) {
+		if err := s.db.CreateUser(ctx, u); err != nil {
+			if errors.Is(err, database.ErrConflict) {
+				return nil, conflict("A user named %s already exists.", u.Username)
+			}
+			return nil, err
+		}
+		return func() { _ = s.db.DeleteUser(ctx, u.Username) }, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("user not found")
+		if derr := s.agent.DeleteUser(ctx, &agent.DeleteUserRequest{Username: u.Username}); derr != nil {
+			slog.Warn("could not remove the system account after a failed create", "user", u.Username, "error", derr)
+		}
+		return err
+	}
+	created, err := s.db.GetUser(ctx, u.Username)
+	if err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusCreated, created)
+	return nil
+}
+
+func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) error {
+	target, err := s.targetUser(r)
+	if err != nil {
+		return err
+	}
+	var req struct {
+		IsAdmin *bool `json:"is_admin"`
+		userLimits
+	}
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	ctx := r.Context()
+	before := *target
+	if req.IsAdmin != nil && *req.IsAdmin != target.IsAdmin {
+		if !*req.IsAdmin {
+			if target.Username == current(r).Actor.Username {
+				return badRequest("You cannot remove your own administrator access.")
+			}
+			if err := s.ensureAnotherAdmin(ctx, target); err != nil {
+				return err
+			}
+		}
+		target.IsAdmin = *req.IsAdmin
+	}
+	if err := req.userLimits.apply(target); err != nil {
+		return err
+	}
+	err = s.change(ctx, func() (func(), error) {
+		if err := s.db.UpdateUser(ctx, target); err != nil {
+			return nil, err
+		}
+		return func() { _ = s.db.UpdateUser(ctx, &before) }, nil
+	})
+	if err != nil {
+		return err
+	}
+	u, err := s.db.GetUser(ctx, target.Username)
+	if err != nil {
+		return err
+	}
+	return ok(w, u)
+}
+
+// ensureAnotherAdmin refuses changes that would leave no active
+// administrator.
+func (s *Server) ensureAnotherAdmin(ctx context.Context, target *database.User) error {
+	if !target.IsAdmin || target.IsSuspended {
+		return nil
+	}
+	n, err := s.db.CountActiveAdmins(ctx)
+	if err != nil {
+		return err
+	}
+	if n <= 1 {
+		return badRequest("%s is the only active administrator.", target.Username)
+	}
+	return nil
+}
+
+func (s *Server) suspendUser(w http.ResponseWriter, r *http.Request) error {
+	target, err := s.targetUser(r)
+	if err != nil {
+		return err
+	}
+	var req struct {
+		Suspended bool `json:"suspended"`
+	}
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	ctx := r.Context()
+	if req.Suspended {
+		if target.Username == current(r).Actor.Username {
+			return badRequest("You cannot suspend your own account.")
+		}
+		if err := s.ensureAnotherAdmin(ctx, target); err != nil {
+			return err
+		}
+	}
+	err = s.change(ctx, func() (func(), error) {
+		if err := s.db.SetUserSuspended(ctx, target.Username, req.Suspended); err != nil {
+			return nil, err
+		}
+		return func() { _ = s.db.SetUserSuspended(ctx, target.Username, target.IsSuspended) }, nil
+	})
+	if err != nil {
+		return err
+	}
+	if req.Suspended {
+		if err := s.db.RevokeUserSessions(ctx, target.Username); err != nil {
+			slog.Warn("could not revoke sessions", "user", target.Username, "error", err)
+		}
+	}
+	u, err := s.db.GetUser(ctx, target.Username)
+	if err != nil {
+		return err
+	}
+	return ok(w, u)
+}
+
+func (s *Server) setUserPassword(w http.ResponseWriter, r *http.Request) error {
+	target, err := s.targetUser(r)
+	if err != nil {
+		return err
+	}
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	if err := validate.Password(req.Password); err != nil {
+		return validation(err)
+	}
+	ctx := r.Context()
+	if err := s.agent.ChangePassword(ctx, target.Username, req.Password); err != nil {
+		return err
+	}
+	if target.Username != current(r).Actor.Username {
+		if err := s.db.RevokeUserSessions(ctx, target.Username); err != nil {
+			slog.Warn("could not revoke sessions", "user", target.Username, "error", err)
+		}
+	}
+	return noContent(w)
+}
+
+func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request) error {
+	target, err := s.targetUser(r)
+	if err != nil {
+		return err
+	}
+	if target.Username == current(r).Actor.Username {
+		return badRequest("You cannot delete your own account.")
+	}
+	ctx := r.Context()
+	if err := s.ensureAnotherAdmin(ctx, target); err != nil {
+		return err
+	}
+	dbs, err := s.db.ListDatabases(ctx, target.Username)
+	if err != nil {
+		return err
+	}
+	targets := make([]agent.DatabaseTarget, 0, len(dbs))
+	for _, d := range dbs {
+		targets = append(targets, agent.DatabaseTarget{DBName: d.DBName, DBUser: d.DBUser})
 	}
 
-	if err := s.agent.UpdateUserLimits(ctx, &agent.UpdateUserLimitsRequest{
-		Username:   username,
-		MemoryMB:   req.MemoryMB,
-		CPUPercent: req.CPUPercent,
-	}); err != nil {
-		return nil, fmt.Errorf("failed to apply system user limits: %w", err)
+	// Take the account out of the server configuration first, so its sites,
+	// pools and crontab are gone before the records are deleted.
+	s.syncMu.Lock()
+	st, err := s.buildState(ctx)
+	if err == nil {
+		st.Users = slices.DeleteFunc(st.Users, func(u agent.StateUser) bool { return u.Username == target.Username })
+		st.Sites = slices.DeleteFunc(st.Sites, func(site agent.StateSite) bool { return site.Username == target.Username })
+		_, err = s.agent.ApplyConfig(ctx, st)
+	}
+	if err == nil {
+		err = s.db.DeleteUser(ctx, target.Username)
+	}
+	s.syncMu.Unlock()
+	if err != nil {
+		return err
 	}
 
-	if err := s.db.UpdateUserLimits(ctx, username, req.MemoryMB, req.CPUPercent, req.MaxSites, req.StorageMB); err != nil {
-		return nil, fmt.Errorf("failed to save user limits: %w", err)
+	if err := s.agent.DeleteUser(ctx, &agent.DeleteUserRequest{Username: target.Username, Databases: targets}); err != nil {
+		slog.Error("user removed from FastCP but server cleanup failed", "user", target.Username, "error", err)
+		return errf(http.StatusBadGateway, "%s was removed from FastCP, but cleaning up the server failed: %v", target.Username, err)
 	}
-
-	siteCount, _ := s.db.CountUserSites(ctx, username)
-	return &User{
-		ID:          dbUser.ID,
-		Username:    dbUser.Username,
-		IsAdmin:     dbUser.IsAdmin,
-		IsSuspended: dbUser.IsSuspended,
-		MemoryMB:    req.MemoryMB,
-		CPUPercent:  req.CPUPercent,
-		MaxSites:    req.MaxSites,
-		StorageMB:   req.StorageMB,
-		SiteCount:   siteCount,
-		CreatedAt:   dbUser.CreatedAt,
-	}, nil
+	slog.Info("deleted user", "user", target.Username, "by", current(r).Actor.Username)
+	return noContent(w)
 }

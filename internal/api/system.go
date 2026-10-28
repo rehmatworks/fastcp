@@ -2,318 +2,205 @@ package api
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+	"errors"
 	"log/slog"
 	"net/http"
-	"strings"
+	"os"
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/rehmatworks/fastcp/internal/agent"
+	"github.com/rehmatworks/fastcp/internal/database"
+	"github.com/rehmatworks/fastcp/internal/validate"
 )
 
-const (
-	githubReleasesAPI  = "https://api.github.com/repos/rehmatworks/fastcp/releases/latest"
-	updateCheckCacheTTL = 30 * time.Minute
-)
-
-// SystemService handles system operations
-type SystemService struct {
-	agent          *agent.Client
-	currentVersion string
-	phpInstallMu   sync.RWMutex
-	phpInstalls    map[string]*PHPVersionInstallStatus
-	updateMu       sync.RWMutex
-	lastUpdateInfo *UpdateInfo
-	lastUpdateAt   time.Time
-}
-
-type PHPVersionInstallStatus struct {
-	Version    string `json:"version"`
-	Status     string `json:"status"` // idle | running | success | failed
-	Message    string `json:"message,omitempty"`
-	StartedAt  string `json:"started_at,omitempty"`
-	FinishedAt string `json:"finished_at,omitempty"`
-}
-
-// NewSystemService creates a new system service
-func NewSystemService(agent *agent.Client, version string) *SystemService {
-	return &SystemService{
-		agent:          agent,
-		currentVersion: version,
-		phpInstalls:    make(map[string]*PHPVersionInstallStatus),
+func (s *Server) health(w http.ResponseWriter, r *http.Request) error {
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+	if err := s.db.PingContext(ctx); err != nil {
+		slog.Error("health check: database unavailable", "error", err)
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "error", "database": "unavailable"})
+		return nil
 	}
+	agentStatus := "ok"
+	if _, err := s.agent.Ping(ctx); err != nil {
+		agentStatus = "unavailable"
+	}
+	return ok(w, map[string]string{"status": "ok", "version": s.cfg.Version, "agent": agentStatus})
 }
 
-// GetStatus returns system status
-func (s *SystemService) GetStatus(ctx context.Context) (*SystemStatus, error) {
-	status, err := s.agent.GetSystemStatus(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &SystemStatus{
-		Hostname:             status.Hostname,
-		OS:                   status.OS,
-		Uptime:               status.Uptime,
-		LoadAverage:          status.LoadAverage,
-		MemoryTotal:          status.MemoryTotal,
-		MemoryUsed:           status.MemoryUsed,
-		DiskTotal:            status.DiskTotal,
-		DiskUsed:             status.DiskUsed,
-		PHPVersion:           status.PHPVersion,
-		MySQLVersion:         status.MySQLVersion,
-		CaddyVersion:         status.CaddyVersion,
-		PHPAvailableVersions: status.PHPAvailableVersions,
-		KernelVersion:        status.KernelVersion,
-		Architecture:         status.Architecture,
-		TotalUsers:           status.TotalUsers,
-		TotalWebsites:        status.TotalWebsites,
-		TotalDatabases:       status.TotalDatabases,
-	}, nil
+func (s *Server) versionInfo(w http.ResponseWriter, r *http.Request) error {
+	return ok(w, map[string]string{"version": s.cfg.Version})
 }
 
-// GetServices returns system services status
-func (s *SystemService) GetServices(ctx context.Context) ([]*Service, error) {
-	services, err := s.agent.GetServices(ctx)
-	if err != nil {
-		return nil, err
-	}
+type metaResponse struct {
+	Version    string   `json:"version"`
+	Hostname   string   `json:"hostname"`
+	SSHPort    int      `json:"ssh_port"`
+	PHP        []string `json:"php_versions"`
+	DefaultPHP string   `json:"default_php"`
+}
 
-	result := make([]*Service, len(services))
-	for i, svc := range services {
-		result[i] = &Service{
-			Name:    svc.Name,
-			Status:  svc.Status,
-			Enabled: svc.Enabled,
+// meta is what every signed-in page needs to render forms.
+func (s *Server) meta(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	m := metaResponse{Version: s.cfg.Version, SSHPort: 22, PHP: []string{}}
+	m.Hostname, _ = os.Hostname()
+	if installed, def, err := s.installedPHP(ctx); err == nil {
+		m.PHP, m.DefaultPHP = installed, def
+		if m.PHP == nil {
+			m.PHP = []string{}
 		}
 	}
-	return result, nil
-}
-
-// GitHubRelease represents a GitHub release response
-type GitHubRelease struct {
-	TagName     string    `json:"tag_name"`
-	Name        string    `json:"name"`
-	Body        string    `json:"body"`
-	PublishedAt time.Time `json:"published_at"`
-	HTMLURL     string    `json:"html_url"`
-}
-
-// CheckUpdate checks if a new version is available.
-// Non-forced calls return cached results for a short TTL to avoid GitHub API rate limits.
-func (s *SystemService) CheckUpdate(ctx context.Context, force bool) (*UpdateInfo, error) {
-	if !force {
-		s.updateMu.RLock()
-		cached := s.lastUpdateInfo
-		cachedAt := s.lastUpdateAt
-		s.updateMu.RUnlock()
-		if cached != nil && !cachedAt.IsZero() && time.Since(cachedAt) < updateCheckCacheTTL {
-			copy := *cached
-			return &copy, nil
-		}
+	if cfg, err := s.agent.GetSSHConfig(ctx); err == nil && cfg.Port > 0 {
+		m.SSHPort = cfg.Port
 	}
+	return ok(w, m)
+}
 
-	client := &http.Client{Timeout: 10 * time.Second}
+type accountSummary struct {
+	Sites     int                   `json:"sites"`
+	Databases int                   `json:"databases"`
+	CronJobs  int                   `json:"cron_jobs"`
+	SSHKeys   int                   `json:"ssh_keys"`
+	Limits    userView              `json:"limits"`
+	Backup    *backupSummary        `json:"backup"`
+	Recent    []*database.BackupJob `json:"recent_jobs"`
+}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", githubReleasesAPI, nil)
+type backupSummary struct {
+	Configured bool       `json:"configured"`
+	Enabled    bool       `json:"enabled"`
+	LastStatus string     `json:"last_status"`
+	LastRunAt  *time.Time `json:"last_run_at,omitempty"`
+	NextRunAt  *time.Time `json:"next_run_at,omitempty"`
+}
+
+type serverSummary struct {
+	Status   *agent.SystemStatus    `json:"status,omitempty"`
+	Services []agent.ServiceStatus  `json:"services"`
+	Users    int                    `json:"users"`
+	Sites    int                    `json:"sites"`
+	Database int                    `json:"databases"`
+	Update   *updateInfo            `json:"update,omitempty"`
+	PHP      []agent.PHPVersionInfo `json:"php"`
+	Errors   []string               `json:"errors,omitempty"`
+}
+
+func (s *Server) overview(w http.ResponseWriter, r *http.Request) error {
+	p := current(r)
+	ctx := r.Context()
+	username := p.User.Username
+	acct := accountSummary{Limits: viewUser(p.User), Recent: []*database.BackupJob{}}
+	var err error
+	if acct.Sites, err = s.db.CountSites(ctx, username); err != nil {
+		return err
+	}
+	if acct.Databases, err = s.db.CountDatabases(ctx, username); err != nil {
+		return err
+	}
+	crons, err := s.db.ListCronJobs(ctx, username)
 	if err != nil {
-		return s.fallbackUpdateInfo("Unable to create update-check request."), nil
+		return err
 	}
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", "FastCP/"+s.currentVersion)
-
-	resp, err := client.Do(req)
+	acct.CronJobs = len(crons)
+	keys, err := s.db.ListSSHKeys(ctx, username)
 	if err != nil {
-		slog.Warn("update check failed", "error", err)
-		return s.fallbackUpdateInfo("Unable to reach GitHub release API right now."), nil
+		return err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		slog.Warn("update check returned non-200", "status_code", resp.StatusCode)
-		return s.fallbackUpdateInfo(fmt.Sprintf("GitHub API returned status %d.", resp.StatusCode)), nil
+	acct.SSHKeys = len(keys)
+	acct.Backup = &backupSummary{LastStatus: "idle"}
+	if cfg, err := s.db.GetBackupConfig(ctx, username); err == nil {
+		acct.Backup = &backupSummary{Configured: cfg.Repository != "", Enabled: cfg.Enabled, LastStatus: cfg.LastStatus,
+			LastRunAt: cfg.LastRunAt, NextRunAt: cfg.NextRunAt}
+	} else if !errors.Is(err, database.ErrNotFound) {
+		return err
 	}
-
-	var release GitHubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		slog.Warn("update check response parse failed", "error", err)
-		return s.fallbackUpdateInfo("Failed to parse GitHub release response."), nil
+	if jobs, err := s.db.ListBackupJobs(ctx, username, 5); err == nil && jobs != nil {
+		acct.Recent = jobs
 	}
 
-	latestVersion := strings.TrimPrefix(release.TagName, "v")
-	currentVersion := strings.TrimPrefix(s.currentVersion, "v")
-
-	updateAvailable := latestVersion != currentVersion && s.currentVersion != "dev"
-
-	info := &UpdateInfo{
-		CurrentVersion:  s.currentVersion,
-		LatestVersion:   release.TagName,
-		UpdateAvailable: updateAvailable,
-		ReleaseNotes:    release.Body,
-		ReleaseURL:      release.HTMLURL,
-		PublishedAt:     release.PublishedAt,
+	out := map[string]any{"account": acct}
+	if p.Actor.IsAdmin && !p.impersonating() {
+		out["server"] = s.serverSummary(ctx)
 	}
-	s.updateMu.Lock()
-	s.lastUpdateInfo = info
-	s.lastUpdateAt = time.Now().UTC()
-	s.updateMu.Unlock()
-	return info, nil
+	return ok(w, out)
 }
 
-func (s *SystemService) fallbackUpdateInfo(warning string) *UpdateInfo {
-	s.updateMu.RLock()
-	cached := s.lastUpdateInfo
-	s.updateMu.RUnlock()
-	if cached != nil {
-		copy := *cached
-		copy.Warning = warning
-		return &copy
+func (s *Server) serverSummary(ctx context.Context) *serverSummary {
+	sum := &serverSummary{Services: []agent.ServiceStatus{}, PHP: []agent.PHPVersionInfo{}}
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	fail := func(what string, err error) {
+		mu.Lock()
+		sum.Errors = append(sum.Errors, what+": "+err.Error())
+		mu.Unlock()
 	}
-	return &UpdateInfo{
-		CurrentVersion:  s.currentVersion,
-		LatestVersion:   s.currentVersion,
-		UpdateAvailable: false,
-		Warning:         warning,
-	}
-}
-
-// GetMySQLConfig returns current MySQL tuning settings
-func (s *SystemService) GetMySQLConfig(ctx context.Context) (*agent.MySQLConfig, error) {
-	return s.agent.GetMySQLConfig(ctx)
-}
-
-// SetMySQLConfig applies new MySQL tuning settings and restarts MySQL
-func (s *SystemService) SetMySQLConfig(ctx context.Context, cfg *agent.MySQLConfig) error {
-	return s.agent.SetMySQLConfig(ctx, cfg)
-}
-
-// GetSSHConfig returns current SSH daemon settings
-func (s *SystemService) GetSSHConfig(ctx context.Context) (*agent.SSHConfig, error) {
-	return s.agent.GetSSHConfig(ctx)
-}
-
-// SetSSHConfig applies SSH daemon settings and reloads SSH service
-func (s *SystemService) SetSSHConfig(ctx context.Context, cfg *agent.SSHConfig) error {
-	return s.agent.SetSSHConfig(ctx, cfg)
-}
-
-// GetPHPDefaultConfig returns configured default PHP version for new sites
-func (s *SystemService) GetPHPDefaultConfig(ctx context.Context) (*agent.PHPDefaultConfig, error) {
-	return s.agent.GetPHPDefaultConfig(ctx)
-}
-
-// SetPHPDefaultConfig updates default PHP version for new sites
-func (s *SystemService) SetPHPDefaultConfig(ctx context.Context, cfg *agent.PHPDefaultConfig) error {
-	return s.agent.SetPHPDefaultConfig(ctx, cfg)
-}
-
-func (s *SystemService) InstallPHPVersion(ctx context.Context, version string) (*PHPVersionInstallStatus, error) {
-	v := strings.TrimSpace(version)
-	if v == "" {
-		return nil, fmt.Errorf("php version is required")
-	}
-
-	now := time.Now().UTC().Format(time.RFC3339)
-
-	s.phpInstallMu.Lock()
-	if current, ok := s.phpInstalls[v]; ok && current.Status == "running" {
-		copy := *current
-		s.phpInstallMu.Unlock()
-		return &copy, nil
-	}
-	status := &PHPVersionInstallStatus{
-		Version:   v,
-		Status:    "running",
-		Message:   fmt.Sprintf("PHP %s installation started.", v),
-		StartedAt: now,
-	}
-	s.phpInstalls[v] = status
-	s.phpInstallMu.Unlock()
-
-	go func(version string) {
-		jobCtx, cancel := context.WithTimeout(context.Background(), 90*time.Minute)
-		defer cancel()
-
-		err := s.agent.InstallPHPVersion(jobCtx, version)
-		finishedAt := time.Now().UTC().Format(time.RFC3339)
-
-		s.phpInstallMu.Lock()
-		defer s.phpInstallMu.Unlock()
-
-		current, ok := s.phpInstalls[version]
-		if !ok {
-			current = &PHPVersionInstallStatus{Version: version, StartedAt: now}
-			s.phpInstalls[version] = current
-		}
-		current.FinishedAt = finishedAt
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		st, err := s.agent.SystemStatus(ctx)
 		if err != nil {
-			current.Status = "failed"
-			current.Message = err.Error()
+			fail("system status", err)
 			return
 		}
-		current.Status = "success"
-		current.Message = fmt.Sprintf("PHP %s installed successfully.", version)
-	}(v)
-
-	copy := *status
-	return &copy, nil
-}
-
-func (s *SystemService) GetPHPInstallStatus(version string) *PHPVersionInstallStatus {
-	v := strings.TrimSpace(version)
-	if v == "" {
-		return &PHPVersionInstallStatus{Status: "idle", Message: "php version is required"}
+		mu.Lock()
+		sum.Status = st
+		mu.Unlock()
+	}()
+	go func() {
+		defer wg.Done()
+		svcs, err := s.agent.Services(ctx)
+		if err != nil {
+			fail("services", err)
+			return
+		}
+		mu.Lock()
+		sum.Services = svcs
+		mu.Unlock()
+	}()
+	go func() {
+		defer wg.Done()
+		st, err := s.phpStatus(ctx)
+		if err != nil {
+			fail("PHP", err)
+			return
+		}
+		mu.Lock()
+		sum.PHP = st.Versions
+		mu.Unlock()
+	}()
+	if users, err := s.db.ListUsers(ctx); err == nil {
+		sum.Users = len(users)
 	}
-	s.phpInstallMu.RLock()
-	defer s.phpInstallMu.RUnlock()
-	if status, ok := s.phpInstalls[v]; ok {
-		copy := *status
-		return &copy
+	if sites, err := s.db.ListAllSites(ctx); err == nil {
+		sum.Sites = len(sites)
 	}
-	return &PHPVersionInstallStatus{
-		Version: v,
-		Status:  "idle",
-		Message: "No installation job found for this PHP version.",
+	sum.Database, _ = s.db.CountDatabases(ctx, "")
+	if info, ok := s.updates.peek(); ok {
+		sum.Update = info
 	}
+	wg.Wait()
+	return sum
 }
 
-// GetCaddyConfig returns current Caddy performance/logging settings
-func (s *SystemService) GetCaddyConfig(ctx context.Context) (*agent.CaddyConfig, error) {
-	return s.agent.GetCaddyConfig(ctx)
+func (s *Server) services(w http.ResponseWriter, r *http.Request) error {
+	svcs, err := s.agent.Services(r.Context())
+	if err != nil {
+		return err
+	}
+	return ok(w, svcs)
 }
 
-// SetCaddyConfig applies Caddy performance/logging settings and reloads Caddy
-func (s *SystemService) SetCaddyConfig(ctx context.Context, cfg *agent.CaddyConfig) error {
-	return s.agent.SetCaddyConfig(ctx, cfg)
-}
-
-func (s *SystemService) GetFirewallStatus(ctx context.Context) (*agent.FirewallStatus, error) {
-	return s.agent.GetFirewallStatus(ctx)
-}
-
-func (s *SystemService) InstallFirewall(ctx context.Context) error {
-	return s.agent.InstallFirewall(ctx)
-}
-
-func (s *SystemService) SetFirewallEnabled(ctx context.Context, enabled bool) error {
-	return s.agent.SetFirewallEnabled(ctx, enabled)
-}
-
-func (s *SystemService) FirewallAllowPort(ctx context.Context, req *agent.FirewallRuleRequest) error {
-	return s.agent.FirewallAllowPort(ctx, req)
-}
-
-func (s *SystemService) FirewallDenyPort(ctx context.Context, req *agent.FirewallRuleRequest) error {
-	return s.agent.FirewallDenyPort(ctx, req)
-}
-
-func (s *SystemService) FirewallDeleteRule(ctx context.Context, req *agent.FirewallRuleRequest) error {
-	return s.agent.FirewallDeleteRule(ctx, req)
-}
-
-// PerformUpdate downloads and installs the latest version
-func (s *SystemService) PerformUpdate(ctx context.Context, targetVersion string) error {
-	return s.agent.PerformUpdate(ctx, targetVersion)
+func (s *Server) getAgentJob(w http.ResponseWriter, r *http.Request) error {
+	id := chi.URLParam(r, "id")
+	if validate.Label("job id", id, 80) != nil {
+		return notFound("Job")
+	}
+	job, err := s.agent.GetJob(r.Context(), id)
+	if err != nil {
+		return err
+	}
+	return ok(w, job)
 }

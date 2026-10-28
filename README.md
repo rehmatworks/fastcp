@@ -1,235 +1,117 @@
 # FastCP
 
-A lightweight, modern server control panel for Ubuntu servers powered by Caddy and PHP-FPM.
+A lightweight control panel for Ubuntu and Debian servers, built on Caddy, PHP-FPM and MySQL.
 
 ## Features
 
-- **Simple & Fast** - Minimal UI, focused on essentials like ServerPilot
-- **PHP-FPM Multi-Version** - Run and manage multiple PHP versions (8.x) from FastCP
-- **Secure Multi-User** - System user isolation with ACLs
-- **PAM Authentication** - Login with your Linux system credentials
-- **WordPress Ready** - One-click WordPress installation
-- **MySQL Management** - Create databases and users easily
-- **SSH Key Management** - Manage SSH access from the UI
-- **Automatic SSL** - Free Let's Encrypt certificates via Caddy
+- **Sites** with automatic HTTPS from Let's Encrypt, extra domains and redirects, and one-click WordPress.
+- **PHP 8.x**, several versions side by side and chosen per site. Patch releases are installed automatically every night, and new PHP versions are installed as soon as they are published.
+- **Isolation**: each account is a Linux user, each site runs in its own PHP-FPM pool as that user, and memory and CPU limits are enforced with systemd.
+- **MySQL** databases and users, with phpMyAdmin built in.
+- **Backups** with restic to SFTP, S3, rclone or a local folder, on a schedule, with per-site and per-database restore and zip downloads.
+- **Cron jobs**, **SSH keys and SFTP**, and a **firewall** (ufw) that keeps SSH and the panel reachable.
+- **Signed updates** from the panel, with automatic rollback if the new version does not start.
 
 ## Requirements
 
-- Ubuntu 22.04 LTS or 24.04 LTS
-- Minimum 1GB RAM (2GB+ recommended)
-- 5GB+ free disk space
+- Ubuntu 22.04 or newer, or Debian 12 or newer, on a clean server
+- 1 GB of memory (2 GB or more recommended) and 5 GB of free disk space
 - Root access
 
-## Quick Install
+## Install
 
 ```bash
-curl -fsSL https://get.fastcp.org | bash
+curl -fsSL https://get.fastcp.org | sudo bash
 ```
 
-Or manually:
+The installer verifies the release signature, installs MySQL, Caddy, phpMyAdmin and the newest PHP, and prints the control panel address and the password of the `fastcp` administrator account. Open `https://your-server-ip:2050` and sign in. The panel uses a self-signed certificate, so your browser warns about it on the first visit.
+
+To install a specific release, set `FASTCP_VERSION`:
 
 ```bash
-wget -O install.sh https://get.fastcp.org
-chmod +x install.sh
-sudo ./install.sh
+curl -fsSL https://get.fastcp.org | sudo FASTCP_VERSION=v3.0.0 bash
 ```
 
-## Access
+Accounts sign in with their Linux user name and password. `root` cannot sign in.
 
-After installation:
+## Updating
 
-- **URL**: `https://your-server-ip:2050`
-- **Login**: Use your Linux system username and password
+Go to **Settings → Updates**. The panel downloads the release, checks its signature, swaps the binaries and restarts. If the new version does not come up, the previous one is restored.
 
-## Architecture
+Updating from FastCP 2 works the same way. The first start of version 3 moves the server to the new layout: the panel and the web server stop running as root, certificates and sites are kept, and everyone has to sign in again.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    FastCP Control Panel                          │
-│                    (Go binary, port 2050 HTTPS)                  │
-│  - Web UI & REST API                                             │
-│  - User authentication (PAM)                                     │
-│  - phpMyAdmin reverse proxy                                      │
-└────────────────────────────┬────────────────────────────────────┘
-                             │ Unix Socket
-┌────────────────────────────▼────────────────────────────────────┐
-│                    FastCP Agent (runs as root)                   │
-│  - User/database management                                      │
-│  - Caddyfile generation                                          │
-│  - SSH key management                                            │
-└─────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
-│                    Caddy (ports 80/443)                          │
-│  - Main reverse proxy for all websites                           │
-│  - Automatic HTTPS (Let's Encrypt)                               │
-│  - phpMyAdmin served internally                                  │
-└────────────────────────────┬────────────────────────────────────┘
-                             │ Unix Sockets
-┌────────────────────────────▼────────────────────────────────────┐
-│         Per-Site PHP-FPM Pools (run as each Linux user)          │
-│  - Isolated PHP execution for security                            │
-│  - Multi-version PHP support per website                          │
-│  - Resource limits (CPU/RAM) via cgroups                         │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Directory Structure
+## How it works
 
 ```
-/opt/fastcp/
-├── bin/
-│   ├── caddy            # Caddy binary
-│   ├── fastcp           # Control panel (when built custom)
-│   └── fastcp-agent     # Privileged helper
-├── config/
-│   └── Caddyfile        # Main configuration
-└── data/
-    └── fastcp.db        # SQLite database
-
-/home/{user}/
-├── apps/
-│   └── {domain}/
-│       ├── public/      # Document root
-│       ├── logs/        # Access/error logs
-│       └── tmp/         # Temporary files
-└── .ssh/
-    └── authorized_keys  # SSH keys
+ Browser ──HTTPS :2050──▶ fastcp            control panel, runs as fastcp-panel
+                            │ Unix socket (peer credentials checked)
+                            ▼
+                          fastcp-agent      the only root process; applies changes
+                            │
+          ┌─────────────────┼───────────────────────┐
+          ▼                 ▼                       ▼
+   Caddy :80/:443     PHP-FPM pools           MySQL, users, cron,
+   runs as caddy      one per site, run       SSH, firewall, backups
+                      as the site's owner
 ```
 
-## Building from Source
+The panel keeps its data in SQLite and pushes the desired configuration to the agent, which renders the Caddyfile and PHP-FPM pools, validates them, and reloads the services without dropping connections.
 
-### Prerequisites
-
-```bash
-# Install Go 1.23+
-wget https://go.dev/dl/go1.23.0.linux-amd64.tar.gz
-sudo tar -C /usr/local -xzf go1.23.0.linux-amd64.tar.gz
-export PATH=$PATH:/usr/local/go/bin
-
-# Install build dependencies
-sudo apt-get install -y build-essential libpam0g-dev
-```
-
-### Build
-
-```bash
-git clone https://github.com/rehmatworks/fastcp.git
-cd fastcp
-
-# Build FastCP binaries
-make build
-
-# Or build individually
-CGO_ENABLED=1 go build -o bin/fastcp ./cmd/fastcp
-CGO_ENABLED=1 go build -o bin/fastcp-agent ./cmd/fastcp-agent
-```
-
-### Install
-
-```bash
-sudo make install
-```
-
-## Configuration
-
-### Main Caddyfile (`/opt/fastcp/config/Caddyfile`)
-
-```caddyfile
-{
-    fastcp {
-        data_dir /opt/fastcp/data
-        agent_socket /opt/fastcp/run/agent.sock
-        listen_port 2050
-    }
-    
-    # PHP is served by per-site PHP-FPM pools and reverse proxied by Caddy
-}
-
-:2050 {
-    tls internal
-    fastcp_ui
-}
-
-# Sites are added here dynamically
-```
-
-## API
-
-FastCP exposes a REST API via Caddy's admin endpoint:
-
-```bash
-# Login
-curl -X POST http://localhost:2019/fastcp/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"myuser","password":"mypass"}'
-
-# List sites
-curl http://localhost:2019/fastcp/sites \
-  -H "Authorization: Bearer <token>"
-
-# Create site
-curl -X POST http://localhost:2019/fastcp/sites \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"domain":"example.com","site_type":"php"}'
-```
-
-## Security
-
-- **User Isolation**: Each site's PHP-FPM pool runs as the owning Linux user
-- **Privilege Separation**: Agent runs as root, per-user PHP runs as each user
-- **PAM Authentication**: Uses Linux system authentication
-- **Root Login Disabled**: Only non-root users (like `fastcp`) can access the panel
-- **Encrypted Credentials**: Database passwords stored with AES-256-GCM encryption
+| Path | Contents |
+| --- | --- |
+| `/opt/fastcp/bin` | `fastcp` and `fastcp-agent` |
+| `/opt/fastcp/data` | panel database and keys (owned by `fastcp-panel`) |
+| `/opt/fastcp/config` | generated Caddyfile and settings |
+| `/var/lib/fastcp/caddy` | certificates (owned by `caddy`) |
+| `/home/<user>/apps/<site>/public` | a site's document root |
+| `/var/log/fastcp/sites/<user>/<site>` | a site's logs |
 
 ## Troubleshooting
 
-### Check service status
-
 ```bash
-systemctl status fastcp
-systemctl status fastcp-agent
-```
-
-### View logs
-
-```bash
-# FastCP logs
-journalctl -u fastcp -f
-
-# Agent logs
-journalctl -u fastcp-agent -f
-
-# Site access logs
-tail -f /home/{user}/apps/{domain}/logs/access.log
-```
-
-### Restart services
-
-```bash
-sudo systemctl restart fastcp-agent
-sudo systemctl restart fastcp
+systemctl status fastcp fastcp-agent fastcp-caddy
+journalctl -u fastcp -u fastcp-agent -f
+sudo systemctl restart fastcp-agent fastcp
 ```
 
 ## Uninstall
 
 ```bash
-curl -fsSL https://get.fastcp.org/uninstall.sh -o /tmp/fastcp-uninstall.sh
-sudo bash /tmp/fastcp-uninstall.sh
+curl -fsSL https://github.com/rehmatworks/fastcp/releases/latest/download/uninstall.sh -o uninstall.sh
+sudo bash uninstall.sh
 ```
 
-The uninstaller is interactive and asks for confirmation before destructive actions.
+The uninstaller asks before deleting accounts, sites, databases or packages.
 
-## Contributing
+## Development
 
-Contributions are welcome! Please read our contributing guidelines before submitting PRs.
+You need Go 1.27, Node.js 22 or newer, and on Linux `libpam0g-dev`.
+
+```bash
+make dev                 # panel on http://127.0.0.1:2050 with an in-memory agent (macOS)
+cd web && npm run dev    # UI with hot reload on http://127.0.0.1:5173
+make check               # go vet, go test, svelte-check and vitest
+make ui                  # rebuild cmd/fastcp/ui/dist (committed)
+make docker              # install FastCP in a container with the real installer
+```
+
+The UI in `web/` is Svelte 5 with TypeScript. Its build is committed to `cmd/fastcp/ui/dist` so that `go build` works without Node; CI fails if the committed build is out of date. Agent tests that need root run with `FASTCP_INTEGRATION=1` in a Linux container:
+
+```bash
+docker run --rm -v "$PWD":/src -w /src -e FASTCP_INTEGRATION=1 golang:1.27-bookworm \
+  sh -c 'apt-get update -qq && apt-get install -y -qq libpam0g-dev acl cron >/dev/null && go test ./...'
+```
+
+## Releasing
+
+1. One time: create the signing key and add the private key as the `FASTCP_SIGNING_KEY` repository secret.
+   ```bash
+   go run ./tools/releasekey gen -pub internal/release/signing.pub -installer scripts/install.sh
+   ```
+   Commit both changed files. Never commit the private key.
+2. `make bump V=x.y.z`, then `make ui`, and commit.
+3. Push the commit and the tag `vx.y.z` together. The release workflow runs the checks, builds the binaries, and publishes them with `SHA256SUMS` and `SHA256SUMS.sig`.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Credits
-
-- [Caddy](https://caddyserver.com/) - The ultimate web server
-- Inspired by [ServerPilot](https://serverpilot.io/)
+MIT. See [LICENSE](LICENSE).

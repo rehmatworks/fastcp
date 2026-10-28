@@ -2,1001 +2,624 @@ package api
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/tls"
-	"encoding/hex"
+	"errors"
 	"fmt"
-	"net"
-	"regexp"
+	"log/slog"
+	"net/http"
+	"os"
+	"slices"
 	"strconv"
 	"strings"
-	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/rehmatworks/fastcp/internal/agent"
 	"github.com/rehmatworks/fastcp/internal/crypto"
 	"github.com/rehmatworks/fastcp/internal/database"
+	"github.com/rehmatworks/fastcp/internal/validate"
 )
 
-var domainRegex = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`)
-var slugRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}[a-zA-Z0-9]$|^[a-zA-Z0-9]$`)
-var phpSizeRegex = regexp.MustCompile(`(?i)^\s*(\d+)\s*([kmg])?\s*$`)
+const (
+	maxDomainsPerSite = 20
+	phpMemoryMin      = 16 << 20
+	phpSizeMin        = 1 << 20
+	phpSizeMax        = 16 << 30
+)
 
-// SiteService handles site operations
-type SiteService struct {
-	db    *database.DB
-	agent *agent.Client
+type siteView struct {
+	*database.Site
+	Domains []*database.SiteDomain `json:"domains"`
+	SSL     map[string]sslStatus   `json:"ssl"`
 }
 
-// NewSiteService creates a new site service
-func NewSiteService(db *database.DB, agent *agent.Client) *SiteService {
-	return &SiteService{db: db, agent: agent}
-}
-
-func isLocalDomain(domain string) bool {
-	d := strings.ToLower(strings.TrimSpace(domain))
-	return d == "localhost" ||
-		d == "127.0.0.1" ||
-		d == "::1" ||
-		strings.HasSuffix(d, ".localhost") ||
-		strings.HasSuffix(d, ".local") ||
-		strings.HasSuffix(d, ".test")
-}
-
-type sslEvaluation struct {
-	valid  bool
-	status string
-	reason string
-}
-
-func sslStatusFromDialError(err error) (string, string) {
-	errMsg := strings.ToLower(strings.TrimSpace(err.Error()))
-	switch {
-	case strings.Contains(errMsg, "no such host"):
-		return "dns_error", "DNS record not found for this domain."
-	case strings.Contains(errMsg, "i/o timeout"):
-		return "timeout", "TLS handshake timed out. Check DNS and reachability on port 443."
-	case strings.Contains(errMsg, "connection refused"):
-		return "unreachable", "Port 443 refused the connection."
-	case strings.Contains(errMsg, "certificate is valid for"):
-		return "cert_mismatch", "A certificate was found, but it does not match this domain."
-	case strings.Contains(errMsg, "unknown authority"):
-		return "untrusted_cert", "A certificate exists but is not trusted yet."
-	case strings.Contains(errMsg, "tls: handshake failure"), strings.Contains(errMsg, "remote error: tls"):
-		return "handshake_failed", "TLS handshake failed while validating certificate."
-	default:
-		return "pending", "Certificate not ready yet."
+func (s *Server) viewSite(site *database.Site, domains []*database.SiteDomain) siteView {
+	if domains == nil {
+		domains = []*database.SiteDomain{}
 	}
-}
-
-func (s *SiteService) evaluateSSL(domain string, sslEnabled bool) sslEvaluation {
-	if !sslEnabled || isLocalDomain(domain) {
-		if !sslEnabled {
-			return sslEvaluation{
-				valid:  false,
-				status: "disabled",
-				reason: "SSL checks are disabled for this site.",
-			}
-		}
-		return sslEvaluation{
-			valid:  false,
-			status: "local_domain",
-			reason: "Local/test domains do not receive public CA certificates.",
+	v := siteView{Site: site, Domains: domains, SSL: map[string]sslStatus{}}
+	for _, d := range domains {
+		if st, ok := s.ssl.get(d.Domain); ok {
+			v.SSL[d.Domain] = st
 		}
 	}
-	domain = strings.TrimSpace(strings.TrimSuffix(domain, "."))
-	if domain == "" {
-		return sslEvaluation{
-			valid:  false,
-			status: "invalid_domain",
-			reason: "Domain is missing or invalid.",
-		}
-	}
+	return v
+}
 
-	dialer := &net.Dialer{Timeout: 1500 * time.Millisecond}
-	conn, err := tls.DialWithDialer(dialer, "tcp", net.JoinHostPort(domain, "443"), &tls.Config{
-		ServerName: domain,
-		MinVersion: tls.VersionTLS12,
-	})
+// ownedSite loads the site in the URL if it belongs to the caller.
+func (s *Server) ownedSite(r *http.Request) (*database.Site, error) {
+	site, err := s.db.GetSite(r.Context(), chi.URLParam(r, "id"))
+	if errors.Is(err, database.ErrNotFound) || (err == nil && site.Username != current(r).User.Username) {
+		return nil, notFound("Site")
+	}
+	return site, err
+}
+
+func (s *Server) siteResponse(w http.ResponseWriter, r *http.Request, id string, status int) error {
+	site, err := s.db.GetSite(r.Context(), id)
 	if err != nil {
-		status, reason := sslStatusFromDialError(err)
-		return sslEvaluation{
-			valid:  false,
-			status: status,
-			reason: reason,
-		}
+		return err
 	}
-	defer conn.Close()
-	return sslEvaluation{
-		valid:  true,
-		status: "valid",
-		reason: "SSL certificate is issued and trusted.",
-	}
-}
-
-func shouldAutoEnableForceHTTPS(dbSite *database.Site, dbDomains []*database.SiteDomain, eval func(string, bool) sslEvaluation) bool {
-	if dbSite == nil || dbSite.ForceHTTPS || !dbSite.SSLEnabled {
-		return false
-	}
-
-	var servingDomains []string
-	for _, d := range dbDomains {
-		if d == nil || d.RedirectToPrimary {
-			continue
-		}
-		domain := strings.ToLower(strings.TrimSpace(d.Domain))
-		if domain != "" {
-			servingDomains = append(servingDomains, domain)
-		}
-	}
-	if len(servingDomains) == 0 {
-		domain := strings.ToLower(strings.TrimSpace(dbSite.Domain))
-		if domain != "" {
-			servingDomains = append(servingDomains, domain)
-		}
-	}
-
-	// Only auto-enable for public domains. Local/test-only sites should stay manual.
-	hasPublicDomain := false
-	for _, domain := range servingDomains {
-		if !isLocalDomain(domain) {
-			hasPublicDomain = true
-			break
-		}
-	}
-	if !hasPublicDomain {
-		return false
-	}
-
-	for _, domain := range servingDomains {
-		if isLocalDomain(domain) {
-			continue
-		}
-		if !eval(domain, dbSite.SSLEnabled).valid {
-			return false
-		}
-	}
-	return true
-}
-
-func (s *SiteService) applyForceHTTPSEnabled(ctx context.Context, dbSite *database.Site) error {
-	return s.db.UpdateSiteSettings(
-		ctx,
-		dbSite.ID,
-		dbSite.Username,
-		true,
-		dbSite.CompressionEnabled,
-		dbSite.GzipEnabled,
-		dbSite.ZstdEnabled,
-		dbSite.CacheControlEnabled,
-		dbSite.CacheControlValue,
-		dbSite.PHPVersion,
-		dbSite.PHPMemoryLimit,
-		dbSite.PHPPostMaxSize,
-		dbSite.PHPUploadMaxSize,
-		dbSite.PHPMaxExecutionTime,
-		dbSite.PHPMaxInputVars,
-	)
-}
-
-func normalizePHPSizeSetting(raw, fallback string) (string, error) {
-	v := strings.TrimSpace(raw)
-	if v == "" {
-		v = strings.TrimSpace(fallback)
-	}
-	match := phpSizeRegex.FindStringSubmatch(v)
-	if len(match) != 3 {
-		return "", fmt.Errorf("invalid size format: %q (use values like 256M, 64M, 1G)", v)
-	}
-	numberPart := strings.TrimSpace(match[1])
-	unitPart := strings.ToUpper(strings.TrimSpace(match[2]))
-	if unitPart == "" {
-		return numberPart, nil
-	}
-	return numberPart + unitPart, nil
-}
-
-func parsePHPSizeBytes(value string) (int64, error) {
-	match := phpSizeRegex.FindStringSubmatch(strings.TrimSpace(value))
-	if len(match) != 3 {
-		return 0, fmt.Errorf("invalid size: %q", value)
-	}
-	n, err := strconv.ParseInt(match[1], 10, 64)
-	if err != nil || n < 0 {
-		return 0, fmt.Errorf("invalid size number: %q", value)
-	}
-	switch strings.ToUpper(strings.TrimSpace(match[2])) {
-	case "G":
-		n *= 1024 * 1024 * 1024
-	case "M":
-		n *= 1024 * 1024
-	case "K":
-		n *= 1024
-	}
-	return n, nil
-}
-
-// List returns all sites for a user
-func (s *SiteService) List(ctx context.Context, username string) ([]*Site, error) {
-	dbSites, err := s.db.ListSites(ctx, username)
+	domains, err := s.db.ListDomains(r.Context(), id)
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	sites := make([]*Site, len(dbSites))
-	autoForcedAny := false
-	for i, dbSite := range dbSites {
-		// Get domains for this site
-		dbDomains, _ := s.db.GetSiteDomains(ctx, dbSite.ID)
-		if shouldAutoEnableForceHTTPS(dbSite, dbDomains, s.evaluateSSL) {
-			if err := s.applyForceHTTPSEnabled(ctx, dbSite); err == nil {
-				dbSite.ForceHTTPS = true
-				autoForcedAny = true
-			}
-		}
-		ssl := s.evaluateSSL(dbSite.Domain, dbSite.SSLEnabled)
-		sites[i] = &Site{
-			ID:                  dbSite.ID,
-			Username:            dbSite.Username,
-			Domain:              dbSite.Domain,
-			Slug:                dbSite.Slug,
-			SiteType:            dbSite.SiteType,
-			DocumentRoot:        dbSite.DocumentRoot,
-			SSLEnabled:          dbSite.SSLEnabled,
-			SSLValid:            ssl.valid,
-			SSLStatus:           ssl.status,
-			SSLReason:           ssl.reason,
-			ForceHTTPS:          dbSite.ForceHTTPS,
-			CompressionEnabled:  dbSite.CompressionEnabled,
-			GzipEnabled:         dbSite.GzipEnabled,
-			ZstdEnabled:         dbSite.ZstdEnabled,
-			CacheControlEnabled: dbSite.CacheControlEnabled,
-			CacheControlValue:   dbSite.CacheControlValue,
-			PHPVersion:          dbSite.PHPVersion,
-			PHPMemoryLimit:      dbSite.PHPMemoryLimit,
-			PHPPostMaxSize:      dbSite.PHPPostMaxSize,
-			PHPUploadMaxSize:    dbSite.PHPUploadMaxSize,
-			PHPMaxExecutionTime: dbSite.PHPMaxExecutionTime,
-			PHPMaxInputVars:     dbSite.PHPMaxInputVars,
-			CreatedAt:           dbSite.CreatedAt,
-			Domains:             convertDomains(dbDomains),
-		}
-	}
-	if autoForcedAny {
-		if err := s.agent.ReloadCaddy(ctx); err != nil {
-			fmt.Printf("warning: failed to reload Caddy after auto-enabling force HTTPS: %v\n", err)
-		}
-	}
-	return sites, nil
-}
-
-// ListPaginated returns paginated sites with search
-func (s *SiteService) ListPaginated(ctx context.Context, username string, page, limit int, search string) ([]*Site, int, error) {
-	dbSites, total, err := s.db.ListSitesPaginated(ctx, username, page, limit, search)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	sites := make([]*Site, len(dbSites))
-	autoForcedAny := false
-	for i, dbSite := range dbSites {
-		dbDomains, _ := s.db.GetSiteDomains(ctx, dbSite.ID)
-		if shouldAutoEnableForceHTTPS(dbSite, dbDomains, s.evaluateSSL) {
-			if err := s.applyForceHTTPSEnabled(ctx, dbSite); err == nil {
-				dbSite.ForceHTTPS = true
-				autoForcedAny = true
-			}
-		}
-		ssl := s.evaluateSSL(dbSite.Domain, dbSite.SSLEnabled)
-		sites[i] = &Site{
-			ID:                  dbSite.ID,
-			Username:            dbSite.Username,
-			Domain:              dbSite.Domain,
-			Slug:                dbSite.Slug,
-			SiteType:            dbSite.SiteType,
-			DocumentRoot:        dbSite.DocumentRoot,
-			SSLEnabled:          dbSite.SSLEnabled,
-			SSLValid:            ssl.valid,
-			SSLStatus:           ssl.status,
-			SSLReason:           ssl.reason,
-			ForceHTTPS:          dbSite.ForceHTTPS,
-			CompressionEnabled:  dbSite.CompressionEnabled,
-			GzipEnabled:         dbSite.GzipEnabled,
-			ZstdEnabled:         dbSite.ZstdEnabled,
-			CacheControlEnabled: dbSite.CacheControlEnabled,
-			CacheControlValue:   dbSite.CacheControlValue,
-			PHPVersion:          dbSite.PHPVersion,
-			PHPMemoryLimit:      dbSite.PHPMemoryLimit,
-			PHPPostMaxSize:      dbSite.PHPPostMaxSize,
-			PHPUploadMaxSize:    dbSite.PHPUploadMaxSize,
-			PHPMaxExecutionTime: dbSite.PHPMaxExecutionTime,
-			PHPMaxInputVars:     dbSite.PHPMaxInputVars,
-			CreatedAt:           dbSite.CreatedAt,
-			Domains:             convertDomains(dbDomains),
-		}
-	}
-	if autoForcedAny {
-		if err := s.agent.ReloadCaddy(ctx); err != nil {
-			fmt.Printf("warning: failed to reload Caddy after auto-enabling force HTTPS: %v\n", err)
-		}
-	}
-	return sites, total, nil
-}
-
-func convertDomains(dbDomains []*database.SiteDomain) []SiteDomain {
-	if dbDomains == nil {
-		return nil
-	}
-	domains := make([]SiteDomain, len(dbDomains))
-	for i, d := range dbDomains {
-		domains[i] = SiteDomain{
-			ID:                d.ID,
-			SiteID:            d.SiteID,
-			Domain:            d.Domain,
-			IsPrimary:         d.IsPrimary,
-			RedirectToPrimary: d.RedirectToPrimary,
-			CreatedAt:         d.CreatedAt,
-		}
-	}
-	return domains
-}
-
-// Get returns a single site
-func (s *SiteService) Get(ctx context.Context, id, username string) (*Site, error) {
-	dbSite, err := s.db.GetSite(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check ownership
-	if dbSite.Username != username {
-		return nil, fmt.Errorf("site not found")
-	}
-
-	// Get domains for this site
-	dbDomains, _ := s.db.GetSiteDomains(ctx, dbSite.ID)
-	if shouldAutoEnableForceHTTPS(dbSite, dbDomains, s.evaluateSSL) {
-		if err := s.applyForceHTTPSEnabled(ctx, dbSite); err == nil {
-			dbSite.ForceHTTPS = true
-			if reloadErr := s.agent.ReloadCaddy(ctx); reloadErr != nil {
-				fmt.Printf("warning: failed to reload Caddy after auto-enabling force HTTPS: %v\n", reloadErr)
-			}
-		}
-	}
-	ssl := s.evaluateSSL(dbSite.Domain, dbSite.SSLEnabled)
-
-	return &Site{
-		ID:                  dbSite.ID,
-		Username:            dbSite.Username,
-		Domain:              dbSite.Domain,
-		Slug:                dbSite.Slug,
-		SiteType:            dbSite.SiteType,
-		DocumentRoot:        dbSite.DocumentRoot,
-		SSLEnabled:          dbSite.SSLEnabled,
-		SSLValid:            ssl.valid,
-		SSLStatus:           ssl.status,
-		SSLReason:           ssl.reason,
-		ForceHTTPS:          dbSite.ForceHTTPS,
-		CompressionEnabled:  dbSite.CompressionEnabled,
-		GzipEnabled:         dbSite.GzipEnabled,
-		ZstdEnabled:         dbSite.ZstdEnabled,
-		CacheControlEnabled: dbSite.CacheControlEnabled,
-		CacheControlValue:   dbSite.CacheControlValue,
-		PHPVersion:          dbSite.PHPVersion,
-		PHPMemoryLimit:      dbSite.PHPMemoryLimit,
-		PHPPostMaxSize:      dbSite.PHPPostMaxSize,
-		PHPUploadMaxSize:    dbSite.PHPUploadMaxSize,
-		PHPMaxExecutionTime: dbSite.PHPMaxExecutionTime,
-		PHPMaxInputVars:     dbSite.PHPMaxInputVars,
-		CreatedAt:           dbSite.CreatedAt,
-		Domains:             convertDomains(dbDomains),
-	}, nil
-}
-
-// Create creates a new site
-func (s *SiteService) Create(ctx context.Context, req *CreateSiteRequest) (*Site, error) {
-	// Check user's site limit
-	user, err := s.db.GetUser(ctx, req.Username)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
-	}
-
-	if user.MaxSites != -1 {
-		siteCount, err := s.db.CountUserSites(ctx, req.Username)
-		if err != nil {
-			return nil, fmt.Errorf("failed to count sites: %w", err)
-		}
-		if siteCount >= user.MaxSites {
-			return nil, fmt.Errorf("site limit reached: you can create a maximum of %d sites", user.MaxSites)
-		}
-	}
-
-	// Validate domain
-	domain := strings.ToLower(strings.TrimSpace(req.Domain))
-	if !domainRegex.MatchString(domain) {
-		return nil, fmt.Errorf("invalid domain format")
-	}
-
-	// Validate site type
-	siteType := strings.ToLower(req.SiteType)
-	if siteType == "" {
-		siteType = "php"
-	}
-	if siteType != "php" && siteType != "wordpress" {
-		return nil, fmt.Errorf("invalid site type: must be 'php' or 'wordpress'")
-	}
-
-	phpVersion, err := s.validateRequestedPHPVersion(ctx, req.PHPVersion)
-	if err != nil {
-		return nil, err
-	}
-
-	// Handle slug - auto-generate from domain if not provided
-	slug := strings.TrimSpace(req.Slug)
-	if slug == "" {
-		slug = strings.ReplaceAll(domain, ".", "_")
-		slug = strings.ReplaceAll(slug, "-", "_")
-	}
-
-	// Validate slug format
-	if !slugRegex.MatchString(slug) {
-		return nil, fmt.Errorf("invalid slug format: use letters, numbers, underscores, and hyphens (2-64 chars)")
-	}
-
-	// Check if slug already exists for this user
-	exists, err := s.db.SlugExists(ctx, req.Username, slug)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check slug: %w", err)
-	}
-	if exists {
-		return nil, fmt.Errorf("slug '%s' already exists. Choose a different name.", slug)
-	}
-
-	// Generate ID and paths
-	id := uuid.New().String()
-	documentRoot := fmt.Sprintf("/home/%s/apps/%s/public", req.Username, slug)
-
-	// Create site directory via agent
-	if err := s.agent.CreateSiteDirectory(ctx, &agent.CreateSiteDirectoryRequest{
-		Username: req.Username,
-		Domain:   domain,
-		Slug:     slug,
-		SiteType: siteType,
-	}); err != nil {
-		return nil, fmt.Errorf("failed to create site directory: %w", err)
-	}
-
-	// If WordPress, install it with auto-created database
-	if siteType == "wordpress" {
-		// Generate database credentials
-		// Remove dots and limit to 16 chars for MySQL compatibility
-		dbSuffix := strings.ReplaceAll(domain, ".", "")
-		if len(dbSuffix) > 16 {
-			dbSuffix = dbSuffix[:16]
-		}
-		dbName := fmt.Sprintf("%s_%s", req.Username, dbSuffix)
-		dbUser := dbName
-		if len(dbUser) > 32 { // MySQL user name limit
-			dbUser = dbUser[:32]
-		}
-		dbPass := generateDBPassword()
-
-		if err := s.agent.InstallWordPress(ctx, &agent.InstallWordPressRequest{
-			Username: req.Username,
-			Domain:   domain,
-			Path:     documentRoot,
-			DBName:   dbName,
-			DBUser:   dbUser,
-			DBPass:   dbPass,
-		}); err != nil {
-			return nil, fmt.Errorf("failed to install WordPress: %w", err)
-		}
-
-		// Encrypt password for storage
-		encryptedPassword, err := crypto.Encrypt(dbPass)
-		if err != nil {
-			fmt.Printf("warning: failed to encrypt WordPress database password: %v\n", err)
-			encryptedPassword = ""
-		}
-
-		// Save database record to FastCP database so it appears in the UI
-		dbRecord := &database.Database{
-			ID:         uuid.New().String(),
-			Username:   req.Username,
-			DBName:     dbName,
-			DBUser:     dbUser,
-			DBPassword: encryptedPassword,
-		}
-		if err := s.db.CreateDatabase(ctx, dbRecord); err != nil {
-			// Log but don't fail - WordPress is already installed
-			fmt.Printf("warning: failed to save WordPress database record: %v\n", err)
-		}
-	}
-
-	// Save to database
-	dbSite := &database.Site{
-		ID:                  id,
-		Username:            req.Username,
-		Domain:              domain,
-		Slug:                slug,
-		SiteType:            siteType,
-		DocumentRoot:        documentRoot,
-		SSLEnabled:          true,
-		ForceHTTPS:          false,
-		CompressionEnabled:  true,
-		GzipEnabled:         true,
-		ZstdEnabled:         true,
-		CacheControlEnabled: false,
-		CacheControlValue:   "",
-		PHPVersion:          phpVersion,
-		PHPMemoryLimit:      "256M",
-		PHPPostMaxSize:      "64M",
-		PHPUploadMaxSize:    "64M",
-		PHPMaxExecutionTime: 300,
-		PHPMaxInputVars:     5000,
-	}
-	if err := s.db.CreateSite(ctx, dbSite); err != nil {
-		return nil, fmt.Errorf("failed to save site: %w", err)
-	}
-
-	// Add primary domain to site_domains table
-	primaryDomain := &database.SiteDomain{
-		SiteID:            id,
-		Domain:            domain,
-		IsPrimary:         true,
-		RedirectToPrimary: false,
-	}
-	if err := s.db.AddSiteDomain(ctx, primaryDomain); err != nil {
-		fmt.Printf("warning: failed to add primary domain: %v\n", err)
-	}
-
-	// Reload Caddy configuration
-	if err := s.agent.ReloadCaddy(ctx); err != nil {
-		// Log but don't fail
-		fmt.Printf("warning: failed to reload Caddy: %v\n", err)
-	}
-
-	return &Site{
-		ID:                  id,
-		Username:            req.Username,
-		Domain:              domain,
-		Slug:                slug,
-		SiteType:            siteType,
-		DocumentRoot:        documentRoot,
-		SSLEnabled:          true,
-		SSLValid:            false,
-		SSLStatus:           "pending",
-		SSLReason:           "Certificate not ready yet.",
-		ForceHTTPS:          false,
-		CompressionEnabled:  true,
-		GzipEnabled:         true,
-		ZstdEnabled:         true,
-		CacheControlEnabled: false,
-		CacheControlValue:   "",
-		PHPVersion:          phpVersion,
-		PHPMemoryLimit:      "256M",
-		PHPPostMaxSize:      "64M",
-		PHPUploadMaxSize:    "64M",
-		PHPMaxExecutionTime: 300,
-		PHPMaxInputVars:     5000,
-		Domains: []SiteDomain{{
-			ID:                primaryDomain.ID,
-			SiteID:            id,
-			Domain:            domain,
-			IsPrimary:         true,
-			RedirectToPrimary: false,
-			CreatedAt:         primaryDomain.CreatedAt,
-		}},
-	}, nil
-}
-
-// Delete deletes a site
-func (s *SiteService) Delete(ctx context.Context, id, username string) error {
-	// Get site first to check ownership
-	dbSite, err := s.db.GetSite(ctx, id)
-	if err != nil {
-		return fmt.Errorf("site not found")
-	}
-
-	if dbSite.Username != username {
-		return fmt.Errorf("site not found")
-	}
-
-	// Delete site directory via agent
-	if err := s.agent.DeleteSiteDirectory(ctx, &agent.DeleteSiteDirectoryRequest{
-		Username: username,
-		Slug:     dbSite.Slug,
-	}); err != nil {
-		return fmt.Errorf("failed to delete site directory: %w", err)
-	}
-
-	// Delete from database
-	if err := s.db.DeleteSite(ctx, id); err != nil {
-		return fmt.Errorf("failed to delete site: %w", err)
-	}
-
-	// Reload Caddy configuration
-	if err := s.agent.ReloadCaddy(ctx); err != nil {
-		fmt.Printf("warning: failed to reload Caddy: %v\n", err)
-	}
-
+	writeJSON(w, status, s.viewSite(site, domains))
 	return nil
 }
 
-// UpdateSettings updates per-site runtime settings and regenerates Caddy configuration.
-func (s *SiteService) UpdateSettings(ctx context.Context, siteID, username string, req *UpdateSiteSettingsRequest) (*Site, error) {
-	// Verify ownership first
-	dbSite, err := s.db.GetSite(ctx, siteID)
-	if err != nil || dbSite.Username != username {
-		return nil, fmt.Errorf("site not found")
+func (s *Server) listSites(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	sites, err := s.db.ListSites(ctx, current(r).User.Username)
+	if err != nil {
+		return err
+	}
+	domains, err := s.db.DomainsBySite(ctx)
+	if err != nil {
+		return err
+	}
+	out := make([]siteView, 0, len(sites))
+	for _, site := range sites {
+		out = append(out, s.viewSite(site, domains[site.ID]))
+	}
+	return ok(w, out)
+}
+
+func (s *Server) getSite(w http.ResponseWriter, r *http.Request) error {
+	site, err := s.ownedSite(r)
+	if err != nil {
+		return err
+	}
+	return s.siteResponse(w, r, site.ID, http.StatusOK)
+}
+
+// newDomain validates a domain for a site and checks it is free.
+func (s *Server) newDomain(ctx context.Context, raw string) (string, error) {
+	domain, err := validate.Domain(raw)
+	if err != nil {
+		return "", validation(err)
+	}
+	if host, err := os.Hostname(); err == nil && strings.Contains(host, ".") && strings.EqualFold(strings.TrimSuffix(host, "."), domain) {
+		return "", badRequest("%s is this server's host name, which is reserved for the control panel.", domain)
+	}
+	taken, err := s.db.DomainTaken(ctx, domain)
+	if err != nil {
+		return "", err
+	}
+	if taken {
+		return "", conflict("%s is already used by a site on this server.", domain)
+	}
+	return domain, nil
+}
+
+func (s *Server) checkDomain(w http.ResponseWriter, r *http.Request) error {
+	domain, err := s.newDomain(r.Context(), r.URL.Query().Get("domain"))
+	if err != nil {
+		_, msg := classify(err)
+		return ok(w, map[string]any{"available": false, "message": msg})
+	}
+	return ok(w, map[string]any{"available": true, "domain": domain})
+}
+
+func (s *Server) uniqueSlug(ctx context.Context, username, domain string) (string, error) {
+	base := strings.NewReplacer(".", "_", "-", "_").Replace(domain)
+	if len(base) > 56 {
+		base = base[:56]
+	}
+	base = strings.TrimRight(base, "_")
+	for i := 1; i < 1000; i++ {
+		slug := base
+		if i > 1 {
+			slug = fmt.Sprintf("%s_%d", base, i)
+		}
+		if validate.Slug(slug) != nil {
+			continue
+		}
+		taken, err := s.db.SlugTaken(ctx, username, slug)
+		if err != nil {
+			return "", err
+		}
+		if !taken {
+			return slug, nil
+		}
+	}
+	return "", conflict("Could not pick a directory name for %s.", domain)
+}
+
+// requirePHP checks that version is installed. An empty version picks the
+// default.
+func (s *Server) requirePHP(ctx context.Context, version string) (string, error) {
+	installed, def, err := s.installedPHP(ctx)
+	if err != nil {
+		return "", err
+	}
+	if version == "" {
+		version = def
+	}
+	if version == "" || !slices.Contains(installed, version) {
+		if len(installed) == 0 {
+			return "", badRequest("No PHP version is installed. An administrator can install one under Settings → PHP.")
+		}
+		return "", badRequest("PHP %s is not installed. Installed versions: %s.", version, strings.Join(installed, ", "))
+	}
+	return version, nil
+}
+
+func (s *Server) createSite(w http.ResponseWriter, r *http.Request) error {
+	p := current(r)
+	ctx := r.Context()
+	var req struct {
+		Domain     string `json:"domain"`
+		SiteType   string `json:"site_type"`
+		PHPVersion string `json:"php_version"`
+	}
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	if req.SiteType == "" {
+		req.SiteType = "php"
+	}
+	if req.SiteType != "php" && req.SiteType != "wordpress" {
+		return badRequest("Site type must be php or wordpress.")
+	}
+	domain, err := s.newDomain(ctx, req.Domain)
+	if err != nil {
+		return err
+	}
+	if p.User.MaxSites >= 0 {
+		n, err := s.db.CountSites(ctx, p.User.Username)
+		if err != nil {
+			return err
+		}
+		if n >= p.User.MaxSites {
+			return forbidden("This account is limited to %s.", plural(p.User.MaxSites, "site"))
+		}
+	}
+	version, err := s.requirePHP(ctx, req.PHPVersion)
+	if err != nil {
+		return err
+	}
+	slug, err := s.uniqueSlug(ctx, p.User.Username, domain)
+	if err != nil {
+		return err
 	}
 
-	cacheControlValue := strings.TrimSpace(req.CacheControlValue)
-	cacheControlValue = strings.ReplaceAll(cacheControlValue, "\r", "")
-	cacheControlValue = strings.ReplaceAll(cacheControlValue, "\n", "")
-	if len(cacheControlValue) > 255 {
-		return nil, fmt.Errorf("cache-control value is too long")
+	site := &database.Site{
+		ID: uuid.NewString(), Username: p.User.Username, Domain: domain, Slug: slug, SiteType: req.SiteType,
+		DocumentRoot:   "/home/" + p.User.Username + "/apps/" + slug + "/public",
+		ForceHTTPSAuto: true, CompressionEnabled: true, GzipEnabled: true, ZstdEnabled: true,
+		PHPVersion: version, PHPMemoryLimit: "256M", PHPPostMaxSize: "64M", PHPUploadMaxSize: "64M",
+		PHPMaxExecutionTime: 300, PHPMaxInputVars: 5000,
 	}
-
-	if req.CompressionEnabled && !req.GzipEnabled && !req.ZstdEnabled {
-		return nil, fmt.Errorf("enable at least one compression algorithm (gzip or zstd)")
-	}
-	if req.CacheControlEnabled && cacheControlValue == "" {
-		return nil, fmt.Errorf("cache-control value is required when cache-control is enabled")
-	}
-	requested := req.PHPVersion
-	if strings.TrimSpace(requested) == "" {
-		requested = dbSite.PHPVersion
-	}
-	phpVersion, err := s.validateRequestedPHPVersion(ctx, requested)
-	if err != nil {
-		return nil, err
-	}
-	phpMemoryLimit, err := normalizePHPSizeSetting(req.PHPMemoryLimit, dbSite.PHPMemoryLimit)
-	if err != nil {
-		return nil, fmt.Errorf("invalid memory limit: %w", err)
-	}
-	phpPostMaxSize, err := normalizePHPSizeSetting(req.PHPPostMaxSize, dbSite.PHPPostMaxSize)
-	if err != nil {
-		return nil, fmt.Errorf("invalid post max size: %w", err)
-	}
-	phpUploadMaxSize, err := normalizePHPSizeSetting(req.PHPUploadMaxSize, dbSite.PHPUploadMaxSize)
-	if err != nil {
-		return nil, fmt.Errorf("invalid upload max filesize: %w", err)
-	}
-	postMaxBytes, err := parsePHPSizeBytes(phpPostMaxSize)
-	if err != nil {
-		return nil, fmt.Errorf("invalid post max size: %w", err)
-	}
-	uploadMaxBytes, err := parsePHPSizeBytes(phpUploadMaxSize)
-	if err != nil {
-		return nil, fmt.Errorf("invalid upload max filesize: %w", err)
-	}
-	if postMaxBytes < uploadMaxBytes {
-		return nil, fmt.Errorf("post max size must be greater than or equal to upload max filesize")
-	}
-	phpMaxExecutionTime := req.PHPMaxExecutionTime
-	if phpMaxExecutionTime <= 0 {
-		phpMaxExecutionTime = dbSite.PHPMaxExecutionTime
-	}
-	if phpMaxExecutionTime < 1 || phpMaxExecutionTime > 3600 {
-		return nil, fmt.Errorf("max execution time must be between 1 and 3600 seconds")
-	}
-	phpMaxInputVars := req.PHPMaxInputVars
-	if phpMaxInputVars <= 0 {
-		phpMaxInputVars = dbSite.PHPMaxInputVars
-	}
-	if phpMaxInputVars < 100 || phpMaxInputVars > 100000 {
-		return nil, fmt.Errorf("max input vars must be between 100 and 100000")
-	}
-
-	// When compression is disabled, force algorithms off for clarity.
-	gzipEnabled := req.GzipEnabled
-	zstdEnabled := req.ZstdEnabled
-	if !req.CompressionEnabled {
-		gzipEnabled = false
-		zstdEnabled = false
-	}
-
-	if err := s.db.UpdateSiteSettings(
-		ctx,
-		siteID,
-		username,
-		req.ForceHTTPS,
-		req.CompressionEnabled,
-		gzipEnabled,
-		zstdEnabled,
-		req.CacheControlEnabled,
-		cacheControlValue,
-		phpVersion,
-		phpMemoryLimit,
-		phpPostMaxSize,
-		phpUploadMaxSize,
-		phpMaxExecutionTime,
-		phpMaxInputVars,
-	); err != nil {
-		if err == context.Canceled {
+	agentSite := &agent.CreateSiteRequest{Username: site.Username, Slug: slug, Domain: domain}
+	err = s.change(ctx, func() (func(), error) {
+		if err := s.db.CreateSite(ctx, site); err != nil {
+			if errors.Is(err, database.ErrConflict) {
+				return nil, conflict("%s is already used by a site on this server.", domain)
+			}
 			return nil, err
 		}
-		return nil, fmt.Errorf("failed to update site settings: %w", err)
+		if err := s.agent.CreateSite(ctx, agentSite); err != nil {
+			_ = s.db.DeleteSite(ctx, site.ID)
+			return nil, err
+		}
+		return func() {
+			_ = s.db.DeleteSite(ctx, site.ID)
+			s.removeSiteFiles(ctx, site)
+		}, nil
+	})
+	if err != nil {
+		return err
 	}
 
-	// Reload Caddy configuration
-	if err := s.agent.ReloadCaddy(ctx); err != nil {
-		// Roll back database settings so failed runtime apply doesn't leave site pointed at a broken PHP backend.
-		rollbackErr := s.db.UpdateSiteSettings(
-			ctx,
-			siteID,
-			username,
-			dbSite.ForceHTTPS,
-			dbSite.CompressionEnabled,
-			dbSite.GzipEnabled,
-			dbSite.ZstdEnabled,
-			dbSite.CacheControlEnabled,
-			dbSite.CacheControlValue,
-			dbSite.PHPVersion,
-			dbSite.PHPMemoryLimit,
-			dbSite.PHPPostMaxSize,
-			dbSite.PHPUploadMaxSize,
-			dbSite.PHPMaxExecutionTime,
-			dbSite.PHPMaxInputVars,
-		)
-		if rollbackErr != nil {
-			return nil, fmt.Errorf("failed to apply site settings and rollback failed: apply_error=%v rollback_error=%v", err, rollbackErr)
+	if site.SiteType == "wordpress" {
+		if err := s.installWordPress(ctx, site); err != nil {
+			slog.Warn("WordPress install failed; removing the site", "site", site.Domain, "error", err)
+			if derr := s.removeSite(ctx, site); derr != nil {
+				slog.Error("could not remove the half-created site", "site", site.Domain, "error", derr)
+			}
+			return err
 		}
-		// Best effort: restore runtime config after rollback.
-		if reloadErr := s.agent.ReloadCaddy(ctx); reloadErr != nil {
-			return nil, fmt.Errorf("failed to apply site settings, rolled back database values, but failed to restore runtime config: apply_error=%v restore_error=%v", err, reloadErr)
-		}
-		return nil, fmt.Errorf("failed to apply site settings; changes were rolled back: %w", err)
 	}
-
-	return s.Get(ctx, siteID, username)
+	s.ssl.forget(domain)
+	return s.siteResponse(w, r, site.ID, http.StatusCreated)
 }
 
-const maxDomainsPerSite = 20
-
-// AddDomain adds a domain to a site
-func (s *SiteService) AddDomain(ctx context.Context, req *AddDomainRequest) (*SiteDomain, error) {
-	// Validate domain
-	domain := strings.ToLower(strings.TrimSpace(req.Domain))
-	if !domainRegex.MatchString(domain) {
-		return nil, fmt.Errorf("invalid domain format")
-	}
-
-	// Verify site ownership
-	dbSite, err := s.db.GetSite(ctx, req.SiteID)
+func (s *Server) installWordPress(ctx context.Context, site *database.Site) error {
+	dbName, dbUser, err := s.newDatabaseNames(ctx, site.Username, "wp", true)
 	if err != nil {
-		return nil, fmt.Errorf("site not found")
+		return err
 	}
-	if dbSite.Username != req.Username {
-		return nil, fmt.Errorf("site not found")
-	}
-
-	// Check domain limit
-	existingDomains, err := s.db.GetSiteDomains(ctx, req.SiteID)
+	password := randomPassword(24)
+	enc, err := s.box.Seal(crypto.PurposeDatabasePassword, password)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check domain count: %w", err)
+		return err
 	}
-	if len(existingDomains) >= maxDomainsPerSite {
-		return nil, fmt.Errorf("maximum of %d domains per site reached", maxDomainsPerSite)
+	rec := &database.Database{ID: uuid.NewString(), Username: site.Username, DBName: dbName, DBUser: dbUser, PasswordEnc: enc}
+	if err := s.db.CreateDatabase(ctx, rec); err != nil {
+		return err
 	}
-
-	// Add domain
-	dbDomain := &database.SiteDomain{
-		SiteID:            req.SiteID,
-		Domain:            domain,
-		IsPrimary:         false,
-		RedirectToPrimary: req.RedirectToPrimary,
-	}
-	if err := s.db.AddSiteDomain(ctx, dbDomain); err != nil {
-		return nil, fmt.Errorf("failed to add domain: %w", err)
-	}
-
-	// Reload Caddy configuration
-	if err := s.agent.ReloadCaddy(ctx); err != nil {
-		fmt.Printf("warning: failed to reload Caddy: %v\n", err)
-	}
-
-	return &SiteDomain{
-		ID:                dbDomain.ID,
-		SiteID:            dbDomain.SiteID,
-		Domain:            dbDomain.Domain,
-		IsPrimary:         dbDomain.IsPrimary,
-		RedirectToPrimary: dbDomain.RedirectToPrimary,
-		CreatedAt:         dbDomain.CreatedAt,
-	}, nil
-}
-
-// UpdateDomain updates a domain's settings
-func (s *SiteService) UpdateDomain(ctx context.Context, req *UpdateDomainRequest) error {
-	// Get domain
-	dbDomain, err := s.db.GetSiteDomain(ctx, req.DomainID)
+	err = s.agent.InstallWordPress(ctx, &agent.InstallWordPressRequest{
+		Username: site.Username, Slug: site.Slug, DBName: dbName, DBUser: dbUser, DBPass: password,
+	})
 	if err != nil {
-		return fmt.Errorf("domain not found")
+		_ = s.agent.DeleteDatabase(ctx, &agent.DatabaseTarget{DBName: dbName, DBUser: dbUser})
+		_ = s.db.DeleteDatabase(ctx, rec.ID)
+		return err
 	}
-
-	// Verify site ownership
-	dbSite, err := s.db.GetSite(ctx, dbDomain.SiteID)
-	if err != nil {
-		return fmt.Errorf("site not found")
-	}
-	if dbSite.Username != req.Username {
-		return fmt.Errorf("site not found")
-	}
-
-	// Can't set redirect on primary domain
-	if dbDomain.IsPrimary && req.RedirectToPrimary {
-		return fmt.Errorf("cannot redirect primary domain")
-	}
-
-	dbDomain.RedirectToPrimary = req.RedirectToPrimary
-	if err := s.db.UpdateSiteDomain(ctx, dbDomain); err != nil {
-		return fmt.Errorf("failed to update domain: %w", err)
-	}
-
-	// Reload Caddy configuration
-	if err := s.agent.ReloadCaddy(ctx); err != nil {
-		fmt.Printf("warning: failed to reload Caddy: %v\n", err)
-	}
-
 	return nil
 }
 
-// SetPrimaryDomain sets a domain as the primary domain for a site
-func (s *SiteService) SetPrimaryDomain(ctx context.Context, req *SetPrimaryDomainRequest) error {
-	// Get domain
-	dbDomain, err := s.db.GetSiteDomain(ctx, req.DomainID)
+// removeSite deletes a site from the database and the server.
+func (s *Server) removeSite(ctx context.Context, site *database.Site) error {
+	domains, err := s.db.ListDomains(ctx, site.ID)
 	if err != nil {
-		return fmt.Errorf("domain not found")
+		return err
 	}
-
-	// Verify site ownership
-	dbSite, err := s.db.GetSite(ctx, dbDomain.SiteID)
+	err = s.change(ctx, func() (func(), error) {
+		if err := s.db.DeleteSite(ctx, site.ID); err != nil {
+			return nil, err
+		}
+		return func() {
+			restored := *site
+			if err := s.db.CreateSite(ctx, &restored); err != nil {
+				slog.Error("could not restore site record", "site", site.Domain, "error", err)
+				return
+			}
+			for _, d := range domains {
+				if !d.IsPrimary {
+					_ = s.db.AddDomain(ctx, &database.SiteDomain{SiteID: site.ID, Domain: d.Domain, RedirectToPrimary: d.RedirectToPrimary}, maxDomainsPerSite+1)
+				}
+			}
+		}, nil
+	})
 	if err != nil {
-		return fmt.Errorf("site not found")
+		return err
 	}
-	if dbSite.Username != req.Username {
-		return fmt.Errorf("site not found")
-	}
-
-	// Set as primary
-	if err := s.db.SetPrimaryDomain(ctx, dbDomain.SiteID, req.DomainID); err != nil {
-		return fmt.Errorf("failed to set primary domain: %w", err)
-	}
-
-	// Update the site's main domain field
-	dbSite.Domain = dbDomain.Domain
-	// Note: We would need an UpdateSite method, but for now we just update Caddy
-
-	// Reload Caddy configuration
-	if err := s.agent.ReloadCaddy(ctx); err != nil {
-		fmt.Printf("warning: failed to reload Caddy: %v\n", err)
-	}
-
+	s.removeSiteFiles(ctx, site)
 	return nil
 }
 
-// DeleteDomain removes a domain from a site
-func (s *SiteService) DeleteDomain(ctx context.Context, req *DeleteDomainRequest) error {
-	// Get domain
-	dbDomain, err := s.db.GetSiteDomain(ctx, req.DomainID)
-	if err != nil {
-		return fmt.Errorf("domain not found")
+func (s *Server) removeSiteFiles(ctx context.Context, site *database.Site) {
+	if err := s.agent.DeleteSite(ctx, &agent.DeleteSiteRequest{Username: site.Username, Slug: site.Slug}); err != nil {
+		slog.Warn("could not remove site files", "site", site.Domain, "error", err)
 	}
-
-	// Verify site ownership
-	dbSite, err := s.db.GetSite(ctx, dbDomain.SiteID)
-	if err != nil {
-		return fmt.Errorf("site not found")
-	}
-	if dbSite.Username != req.Username {
-		return fmt.Errorf("site not found")
-	}
-
-	// Can't delete primary domain
-	if dbDomain.IsPrimary {
-		return fmt.Errorf("cannot delete primary domain")
-	}
-
-	if err := s.db.DeleteSiteDomain(ctx, req.DomainID); err != nil {
-		return fmt.Errorf("failed to delete domain: %w", err)
-	}
-
-	// Reload Caddy configuration
-	if err := s.agent.ReloadCaddy(ctx); err != nil {
-		fmt.Printf("warning: failed to reload Caddy: %v\n", err)
-	}
-
-	return nil
 }
 
-func generateDBPassword() string {
-	bytes := make([]byte, 16)
-	rand.Read(bytes)
-	return hex.EncodeToString(bytes)
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// ValidateSlug checks if a slug is valid and available
-func (s *SiteService) ValidateSlug(ctx context.Context, username, slug string) (bool, string, error) {
-	// Validate format
-	if !slugRegex.MatchString(slug) {
-		return false, "Invalid format: use letters, numbers, underscores, and hyphens (2-64 chars)", nil
-	}
-
-	// Check if already exists
-	exists, err := s.db.SlugExists(ctx, username, slug)
+func (s *Server) deleteSite(w http.ResponseWriter, r *http.Request) error {
+	site, err := s.ownedSite(r)
 	if err != nil {
-		return false, "", err
+		return err
 	}
-	if exists {
-		return false, "This slug is already in use", nil
+	domains, _ := s.db.ListDomains(r.Context(), site.ID)
+	if err := s.removeSite(r.Context(), site); err != nil {
+		return err
 	}
-
-	return true, "Slug is available", nil
+	for _, d := range domains {
+		s.ssl.forget(d.Domain)
+	}
+	return noContent(w)
 }
 
-// ValidateDomain checks if a domain is valid and available
-func (s *SiteService) ValidateDomain(ctx context.Context, domain string) (bool, string, error) {
-	// Normalize domain
-	domain = strings.ToLower(strings.TrimSpace(domain))
-
-	if domain == "" {
-		return false, "Domain is required", nil
-	}
-
-	// Validate format
-	if !domainRegex.MatchString(domain) {
-		return false, "Invalid domain format", nil
-	}
-
-	// Check minimum length
-	if len(domain) < 3 {
-		return false, "Domain is too short", nil
-	}
-
-	// Check if already exists
-	exists, err := s.db.DomainExists(ctx, domain)
-	if err != nil {
-		return false, "", err
-	}
-	if exists {
-		return false, "This domain is already in use", nil
-	}
-
-	return true, "Domain is available", nil
+type siteSettings struct {
+	ForceHTTPS          *bool   `json:"force_https"`
+	CompressionEnabled  *bool   `json:"compression_enabled"`
+	GzipEnabled         *bool   `json:"gzip_enabled"`
+	ZstdEnabled         *bool   `json:"zstd_enabled"`
+	CacheControlEnabled *bool   `json:"cache_control_enabled"`
+	CacheControlValue   *string `json:"cache_control_value"`
+	PHPVersion          *string `json:"php_version"`
+	PHPMemoryLimit      *string `json:"php_memory_limit"`
+	PHPPostMaxSize      *string `json:"php_post_max_size"`
+	PHPUploadMaxSize    *string `json:"php_upload_max_filesize"`
+	PHPMaxExecutionTime *int    `json:"php_max_execution_time"`
+	PHPMaxInputVars     *int    `json:"php_max_input_vars"`
 }
 
-func (s *SiteService) validateRequestedPHPVersion(ctx context.Context, requested string) (string, error) {
-	phpVersion := strings.TrimSpace(requested)
-	if phpVersion == "" {
-		phpVersion = "8.4"
-	}
-	cfg, err := s.agent.GetPHPDefaultConfig(ctx)
+func phpSize(field, v string, lo int64) (string, error) {
+	out, err := validate.PHPSize(v, lo, phpSizeMax)
 	if err != nil {
-		return "", fmt.Errorf("failed to validate php version against installed runtimes: %w", err)
+		return "", badRequest("%s: %v", field, err)
 	}
-	for _, v := range cfg.AvailablePHPVersions {
-		if phpVersion == strings.TrimSpace(v) {
-			return phpVersion, nil
+	return out, nil
+}
+
+func sizeBytes(v string) int64 {
+	if v == "" {
+		return 0
+	}
+	n, _ := strconv.ParseInt(strings.TrimRight(v, "KMG"), 10, 64)
+	switch v[len(v)-1] {
+	case 'K':
+		n <<= 10
+	case 'M':
+		n <<= 20
+	case 'G':
+		n <<= 30
+	}
+	return n
+}
+
+func (s *Server) applySiteSettings(ctx context.Context, site *database.Site, req *siteSettings) error {
+	if req.ForceHTTPS != nil {
+		site.ForceHTTPS = *req.ForceHTTPS
+		site.ForceHTTPSAuto = false
+	}
+	if req.CompressionEnabled != nil {
+		site.CompressionEnabled = *req.CompressionEnabled
+	}
+	if req.GzipEnabled != nil {
+		site.GzipEnabled = *req.GzipEnabled
+	}
+	if req.ZstdEnabled != nil {
+		site.ZstdEnabled = *req.ZstdEnabled
+	}
+	if site.CompressionEnabled && !site.GzipEnabled && !site.ZstdEnabled {
+		return badRequest("Choose gzip, zstd or both, or turn compression off.")
+	}
+	if req.CacheControlEnabled != nil {
+		site.CacheControlEnabled = *req.CacheControlEnabled
+	}
+	if req.CacheControlValue != nil {
+		site.CacheControlValue = strings.TrimSpace(*req.CacheControlValue)
+	}
+	if site.CacheControlEnabled {
+		v, err := validate.CacheControl(site.CacheControlValue)
+		if err != nil {
+			return validation(err)
+		}
+		site.CacheControlValue = v
+	}
+	if req.PHPVersion != nil && *req.PHPVersion != site.PHPVersion {
+		v, err := s.requirePHP(ctx, *req.PHPVersion)
+		if err != nil {
+			return err
+		}
+		site.PHPVersion = v
+	}
+	var err error
+	if req.PHPMemoryLimit != nil {
+		if site.PHPMemoryLimit, err = phpSize("memory_limit", *req.PHPMemoryLimit, phpMemoryMin); err != nil {
+			return err
 		}
 	}
-	if len(cfg.AvailablePHPVersions) == 0 {
-		return "", fmt.Errorf("no supported php-fpm versions are installed on this server")
+	if req.PHPPostMaxSize != nil {
+		if site.PHPPostMaxSize, err = phpSize("post_max_size", *req.PHPPostMaxSize, phpSizeMin); err != nil {
+			return err
+		}
 	}
-	return "", fmt.Errorf("php version %s is not installed on this server", phpVersion)
+	if req.PHPUploadMaxSize != nil {
+		if site.PHPUploadMaxSize, err = phpSize("upload_max_filesize", *req.PHPUploadMaxSize, phpSizeMin); err != nil {
+			return err
+		}
+	}
+	if sizeBytes(site.PHPPostMaxSize) < sizeBytes(site.PHPUploadMaxSize) {
+		return badRequest("post_max_size must be at least as large as upload_max_filesize.")
+	}
+	if req.PHPMaxExecutionTime != nil {
+		if v := *req.PHPMaxExecutionTime; v < 1 || v > 3600 {
+			return badRequest("max_execution_time must be between 1 and 3600 seconds.")
+		}
+		site.PHPMaxExecutionTime = *req.PHPMaxExecutionTime
+	}
+	if req.PHPMaxInputVars != nil {
+		if v := *req.PHPMaxInputVars; v < 100 || v > 100000 {
+			return badRequest("max_input_vars must be between 100 and 100000.")
+		}
+		site.PHPMaxInputVars = *req.PHPMaxInputVars
+	}
+	return nil
 }
 
-// GenerateSlug creates a slug from a domain name
-func GenerateSlug(domain string) string {
-	slug := strings.ReplaceAll(domain, ".", "_")
-	slug = strings.ReplaceAll(slug, "-", "_")
-	return slug
+func (s *Server) updateSite(w http.ResponseWriter, r *http.Request) error {
+	site, err := s.ownedSite(r)
+	if err != nil {
+		return err
+	}
+	var req siteSettings
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	ctx := r.Context()
+	before := *site
+	if err := s.applySiteSettings(ctx, site, &req); err != nil {
+		return err
+	}
+	err = s.change(ctx, func() (func(), error) {
+		if err := s.db.UpdateSite(ctx, site); err != nil {
+			return nil, err
+		}
+		return func() { _ = s.db.UpdateSite(ctx, &before) }, nil
+	})
+	if err != nil {
+		return err
+	}
+	return s.siteResponse(w, r, site.ID, http.StatusOK)
+}
+
+func domainID(r *http.Request) (int64, error) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "domainID"), 10, 64)
+	if err != nil || id <= 0 {
+		return 0, notFound("Domain")
+	}
+	return id, nil
+}
+
+func (s *Server) addDomain(w http.ResponseWriter, r *http.Request) error {
+	site, err := s.ownedSite(r)
+	if err != nil {
+		return err
+	}
+	var req struct {
+		Domain            string `json:"domain"`
+		RedirectToPrimary bool   `json:"redirect_to_primary"`
+	}
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	ctx := r.Context()
+	domain, err := s.newDomain(ctx, req.Domain)
+	if err != nil {
+		return err
+	}
+	d := &database.SiteDomain{SiteID: site.ID, Domain: domain, RedirectToPrimary: req.RedirectToPrimary}
+	err = s.change(ctx, func() (func(), error) {
+		switch err := s.db.AddDomain(ctx, d, maxDomainsPerSite); {
+		case errors.Is(err, database.ErrConflict):
+			return nil, conflict("%s is already used by a site on this server.", domain)
+		case errors.Is(err, database.ErrLimit):
+			return nil, badRequest("A site can have at most %d domains.", maxDomainsPerSite)
+		case err != nil:
+			return nil, err
+		}
+		return func() { _ = s.db.DeleteDomain(ctx, site.ID, d.ID) }, nil
+	})
+	if err != nil {
+		return err
+	}
+	s.ssl.forget(domain)
+	return s.siteResponse(w, r, site.ID, http.StatusCreated)
+}
+
+func (s *Server) updateDomain(w http.ResponseWriter, r *http.Request) error {
+	site, err := s.ownedSite(r)
+	if err != nil {
+		return err
+	}
+	id, err := domainID(r)
+	if err != nil {
+		return err
+	}
+	var req struct {
+		RedirectToPrimary bool `json:"redirect_to_primary"`
+	}
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	ctx := r.Context()
+	d, err := s.db.GetDomain(ctx, site.ID, id)
+	if err != nil {
+		return err
+	}
+	if d.IsPrimary {
+		return badRequest("The primary domain cannot redirect to itself.")
+	}
+	err = s.change(ctx, func() (func(), error) {
+		if err := s.db.SetDomainRedirect(ctx, id, req.RedirectToPrimary); err != nil {
+			return nil, err
+		}
+		return func() { _ = s.db.SetDomainRedirect(ctx, id, d.RedirectToPrimary) }, nil
+	})
+	if err != nil {
+		return err
+	}
+	return s.siteResponse(w, r, site.ID, http.StatusOK)
+}
+
+func (s *Server) setPrimaryDomain(w http.ResponseWriter, r *http.Request) error {
+	site, err := s.ownedSite(r)
+	if err != nil {
+		return err
+	}
+	id, err := domainID(r)
+	if err != nil {
+		return err
+	}
+	ctx := r.Context()
+	if _, err := s.db.GetDomain(ctx, site.ID, id); err != nil {
+		return err
+	}
+	domains, err := s.db.ListDomains(ctx, site.ID)
+	if err != nil {
+		return err
+	}
+	var old *database.SiteDomain
+	for _, d := range domains {
+		if d.IsPrimary {
+			old = d
+		}
+	}
+	err = s.change(ctx, func() (func(), error) {
+		if err := s.db.SetPrimaryDomain(ctx, site.ID, id); err != nil {
+			return nil, err
+		}
+		return func() {
+			if old != nil {
+				_ = s.db.SetPrimaryDomain(ctx, site.ID, old.ID)
+			}
+		}, nil
+	})
+	if err != nil {
+		return err
+	}
+	return s.siteResponse(w, r, site.ID, http.StatusOK)
+}
+
+func (s *Server) deleteDomain(w http.ResponseWriter, r *http.Request) error {
+	site, err := s.ownedSite(r)
+	if err != nil {
+		return err
+	}
+	id, err := domainID(r)
+	if err != nil {
+		return err
+	}
+	ctx := r.Context()
+	d, err := s.db.GetDomain(ctx, site.ID, id)
+	if err != nil {
+		return err
+	}
+	if d.IsPrimary {
+		return badRequest("Make another domain primary before removing %s.", d.Domain)
+	}
+	err = s.change(ctx, func() (func(), error) {
+		if err := s.db.DeleteDomain(ctx, site.ID, id); err != nil {
+			return nil, err
+		}
+		return func() {
+			_ = s.db.AddDomain(ctx, &database.SiteDomain{SiteID: site.ID, Domain: d.Domain, RedirectToPrimary: d.RedirectToPrimary}, maxDomainsPerSite+1)
+		}, nil
+	})
+	if err != nil {
+		return err
+	}
+	s.ssl.forget(d.Domain)
+	return s.siteResponse(w, r, site.ID, http.StatusOK)
+}
+
+func (s *Server) recheckSSL(w http.ResponseWriter, r *http.Request) error {
+	site, err := s.ownedSite(r)
+	if err != nil {
+		return err
+	}
+	domains, err := s.db.ListDomains(r.Context(), site.ID)
+	if err != nil {
+		return err
+	}
+	names := make([]string, 0, len(domains))
+	for _, d := range domains {
+		names = append(names, d.Domain)
+	}
+	s.ssl.checkAll(r.Context(), names)
+	s.autoForceHTTPS(r.Context(), site, domains)
+	return s.siteResponse(w, r, site.ID, http.StatusOK)
 }

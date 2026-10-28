@@ -1,355 +1,275 @@
 package api
 
 import (
-	"context"
+	"errors"
 	"fmt"
-	"regexp"
+	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/rehmatworks/fastcp/internal/agent"
 	"github.com/rehmatworks/fastcp/internal/database"
+	"github.com/rehmatworks/fastcp/internal/validate"
 	"github.com/robfig/cron/v3"
 )
 
-// CronService handles cron job operations
-type CronService struct {
-	db    *database.DB
-	agent *agent.Client
+const maxCronJobs = 50
+
+var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
+
+type cronView struct {
+	*database.CronJob
+	Description string     `json:"description"`
+	NextRun     *time.Time `json:"next_run,omitempty"`
 }
 
-// NewCronService creates a new CronService
-func NewCronService(db *database.DB, agent *agent.Client) *CronService {
-	return &CronService{db: db, agent: agent}
-}
-
-// List returns all cron jobs for a user
-func (s *CronService) List(ctx context.Context, username string) ([]*CronJob, error) {
-	jobs, err := s.db.ListCronJobs(ctx, username)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list cron jobs: %w", err)
-	}
-
-	result := make([]*CronJob, len(jobs))
-	for i, j := range jobs {
-		result[i] = &CronJob{
-			ID:          j.ID,
-			Username:    j.Username,
-			Name:        j.Name,
-			Expression:  j.Expression,
-			Command:     j.Command,
-			Enabled:     j.Enabled,
-			Description: describeCronExpression(j.Expression),
-			CreatedAt:   j.CreatedAt,
-			UpdatedAt:   j.UpdatedAt,
+func viewCron(j *database.CronJob) cronView {
+	v := cronView{CronJob: j, Description: describeCron(j.Expression)}
+	if j.Enabled {
+		if next := nextRuns(j.Expression, 1); len(next) > 0 {
+			v.NextRun = &next[0]
 		}
 	}
-
-	return result, nil
+	return v
 }
 
-// Create creates a new cron job
-func (s *CronService) Create(ctx context.Context, req *CreateCronJobRequest) (*CronJob, error) {
-	// Validate cron expression
-	if err := validateCronExpression(req.Expression); err != nil {
-		return nil, err
-	}
-
-	// Validate command
-	if err := validateCronCommand(req.Command); err != nil {
-		return nil, err
-	}
-
-	// Validate name
-	if strings.TrimSpace(req.Name) == "" {
-		return nil, fmt.Errorf("name is required")
-	}
-
-	// Create in database
-	job := &database.CronJob{
-		ID:         uuid.New().String(),
-		Username:   req.Username,
-		Name:       strings.TrimSpace(req.Name),
-		Expression: req.Expression,
-		Command:    req.Command,
-		Enabled:    true,
-	}
-
-	if err := s.db.CreateCronJob(ctx, job); err != nil {
-		return nil, fmt.Errorf("failed to create cron job: %w", err)
-	}
-
-	// Sync to system crontab
-	if err := s.syncCronJobs(ctx, req.Username); err != nil {
-		return nil, fmt.Errorf("failed to sync cron jobs: %w", err)
-	}
-
-	return &CronJob{
-		ID:          job.ID,
-		Username:    job.Username,
-		Name:        job.Name,
-		Expression:  job.Expression,
-		Command:     job.Command,
-		Enabled:     job.Enabled,
-		Description: describeCronExpression(job.Expression),
-		CreatedAt:   job.CreatedAt,
-		UpdatedAt:   job.UpdatedAt,
-	}, nil
-}
-
-// Update updates an existing cron job
-func (s *CronService) Update(ctx context.Context, req *UpdateCronJobRequest) (*CronJob, error) {
-	// Get existing job
-	job, err := s.db.GetCronJob(ctx, req.ID)
+func nextRuns(expr string, n int) []time.Time {
+	sched, err := cronParser.Parse(strings.TrimSpace(expr))
 	if err != nil {
-		return nil, fmt.Errorf("cron job not found: %w", err)
+		return nil
 	}
-
-	// Verify ownership
-	if job.Username != req.Username {
-		return nil, fmt.Errorf("access denied")
-	}
-
-	// Validate cron expression
-	if err := validateCronExpression(req.Expression); err != nil {
-		return nil, err
-	}
-
-	// Validate command
-	if err := validateCronCommand(req.Command); err != nil {
-		return nil, err
-	}
-
-	// Validate name
-	if strings.TrimSpace(req.Name) == "" {
-		return nil, fmt.Errorf("name is required")
-	}
-
-	// Update job
-	job.Name = strings.TrimSpace(req.Name)
-	job.Expression = req.Expression
-	job.Command = req.Command
-	job.Enabled = req.Enabled
-
-	if err := s.db.UpdateCronJob(ctx, job); err != nil {
-		return nil, fmt.Errorf("failed to update cron job: %w", err)
-	}
-
-	// Sync to system crontab
-	if err := s.syncCronJobs(ctx, req.Username); err != nil {
-		return nil, fmt.Errorf("failed to sync cron jobs: %w", err)
-	}
-
-	return &CronJob{
-		ID:          job.ID,
-		Username:    job.Username,
-		Name:        job.Name,
-		Expression:  job.Expression,
-		Command:     job.Command,
-		Enabled:     job.Enabled,
-		Description: describeCronExpression(job.Expression),
-		CreatedAt:   job.CreatedAt,
-		UpdatedAt:   job.UpdatedAt,
-	}, nil
-}
-
-// Toggle enables or disables a cron job
-func (s *CronService) Toggle(ctx context.Context, username, id string, enabled bool) error {
-	// Get existing job
-	job, err := s.db.GetCronJob(ctx, id)
-	if err != nil {
-		return fmt.Errorf("cron job not found: %w", err)
-	}
-
-	// Verify ownership
-	if job.Username != username {
-		return fmt.Errorf("access denied")
-	}
-
-	// Toggle in database
-	if err := s.db.ToggleCronJob(ctx, id, enabled); err != nil {
-		return fmt.Errorf("failed to toggle cron job: %w", err)
-	}
-
-	// Sync to system crontab
-	if err := s.syncCronJobs(ctx, username); err != nil {
-		return fmt.Errorf("failed to sync cron jobs: %w", err)
-	}
-
-	return nil
-}
-
-// Delete deletes a cron job
-func (s *CronService) Delete(ctx context.Context, username, id string) error {
-	// Get existing job
-	job, err := s.db.GetCronJob(ctx, id)
-	if err != nil {
-		return fmt.Errorf("cron job not found: %w", err)
-	}
-
-	// Verify ownership
-	if job.Username != username {
-		return fmt.Errorf("access denied")
-	}
-
-	// Delete from database
-	if err := s.db.DeleteCronJob(ctx, id); err != nil {
-		return fmt.Errorf("failed to delete cron job: %w", err)
-	}
-
-	// Sync to system crontab
-	if err := s.syncCronJobs(ctx, username); err != nil {
-		return fmt.Errorf("failed to sync cron jobs: %w", err)
-	}
-
-	return nil
-}
-
-// syncCronJobs syncs all cron jobs for a user to their system crontab
-func (s *CronService) syncCronJobs(ctx context.Context, username string) error {
-	jobs, err := s.db.ListCronJobs(ctx, username)
-	if err != nil {
-		return err
-	}
-
-	// Convert to agent format
-	agentJobs := make([]agent.CronJob, len(jobs))
-	for i, j := range jobs {
-		agentJobs[i] = agent.CronJob{
-			ID:         j.ID,
-			Name:       j.Name,
-			Expression: j.Expression,
-			Command:    j.Command,
-			Enabled:    j.Enabled,
+	var out []time.Time
+	t := time.Now()
+	for range n {
+		t = sched.Next(t)
+		if t.IsZero() {
+			break
 		}
+		out = append(out, t)
 	}
-
-	// Call agent to sync
-	return s.agent.SyncCronJobs(ctx, &agent.SyncCronJobsRequest{
-		Username: username,
-		Jobs:     agentJobs,
-	})
+	return out
 }
 
-// validateCronExpression validates a cron expression
-func validateCronExpression(expr string) error {
+var weekdays = []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
+
+func clock(h, m int) string {
+	return fmt.Sprintf("%02d:%02d", h, m)
+}
+
+func num(s string, lo, hi int) (int, bool) {
+	n, err := strconv.Atoi(s)
+	return n, err == nil && n >= lo && n <= hi
+}
+
+// describeCron explains common schedules in words. Unusual ones fall back
+// to the expression itself.
+func describeCron(expr string) string {
 	expr = strings.TrimSpace(expr)
-	if expr == "" {
-		return fmt.Errorf("cron expression is required")
+	switch expr {
+	case "@hourly":
+		return "Every hour"
+	case "@daily", "@midnight":
+		return "Every day at 00:00"
+	case "@weekly":
+		return "Every Sunday at 00:00"
+	case "@monthly":
+		return "On the 1st of every month at 00:00"
+	case "@yearly", "@annually":
+		return "Every year on January 1 at 00:00"
 	}
-
-	// Parse with standard 5-field format
-	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-	if _, err := parser.Parse(expr); err != nil {
-		return fmt.Errorf("invalid cron expression: %w", err)
-	}
-
-	return nil
-}
-
-// validateCronCommand validates a cron command
-func validateCronCommand(cmd string) error {
-	cmd = strings.TrimSpace(cmd)
-	if cmd == "" {
-		return fmt.Errorf("command is required")
-	}
-
-	// Basic security checks
-	dangerousPatterns := []string{
-		"rm -rf /",
-		"dd if=",
-		"> /dev/sd",
-		"mkfs",
-		":(){:|:&};:",
-	}
-
-	cmdLower := strings.ToLower(cmd)
-	for _, pattern := range dangerousPatterns {
-		if strings.Contains(cmdLower, pattern) {
-			return fmt.Errorf("command contains potentially dangerous pattern")
-		}
-	}
-
-	return nil
-}
-
-// describeCronExpression returns a human-readable description of a cron expression
-func describeCronExpression(expr string) string {
-	fields := strings.Fields(expr)
-	if len(fields) != 5 {
+	f := strings.Fields(expr)
+	if len(f) != 5 {
 		return expr
 	}
-
-	minute, hour, dom, month, dow := fields[0], fields[1], fields[2], fields[3], fields[4]
-
-	// Common patterns
-	if minute == "0" && hour == "0" && dom == "*" && month == "*" && dow == "*" {
-		return "Every day at midnight"
+	minute, hour, dom, month, dow := f[0], f[1], f[2], f[3], f[4]
+	if month != "*" {
+		return expr
 	}
-	if minute == "0" && dom == "*" && month == "*" && dow == "*" {
-		if h, ok := parseSimpleNumber(hour); ok {
-			ampm := "AM"
-			displayHour := h
-			if h >= 12 {
-				ampm = "PM"
-				if h > 12 {
-					displayHour = h - 12
-				}
+	everyDay := dom == "*" && dow == "*"
+	if everyDay && hour == "*" {
+		switch {
+		case minute == "*":
+			return "Every minute"
+		case strings.HasPrefix(minute, "*/"):
+			if n, ok := num(minute[2:], 1, 59); ok {
+				return fmt.Sprintf("Every %d minutes", n)
 			}
-			if h == 0 {
-				displayHour = 12
-			}
-			return fmt.Sprintf("Every day at %d:00 %s", displayHour, ampm)
-		}
-	}
-	if dom == "*" && month == "*" && dow == "*" {
-		if m, mok := parseSimpleNumber(minute); mok {
-			if hour == "*" {
+		default:
+			if m, ok := num(minute, 0, 59); ok {
 				return fmt.Sprintf("Every hour at minute %d", m)
 			}
 		}
+		return expr
 	}
-	if minute == "*" && hour == "*" && dom == "*" && month == "*" && dow == "*" {
-		return "Every minute"
+	m, okM := num(minute, 0, 59)
+	if everyDay && strings.HasPrefix(hour, "*/") && okM {
+		if n, ok := num(hour[2:], 1, 23); ok {
+			return fmt.Sprintf("Every %d hours at minute %d", n, m)
+		}
 	}
-	if minute == "*/5" && hour == "*" && dom == "*" && month == "*" && dow == "*" {
-		return "Every 5 minutes"
+	h, okH := num(hour, 0, 23)
+	if !okM || !okH {
+		return expr
 	}
-	if minute == "*/10" && hour == "*" && dom == "*" && month == "*" && dow == "*" {
-		return "Every 10 minutes"
+	at := clock(h, m)
+	switch {
+	case everyDay:
+		return "Every day at " + at
+	case dom == "*" && dow == "1-5":
+		return "Weekdays at " + at
+	case dom == "*" && dow == "0,6":
+		return "Weekends at " + at
+	case dom == "*":
+		if d, ok := num(dow, 0, 7); ok {
+			return fmt.Sprintf("Every %s at %s", weekdays[d%7], at)
+		}
+	case dow == "*":
+		if d, ok := num(dom, 1, 31); ok {
+			return fmt.Sprintf("On day %d of every month at %s", d, at)
+		}
 	}
-	if minute == "*/15" && hour == "*" && dom == "*" && month == "*" && dow == "*" {
-		return "Every 15 minutes"
-	}
-	if minute == "*/30" && hour == "*" && dom == "*" && month == "*" && dow == "*" {
-		return "Every 30 minutes"
-	}
-	if minute == "0" && hour == "*/2" && dom == "*" && month == "*" && dow == "*" {
-		return "Every 2 hours"
-	}
-	if minute == "0" && hour == "*/6" && dom == "*" && month == "*" && dow == "*" {
-		return "Every 6 hours"
-	}
-	if minute == "0" && hour == "*/12" && dom == "*" && month == "*" && dow == "*" {
-		return "Every 12 hours"
-	}
-	if minute == "0" && hour == "0" && dom == "*" && month == "*" && dow == "0" {
-		return "Every Sunday at midnight"
-	}
-	if minute == "0" && hour == "0" && dom == "1" && month == "*" && dow == "*" {
-		return "First day of every month at midnight"
-	}
-
-	// Default: show the expression
-	return fmt.Sprintf("Schedule: %s", expr)
+	return expr
 }
 
-func parseSimpleNumber(s string) (int, bool) {
-	match, _ := regexp.MatchString(`^\d+$`, s)
-	if !match {
-		return 0, false
+type cronRequest struct {
+	Name       string `json:"name"`
+	Expression string `json:"expression"`
+	Command    string `json:"command"`
+	Enabled    *bool  `json:"enabled"`
+}
+
+func (req *cronRequest) validate() error {
+	req.Name = strings.TrimSpace(req.Name)
+	req.Expression = strings.Join(strings.Fields(req.Expression), " ")
+	req.Command = strings.TrimSpace(req.Command)
+	if err := validate.Label("name", req.Name, 100); err != nil {
+		return validation(err)
 	}
-	var n int
-	fmt.Sscanf(s, "%d", &n)
-	return n, true
+	if err := validate.CronExpression(req.Expression); err != nil {
+		return validation(err)
+	}
+	if err := validate.CronCommand(req.Command); err != nil {
+		return validation(err)
+	}
+	return nil
+}
+
+func (s *Server) ownedCron(r *http.Request) (*database.CronJob, error) {
+	j, err := s.db.GetCronJob(r.Context(), chi.URLParam(r, "id"))
+	if errors.Is(err, database.ErrNotFound) || (err == nil && j.Username != current(r).User.Username) {
+		return nil, notFound("Cron job")
+	}
+	return j, err
+}
+
+func (s *Server) listCron(w http.ResponseWriter, r *http.Request) error {
+	jobs, err := s.db.ListCronJobs(r.Context(), current(r).User.Username)
+	if err != nil {
+		return err
+	}
+	out := make([]cronView, 0, len(jobs))
+	for _, j := range jobs {
+		out = append(out, viewCron(j))
+	}
+	return ok(w, out)
+}
+
+func (s *Server) describeCron(w http.ResponseWriter, r *http.Request) error {
+	var req struct {
+		Expression string `json:"expression"`
+	}
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	expr := strings.Join(strings.Fields(req.Expression), " ")
+	if err := validate.CronExpression(expr); err != nil {
+		return ok(w, map[string]any{"valid": false, "message": err.Error()})
+	}
+	return ok(w, map[string]any{"valid": true, "description": describeCron(expr), "next_runs": nextRuns(expr, 3)})
+}
+
+func (s *Server) createCron(w http.ResponseWriter, r *http.Request) error {
+	p := current(r)
+	var req cronRequest
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	if err := req.validate(); err != nil {
+		return err
+	}
+	ctx := r.Context()
+	existing, err := s.db.ListCronJobs(ctx, p.User.Username)
+	if err != nil {
+		return err
+	}
+	if len(existing) >= maxCronJobs {
+		return badRequest("An account can have at most %d cron jobs.", maxCronJobs)
+	}
+	j := &database.CronJob{
+		ID: uuid.NewString(), Username: p.User.Username, Name: req.Name,
+		Expression: req.Expression, Command: req.Command, Enabled: req.Enabled == nil || *req.Enabled,
+	}
+	err = s.change(ctx, func() (func(), error) {
+		if err := s.db.CreateCronJob(ctx, j); err != nil {
+			return nil, err
+		}
+		return func() { _ = s.db.DeleteCronJob(ctx, j.ID) }, nil
+	})
+	if err != nil {
+		return err
+	}
+	return created(w, viewCron(j))
+}
+
+func (s *Server) updateCron(w http.ResponseWriter, r *http.Request) error {
+	j, err := s.ownedCron(r)
+	if err != nil {
+		return err
+	}
+	var req cronRequest
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	if err := req.validate(); err != nil {
+		return err
+	}
+	ctx := r.Context()
+	before := *j
+	j.Name, j.Expression, j.Command = req.Name, req.Expression, req.Command
+	if req.Enabled != nil {
+		j.Enabled = *req.Enabled
+	}
+	err = s.change(ctx, func() (func(), error) {
+		if err := s.db.UpdateCronJob(ctx, j); err != nil {
+			return nil, err
+		}
+		return func() { _ = s.db.UpdateCronJob(ctx, &before) }, nil
+	})
+	if err != nil {
+		return err
+	}
+	return ok(w, viewCron(j))
+}
+
+func (s *Server) deleteCron(w http.ResponseWriter, r *http.Request) error {
+	j, err := s.ownedCron(r)
+	if err != nil {
+		return err
+	}
+	ctx := r.Context()
+	err = s.change(ctx, func() (func(), error) {
+		if err := s.db.DeleteCronJob(ctx, j.ID); err != nil {
+			return nil, err
+		}
+		return func() {
+			restored := *j
+			_ = s.db.CreateCronJob(ctx, &restored)
+		}, nil
+	})
+	if err != nil {
+		return err
+	}
+	return noContent(w)
 }

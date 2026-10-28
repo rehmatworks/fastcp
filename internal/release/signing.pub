@@ -1,0 +1,5 @@
+# FastCP release signing public key (Ed25519, base64).
+# Generate the key pair with `go run ./tools/releasekey gen` and replace the
+# line below with the printed public key. Builds without a key refuse
+# in-panel updates.
+UNSET
