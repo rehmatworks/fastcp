@@ -30,13 +30,16 @@
   const presetOptions = [...cronPresets, { value: CUSTOM, label: 'Custom schedule' }];
   let preset = $state(CUSTOM);
 
+  // Resets the form when the drawer opens. It must not read the form's own
+  // state, or every edit would re-run it and undo the edit.
   $effect(() => {
     if (!open) return;
+    const initial = job?.expression ?? '*/5 * * * *';
     name = job?.name ?? '';
-    expression = job?.expression ?? '*/5 * * * *';
+    expression = initial;
     command = job?.command ?? '';
     enabled = job?.enabled ?? true;
-    preset = cronPresets.some((p) => p.value === expression) ? expression : CUSTOM;
+    preset = cronPresets.some((p) => p.value === initial) ? initial : CUSTOM;
     error = null;
     described = null;
   });

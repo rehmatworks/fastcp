@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
   import Dialog from '../../components/Dialog.svelte';
   import Button from '../../components/Button.svelte';
@@ -50,9 +51,11 @@
   let error = $state<string | null>(null);
   const uid = $props.id();
 
+  // Only a new snapshot resets the dialog; the choices also change when the
+  // backup settings reload after a job, which must not clear the user's input.
   $effect(() => {
     if (snapshot) {
-      selected = choices[0]?.key ?? '';
+      selected = untrack(() => choices[0]?.key ?? '');
       typed = '';
       error = null;
     }
