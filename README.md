@@ -4,7 +4,7 @@ A lightweight control panel for Ubuntu and Debian servers, built on Caddy, PHP-F
 
 ## Features
 
-- **Sites** with automatic HTTPS from Let's Encrypt, extra domains and redirects, and one-click WordPress.
+- **Sites** with automatic HTTPS from Let's Encrypt, extra domains and redirects, one-click WordPress, and each site's PHP error log and access log in the panel. Domains behind Cloudflare's proxy are recognized.
 - **PHP 8.x**, several versions side by side and chosen per site. Patch releases are installed automatically every night, and new PHP versions are installed as soon as they are published.
 - **Isolation**: each account is a Linux user, each site runs in its own PHP-FPM pool as that user, and memory and CPU limits are enforced with systemd.
 - **MySQL** databases and users, with phpMyAdmin built in.
@@ -29,7 +29,7 @@ The installer verifies the release signature, installs MySQL, Caddy, phpMyAdmin 
 To install a specific release, set `FASTCP_VERSION`:
 
 ```bash
-curl -fsSL https://get.fastcp.org | sudo FASTCP_VERSION=v3.0.3 bash
+curl -fsSL https://get.fastcp.org | sudo FASTCP_VERSION=v3.1.0 bash
 ```
 
 Accounts sign in with their Linux user name and password. `root` cannot sign in.
@@ -64,7 +64,8 @@ The panel keeps its data in SQLite and pushes the desired configuration to the a
 | `/opt/fastcp/config` | generated Caddyfile and settings |
 | `/var/lib/fastcp/caddy` | certificates (owned by `caddy`) |
 | `/home/<user>/apps/<site>/public` | a site's document root |
-| `/var/log/fastcp/sites/<user>/<site>` | a site's logs |
+| `/home/<user>/apps/<site>/logs` | a site's PHP error log |
+| `/var/log/fastcp/sites/<user>/<site>` | a site's access log, when access logs are on |
 
 ## Troubleshooting
 
@@ -73,6 +74,10 @@ systemctl status fastcp fastcp-agent fastcp-caddy
 journalctl -u fastcp -u fastcp-agent -f
 sudo systemctl restart fastcp-agent fastcp
 ```
+
+A site's PHP errors and requests are under **Sites → your site → Logs**.
+
+**Behind Cloudflare's proxy**, set SSL/TLS encryption to **Full (strict)** in Cloudflare. With Flexible, Cloudflare reaches the server over plain HTTP, so a site that redirects to HTTPS shows an explanation instead of loading. If the first certificate is not issued, turn off Always Use HTTPS in Cloudflare (or set the record to DNS only) until it is.
 
 ## Uninstall
 

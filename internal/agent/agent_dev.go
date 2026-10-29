@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -178,6 +179,33 @@ func (a *devAgent) register(s *RPCServer) {
 	})
 	h("site.create", func(p json.RawMessage) (any, error) { return ok() })
 	h("site.delete", func(p json.RawMessage) (any, error) { return ok() })
+	h("site.readLog", func(p json.RawMessage) (any, error) {
+		req, err := decode[SiteLogRequest](p)
+		if err != nil {
+			return nil, err
+		}
+		now := time.Now().UTC()
+		var data string
+		switch req.Kind {
+		case SiteLogPHP:
+			stamp := now.Add(-3 * time.Minute).Format("02-Jan-2006 15:04:05")
+			data = fmt.Sprintf("[%s UTC] PHP Warning:  Undefined variable $title in /home/%s/apps/%s/public/index.php on line 12\n", stamp, req.Username, req.Slug)
+		case SiteLogAccess:
+			if !a.caddy.AccessLogs {
+				return &SiteLogResult{}, nil
+			}
+			for i, r := range []struct {
+				uri    string
+				status int
+			}{{"/", 200}, {"/wp-login.php", 302}, {"/missing", 404}, {"/checkout", 500}} {
+				ts := float64(now.Add(time.Duration(i-4)*time.Minute).UnixMilli()) / 1000
+				data += fmt.Sprintf(`{"level":"info","ts":%.3f,"msg":"handled request","request":{"remote_ip":"203.0.113.7","client_ip":"203.0.113.7","proto":"HTTP/2.0","method":"GET","host":"example.com","uri":%q,"headers":{"User-Agent":["Mozilla/5.0"]}},"duration":0.0123,"size":5120,"status":%d}`+"\n", ts, r.uri, r.status)
+			}
+		default:
+			return nil, invalid(fmt.Errorf("unknown log %q", req.Kind))
+		}
+		return &SiteLogResult{Exists: true, Size: int64(len(data)), ModTime: now, Data: data}, nil
+	})
 	h("site.installWordPress", func(p json.RawMessage) (any, error) {
 		req, err := decode[InstallWordPressRequest](p)
 		if err != nil {

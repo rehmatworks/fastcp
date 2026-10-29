@@ -19,6 +19,12 @@ type renderOptions struct {
 
 func caddyQuote(s string) string { return strconv.Quote(s) }
 
+// cloudflareFlexibleMessage is a single line: Caddyfile strings keep
+// escape sequences such as \n literally.
+const cloudflareFlexibleMessage = "This site is behind Cloudflare with SSL/TLS encryption set to Flexible: " +
+	"Cloudflare connects to this server over plain HTTP, and the server redirects every HTTP request to HTTPS, so the page would never load. " +
+	"To fix it, open the domain in Cloudflare, go to SSL/TLS, and set the encryption mode to Full (strict)."
+
 // renderCaddyfile produces the complete Caddyfile. All values come from a
 // validated plan, so domains, paths and header values contain no Caddyfile
 // syntax or placeholders.
@@ -67,12 +73,30 @@ func renderCaddyfile(p *plan, cfg CaddyConfig, opt renderOptions) string {
 			case opt.Dev:
 				parts = append(parts, "http://"+d)
 			case forceHTTPS:
-				parts = append(parts, d)
+				parts = append(parts, "https://"+d)
 			default:
 				parts = append(parts, "http://"+d, "https://"+d)
 			}
 		}
 		return strings.Join(parts, ", ")
+	}
+
+	// httpsRedirect replaces Caddy's automatic HTTP to HTTPS redirect.
+	// Cloudflare's Flexible mode fetches over HTTP what visitors requested
+	// over HTTPS, so redirecting it would loop; it gets the fix instead.
+	httpsRedirect := func(s *sitePlan) {
+		if !s.ForceHTTPS || opt.Dev {
+			return
+		}
+		var parts []string
+		for _, d := range append(append([]string(nil), s.Serving...), s.Redirects...) {
+			parts = append(parts, "http://"+d)
+		}
+		w("%s {\n", strings.Join(parts, ", "))
+		w("\t@cloudflare_flexible header CF-Visitor *https*\n")
+		w("\troute {\n")
+		w("\t\trespond @cloudflare_flexible %s 403\n", caddyQuote(cloudflareFlexibleMessage))
+		w("\t\tredir https://{host}{uri} 308\n\t}\n}\n\n")
 	}
 
 	for _, s := range sites {
@@ -84,6 +108,7 @@ func renderCaddyfile(p *plan, cfg CaddyConfig, opt renderOptions) string {
 			w("\theader Cache-Control \"no-store\"\n")
 			w("\trewrite * /index.html\n")
 			w("\tfile_server {\n\t\tstatus 503\n\t}\n}\n\n")
+			httpsRedirect(s)
 			continue
 		}
 
@@ -125,6 +150,7 @@ func renderCaddyfile(p *plan, cfg CaddyConfig, opt renderOptions) string {
 			w("%s {\n", address(s.Redirects, s.ForceHTTPS))
 			w("\tredir %s://%s{uri} permanent\n}\n\n", scheme, s.Primary)
 		}
+		httpsRedirect(s)
 	}
 
 	w(":80 {\n\trespond \"No site is configured for this domain.\" 404\n}\n")

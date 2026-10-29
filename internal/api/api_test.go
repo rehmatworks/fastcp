@@ -41,6 +41,8 @@ type fakeAgent struct {
 	passwords map[string]string
 	sites     map[string]bool
 	dbs       map[string]bool
+	logs      map[string]string // "user/slug/kind" -> contents
+	caddy     agent.CaddyConfig
 }
 
 func (f *fakeAgent) handlers() map[string]agent.HandlerFunc {
@@ -139,6 +141,22 @@ func (f *fakeAgent) handlers() map[string]agent.HandlerFunc {
 				Settings: agent.PHPSettings{},
 			}, nil
 		},
+		"site.readLog": func(ctx context.Context, p json.RawMessage) (any, error) {
+			var req agent.SiteLogRequest
+			_ = decode(p, &req)
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			data, found := f.logs[req.Username+"/"+req.Slug+"/"+req.Kind]
+			if !found {
+				return agent.SiteLogResult{}, nil
+			}
+			return agent.SiteLogResult{Exists: true, Size: int64(len(data)), Data: data}, nil
+		},
+		"caddy.getConfig": func(ctx context.Context, p json.RawMessage) (any, error) {
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			return f.caddy, nil
+		},
 		"ssh.getConfig": func(ctx context.Context, p json.RawMessage) (any, error) { return agent.SSHConfig{Port: 2222}, nil },
 		"system.status": func(ctx context.Context, p json.RawMessage) (any, error) {
 			return agent.SystemStatus{Hostname: "test"}, nil
@@ -159,6 +177,7 @@ type harness struct {
 	ts    *httptest.Server
 	agent *fakeAgent
 	db    *database.DB
+	srv   *Server
 }
 
 func newHarness(t *testing.T) *harness {
@@ -169,7 +188,7 @@ func newHarness(t *testing.T) *harness {
 	}
 	t.Cleanup(func() { os.RemoveAll(dir) })
 
-	fa := &fakeAgent{passwords: map[string]string{"fastcp": "admin-pass", "root": "root-pass"}, sites: map[string]bool{}, dbs: map[string]bool{}}
+	fa := &fakeAgent{passwords: map[string]string{"fastcp": "admin-pass", "root": "root-pass"}, sites: map[string]bool{}, dbs: map[string]bool{}, logs: map[string]string{}}
 	rpc := agent.NewRPCServer()
 	for m, h := range fa.handlers() {
 		rpc.Handle(m, h)
@@ -201,7 +220,7 @@ func newHarness(t *testing.T) *harness {
 		srv.Wait()
 		db.Close()
 	})
-	return &harness{t: t, ts: ts, agent: fa, db: db}
+	return &harness{t: t, ts: ts, agent: fa, db: db, srv: srv}
 }
 
 type resp struct {

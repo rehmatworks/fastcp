@@ -111,13 +111,16 @@ func TestRenderCaddyfile(t *testing.T) {
 		"storage file_system /var/lib/fastcp/caddy",
 		"persist_config off",
 		"bind 127.0.0.1",
-		"example.com, alias.example.com {",
+		"\nhttps://example.com, https://alias.example.com {",
 		`header Cache-Control "public, max-age=600"`,
 		"encode zstd gzip",
 		"php_fastcgi unix//opt/fastcp/run/php/alice/111111112222-php83.sock",
 		"output file /var/log/fastcp/sites/alice/example-com/access.log",
-		"www.example.com {\n\tredir https://example.com{uri} permanent",
+		"\nhttps://www.example.com {\n\tredir https://example.com{uri} permanent",
+		"\nhttp://example.com, http://alias.example.com, http://www.example.com {\n\t@cloudflare_flexible header CF-Visitor *https*\n\troute {\n\t\trespond @cloudflare_flexible ",
+		"\t\tredir https://{host}{uri} 308\n\t}\n}",
 		"root * /opt/fastcp/www/suspended",
+		"\nhttp://bob.test, https://bob.test {",
 		"import fastcp_hidden",
 	} {
 		if !strings.Contains(out, want) {
@@ -127,6 +130,9 @@ func TestRenderCaddyfile(t *testing.T) {
 	if strings.Contains(out, "localhost:2019") {
 		t.Error("admin API must not listen on TCP")
 	}
+	if n := strings.Count(out, "@cloudflare_flexible header"); n != 1 {
+		t.Errorf("want an HTTP redirect block only for the site forcing HTTPS, got %d", n)
+	}
 	if again := renderCaddyfile(p, cfg, renderOptions{Admin: "unix/" + CaddyAdminSocket, PMASocket: pmaSocketPath()}); again != out {
 		t.Error("render is not deterministic")
 	}
@@ -134,6 +140,45 @@ func TestRenderCaddyfile(t *testing.T) {
 	dev := renderCaddyfile(p, cfg, renderOptions{Dev: true, Admin: "unix/" + CaddyAdminSocket})
 	if !strings.Contains(dev, "auto_https off") || !strings.Contains(dev, "http://example.com, http://alias.example.com {") {
 		t.Errorf("dev render unexpected:\n%s", dev)
+	}
+	if strings.Contains(dev, "https://") || strings.Contains(dev, "cloudflare_flexible") {
+		t.Errorf("dev render must be plain HTTP:\n%s", dev)
+	}
+}
+
+func TestRenderSuspendedForcedHTTPS(t *testing.T) {
+	st := testState()
+	for i := range st.Users {
+		st.Users[i].Suspended = true
+	}
+	out := renderCaddyfile(buildPlan(st, testLookup, map[string]bool{"8.3": true, "8.4": true}, "8.4"), defaultCaddyConfig(1024), renderOptions{Admin: "unix/" + CaddyAdminSocket})
+	for _, want := range []string{
+		"\nhttps://example.com, https://alias.example.com, https://www.example.com {\n\troot * /opt/fastcp/www/suspended",
+		"\nhttp://example.com, http://alias.example.com, http://www.example.com {\n\t@cloudflare_flexible",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("Caddyfile missing %q\n%s", want, out)
+		}
+	}
+}
+
+func TestReadTail(t *testing.T) {
+	for _, tc := range []struct {
+		data, want string
+		limit      int64
+		truncated  bool
+	}{
+		{"one\ntwo\n", "one\ntwo\n", 100, false},
+		{"one\ntwo\nthree\n", "three\n", 8, true},
+		{"one\ntwo\nthree\n", "two\nthree\n", 11, true},
+		{"one\ntwo\nthree\n", "two\nthree\n", 10, true},
+		{"averyverylongline", "", 4, true},
+		{"", "", 10, false},
+	} {
+		got, truncated, err := readTail(strings.NewReader(tc.data), int64(len(tc.data)), tc.limit)
+		if err != nil || got != tc.want || truncated != tc.truncated {
+			t.Errorf("readTail(%q, %d) = %q, %v, %v; want %q, %v", tc.data, tc.limit, got, truncated, err, tc.want, tc.truncated)
+		}
 	}
 }
 

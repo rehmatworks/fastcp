@@ -153,6 +153,60 @@ func TestSiteLayoutRefusesSymlinks(t *testing.T) {
 	}
 }
 
+func TestSiteLogRefusesLinks(t *testing.T) {
+	tn := integrationTenant(t)
+	if err := bootstrapTenant(tn); err != nil {
+		t.Fatal(err)
+	}
+	site, err := ensureSiteLayout(tn, "blog", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	site.Close()
+	a := testAgent(t, tn.Name)
+	read := func() (*SiteLogResult, error) {
+		params, _ := json.Marshal(SiteLogRequest{Username: tn.Name, Slug: "blog", Kind: SiteLogPHP})
+		res, err := a.handleReadSiteLog(context.Background(), params)
+		if err != nil {
+			return nil, err
+		}
+		return res.(*SiteLogResult), nil
+	}
+
+	if res, err := read(); err != nil || res.Exists {
+		t.Fatalf("missing log = %+v, %v", res, err)
+	}
+	logFile := filepath.Join(tn.Home, "apps", "blog", "logs", "php-error.log")
+	os.WriteFile(logFile, []byte("PHP Warning: x\n"), 0o644)
+	os.Chown(logFile, tn.UID, tn.GID)
+	if res, err := read(); err != nil || !res.Exists || res.Data != "PHP Warning: x\n" {
+		t.Fatalf("log = %+v, %v", res, err)
+	}
+
+	os.Remove(logFile)
+	os.Symlink("/etc/shadow", logFile)
+	if res, err := read(); err == nil {
+		t.Fatalf("symlinked log read: %+v", res)
+	}
+
+	os.Remove(logFile)
+	secret := filepath.Join(tn.Home, "secret")
+	os.WriteFile(secret, []byte("root only\n"), 0o600)
+	if err := os.Link(secret, logFile); err != nil {
+		t.Fatal(err)
+	}
+	if res, err := read(); err == nil {
+		t.Fatalf("hard-linked log read: %+v", res)
+	}
+
+	os.Remove(logFile)
+	os.Remove(filepath.Join(tn.Home, "apps", "blog", "logs"))
+	os.Symlink("/etc", filepath.Join(tn.Home, "apps", "blog", "logs"))
+	if res, err := read(); err == nil && res.Exists {
+		t.Fatalf("symlinked logs directory read: %+v", res)
+	}
+}
+
 func TestRenderedCrontabInstalls(t *testing.T) {
 	if _, err := exec.LookPath("crontab"); err != nil {
 		t.Skip("crontab not installed")

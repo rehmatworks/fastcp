@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -22,7 +23,37 @@ type sslStatus struct {
 	Message   string     `json:"message"`
 	Issuer    string     `json:"issuer,omitempty"`
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	Proxy     string     `json:"proxy,omitempty"` // "cloudflare" when the domain resolves to Cloudflare's proxy
 	CheckedAt time.Time  `json:"checked_at"`
+}
+
+const proxyCloudflare = "cloudflare"
+
+// cloudflareNets are the networks Cloudflare proxies traffic from, as
+// published at https://www.cloudflare.com/ips/.
+var cloudflareNets = func() []netip.Prefix {
+	var out []netip.Prefix
+	for _, s := range []string{
+		"173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
+		"141.101.64.0/18", "108.162.192.0/18", "190.93.240.0/20", "188.114.96.0/20",
+		"197.234.240.0/22", "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13",
+		"104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
+		"2400:cb00::/32", "2606:4700::/32", "2803:f800::/32", "2405:b500::/32",
+		"2405:8100::/32", "2a06:98c0::/29", "2c0f:f248::/32",
+	} {
+		out = append(out, netip.MustParsePrefix(s))
+	}
+	return out
+}()
+
+func isCloudflare(a netip.Addr) bool {
+	a = a.Unmap()
+	for _, p := range cloudflareNets {
+		if p.Contains(a) {
+			return true
+		}
+	}
+	return false
 }
 
 // sslChecker asks the local web server for each domain's certificate and
@@ -32,10 +63,37 @@ type sslChecker struct {
 	results map[string]sslStatus
 	addr    string
 	roots   *x509.CertPool // nil = system roots
+	lookup  func(ctx context.Context, host string) ([]netip.Addr, error)
 }
 
 func newSSLChecker() *sslChecker {
-	return &sslChecker{results: map[string]sslStatus{}, addr: "127.0.0.1:443"}
+	return &sslChecker{
+		results: map[string]sslStatus{},
+		addr:    "127.0.0.1:443",
+		lookup: func(ctx context.Context, host string) ([]netip.Addr, error) {
+			return net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+		},
+	}
+}
+
+// proxyOf reports the CDN a domain resolves to. A domain counts as proxied
+// only when every address it resolves to belongs to the CDN.
+func (c *sslChecker) proxyOf(ctx context.Context, domain string) string {
+	if c.lookup == nil || isLocalDomain(domain) {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	addrs, err := c.lookup(ctx, domain)
+	if err != nil || len(addrs) == 0 {
+		return ""
+	}
+	for _, a := range addrs {
+		if !isCloudflare(a) {
+			return ""
+		}
+	}
+	return proxyCloudflare
 }
 
 func (c *sslChecker) get(domain string) (sslStatus, bool) {
@@ -53,7 +111,13 @@ func (c *sslChecker) forget(domain string) {
 
 func (c *sslChecker) check(ctx context.Context, domain string) sslStatus {
 	now := time.Now().UTC()
-	st := sslStatus{CheckedAt: now}
+	st := sslStatus{CheckedAt: now, Proxy: c.proxyOf(ctx, domain)}
+	// What stops a certificate from being issued depends on where the
+	// domain's traffic goes.
+	issueHint := " Point the domain's DNS at this server and it is issued automatically."
+	if st.Proxy == proxyCloudflare {
+		issueHint = " Behind Cloudflare's proxy, Always Use HTTPS can block the Let's Encrypt check: turn it off in Cloudflare, or set this record to DNS only, until the certificate is issued."
+	}
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 	d := &tls.Dialer{
@@ -68,7 +132,7 @@ func (c *sslChecker) check(ctx context.Context, domain string) sslStatus {
 		if errors.As(err, &opErr) && opErr.Op == "dial" {
 			st.Status, st.Message = "unreachable", "The web server is not answering on port 443."
 		} else {
-			st.Status, st.Message = "pending", "No certificate has been issued yet. Point the domain's DNS at this server and it is issued automatically."
+			st.Status, st.Message = "pending", "No certificate has been issued yet."+issueHint
 		}
 		c.store(domain, st)
 		return st
@@ -76,7 +140,7 @@ func (c *sslChecker) check(ctx context.Context, domain string) sslStatus {
 	certs := conn.(*tls.Conn).ConnectionState().PeerCertificates
 	conn.Close()
 	if len(certs) == 0 {
-		st.Status, st.Message = "pending", "No certificate has been issued yet."
+		st.Status, st.Message = "pending", "No certificate has been issued yet."+issueHint
 		c.store(domain, st)
 		return st
 	}
@@ -98,11 +162,11 @@ func (c *sslChecker) check(ctx context.Context, domain string) sslStatus {
 	case err == nil:
 		st.Valid, st.Status, st.Message = true, "valid", "A trusted certificate is installed."
 	case errors.As(err, &hostErr):
-		st.Status, st.Message = "mismatch", "The certificate served does not cover this domain yet."
+		st.Status, st.Message = "mismatch", "The certificate served does not cover this domain yet."+issueHint
 	case errors.As(err, &invalid) && invalid.Reason == x509.Expired:
 		st.Status, st.Message = "expired", "The certificate has expired. Renewal is retried automatically."
 	default:
-		st.Status, st.Message = "untrusted", "The certificate is not trusted yet. Point the domain's DNS at this server."
+		st.Status, st.Message = "untrusted", "The certificate is not trusted yet."+issueHint
 	}
 	c.store(domain, st)
 	return st
@@ -143,6 +207,8 @@ func isLocalDomain(d string) bool {
 
 // autoForceHTTPS turns on HTTPS redirects for a new site once every domain
 // it serves has a trusted certificate, unless the owner chose otherwise.
+// Sites behind a CDN are left alone: the redirect belongs at the edge, and
+// with Cloudflare's Flexible mode an origin redirect never ends.
 func (s *Server) autoForceHTTPS(ctx context.Context, site *database.Site, domains []*database.SiteDomain) {
 	if !site.ForceHTTPSAuto || site.ForceHTTPS {
 		return
@@ -153,7 +219,7 @@ func (s *Server) autoForceHTTPS(ctx context.Context, site *database.Site, domain
 			continue
 		}
 		public++
-		if st, ok := s.ssl.get(d.Domain); !ok || !st.Valid {
+		if st, ok := s.ssl.get(d.Domain); !ok || !st.Valid || st.Proxy != "" {
 			return
 		}
 	}

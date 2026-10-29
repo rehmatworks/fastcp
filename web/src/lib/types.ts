@@ -53,7 +53,38 @@ export interface SSLStatus {
   message: string;
   issuer?: string;
   expires_at?: string;
+  /** Set when the domain resolves to a CDN's proxy. */
+  proxy?: 'cloudflare';
   checked_at: string;
+}
+
+export type SiteLogKind = 'php' | 'access';
+
+export interface AccessEntry {
+  time: string;
+  ip: string;
+  method: string;
+  host: string;
+  uri: string;
+  proto: string;
+  status: number;
+  size: number;
+  duration_ms: number;
+  user_agent?: string;
+  referer?: string;
+}
+
+export interface SiteLog {
+  kind: SiteLogKind;
+  path: string;
+  /** False when access logging is turned off server-wide. */
+  enabled: boolean;
+  exists: boolean;
+  size: number;
+  updated_at?: string;
+  truncated: boolean;
+  lines: string[];
+  entries: AccessEntry[];
 }
 
 export interface Site {

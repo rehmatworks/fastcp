@@ -174,6 +174,14 @@ func (c *Client) InstallWordPress(ctx context.Context, req *InstallWordPressRequ
 	return c.callTimeout(ctx, 10*time.Minute, "site.installWordPress", req, nil)
 }
 
+func (c *Client) ReadSiteLog(ctx context.Context, req *SiteLogRequest) (*SiteLogResult, error) {
+	var out SiteLogResult
+	if err := c.callTimeout(ctx, 30*time.Second, "site.readLog", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (c *Client) CreateDatabase(ctx context.Context, req *CreateDatabaseRequest) error {
 	return c.Call(ctx, "database.create", req, nil)
 }

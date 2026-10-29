@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Cloud from '@lucide/svelte/icons/cloud';
   import Plus from '@lucide/svelte/icons/plus';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import Star from '@lucide/svelte/icons/star';
@@ -30,6 +31,7 @@
   const base = $derived(`/sites/${seg(site.id)}`);
   const domains = $derived([...site.domains].sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.domain.localeCompare(b.domain)));
   const allValid = $derived(site.domains.every((d) => site.ssl[d.domain]?.valid));
+  const behindCloudflare = $derived(site.domains.some((d) => site.ssl[d.domain]?.proxy === 'cloudflare'));
 
   async function add(e: Event) {
     e.preventDefault();
@@ -110,6 +112,7 @@
                   <div class="row">
                     <span class="cell-title domain">{d.domain}</span>
                     {#if d.is_primary}<Badge strong>Primary</Badge>{/if}
+                    {#if st?.proxy === 'cloudflare'}<Badge>Cloudflare</Badge>{/if}
                   </div>
                   {#if st && !st.valid && st.message}
                     <div class="cell-sub">{st.message}</div>
@@ -171,17 +174,30 @@
   </Card>
 
   <Card title="HTTPS redirect">
-    <Switch
-      label="Redirect HTTP to HTTPS"
-      checked={site.force_https}
-      disabled={savingHTTPS}
-      onchange={setForceHTTPS}
-      description={site.force_https
-        ? 'Visitors who open the site over HTTP are sent to HTTPS.'
-        : allValid
-          ? 'Every domain has a valid certificate, so this is safe to turn on.'
-          : 'FastCP turns this on automatically once every domain has a valid certificate.'}
-    />
+    <div class="stack">
+      <Switch
+        label="Redirect HTTP to HTTPS"
+        checked={site.force_https}
+        disabled={savingHTTPS}
+        onchange={setForceHTTPS}
+        description={site.force_https
+          ? 'Visitors who open the site over HTTP are sent to HTTPS.'
+          : behindCloudflare
+            ? 'Cloudflare can redirect visitors itself (Always Use HTTPS), so FastCP does not turn this on automatically.'
+            : allValid
+              ? 'Every domain has a valid certificate, so this is safe to turn on.'
+              : 'FastCP turns this on automatically once every domain has a valid certificate.'}
+      />
+      {#if behindCloudflare}
+        <p class="notice">
+          <Cloud size={16} strokeWidth={1.75} aria-hidden="true" />
+          <span
+            >This site is behind Cloudflare's proxy. In Cloudflare, set SSL/TLS encryption to <strong>Full (strict)</strong>. With
+            Flexible, Cloudflare reaches this server over plain HTTP, and the site cannot load while the redirect is on.</span
+          >
+        </p>
+      {/if}
+    </div>
   </Card>
 </div>
 

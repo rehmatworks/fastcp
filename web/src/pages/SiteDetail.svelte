@@ -12,6 +12,7 @@
   import SiteDomains from './sites/SiteDomains.svelte';
   import SitePHP from './sites/SitePHP.svelte';
   import SiteCaching from './sites/SiteCaching.svelte';
+  import SiteLogs from './sites/SiteLogs.svelte';
   import SiteBackups from './sites/SiteBackups.svelte';
   import SiteDanger from './sites/SiteDanger.svelte';
   import { api, seg } from '../lib/api';
@@ -28,6 +29,7 @@
     { id: 'domains', label: 'Domains & HTTPS', href: `/sites/${params.id}/domains` },
     { id: 'php', label: 'PHP', href: `/sites/${params.id}/php` },
     { id: 'caching', label: 'Caching', href: `/sites/${params.id}/caching` },
+    { id: 'logs', label: 'Logs', href: `/sites/${params.id}/logs` },
     { id: 'backups', label: 'Backups', href: `/sites/${params.id}/backups` },
     { id: 'danger', label: 'Danger zone', href: `/sites/${params.id}/danger` },
   ]);
@@ -71,6 +73,8 @@
       <SitePHP site={s} onchange={update} />
     {:else if active === 'caching'}
       <SiteCaching site={s} onchange={update} />
+    {:else if active === 'logs'}
+      <SiteLogs site={s} />
     {:else if active === 'backups'}
       <SiteBackups site={s} />
     {:else if active === 'danger'}

@@ -137,6 +137,7 @@ func (a *Agent) registerHandlers() {
 	a.handle("site.create", a.handleCreateSite)
 	a.handle("site.delete", a.handleDeleteSite)
 	a.handle("site.installWordPress", a.handleInstallWordPress)
+	a.handle("site.readLog", a.handleReadSiteLog)
 	a.handle("database.create", a.handleCreateDatabase)
 	a.handle("database.delete", a.handleDeleteDatabase)
 	a.handle("database.resetPassword", a.handleResetDatabasePassword)

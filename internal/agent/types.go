@@ -1,6 +1,9 @@
 package agent
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Request is one agent RPC call. Each connection carries exactly one call.
 type Request struct {
@@ -131,6 +134,28 @@ type CreateSiteRequest struct {
 type DeleteSiteRequest struct {
 	Username string `json:"username"`
 	Slug     string `json:"slug"`
+}
+
+// Site log kinds for SiteLogRequest.
+const (
+	SiteLogPHP    = "php"
+	SiteLogAccess = "access"
+)
+
+type SiteLogRequest struct {
+	Username string `json:"username"`
+	Slug     string `json:"slug"`
+	Kind     string `json:"kind"`
+}
+
+// SiteLogResult holds the end of a site's log file. Data starts at a line
+// boundary; Truncated reports that earlier lines were left out.
+type SiteLogResult struct {
+	Exists    bool      `json:"exists"`
+	Size      int64     `json:"size"`
+	ModTime   time.Time `json:"mod_time"`
+	Data      string    `json:"data"`
+	Truncated bool      `json:"truncated"`
 }
 
 type InstallWordPressRequest struct {
