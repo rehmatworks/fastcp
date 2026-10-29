@@ -7,6 +7,7 @@
   import Skeleton from '../../components/Skeleton.svelte';
   import ErrorState from '../../components/ErrorState.svelte';
   import CustomCaddyCard from './CustomCaddyCard.svelte';
+  import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
   import { api, errorMessage } from '../../lib/api';
   import { Form, Resource } from '../../lib/page.svelte';
   import { toast } from '../../lib/toast.svelte';
@@ -120,9 +121,18 @@
       <div class="divider"></div>
       <Switch
         label="Access logs"
-        description="Write a log line for every request to each site's logs folder. Useful for debugging; uses disk space on busy sites."
+        description="Record every request to every site. You can read them in each site's Logs tab."
         bind:checked={form.values.access_logs}
       />
+      {#if v.access_logs && !form.saved.access_logs}
+        <p class="notice strong">
+          <TriangleAlert size={16} strokeWidth={1.75} aria-hidden="true" />
+          <span
+            >Every request is written to disk, which slows the web server down on busy sites and can use a lot of storage. Each site keeps up to
+            50 MB of current log plus 5 older compressed files. Turn access logs off again when you are done debugging.</span
+          >
+        </p>
+      {/if}
       {#if error}<p class="notice strong" role="alert">{error}</p>{/if}
     </form>
     {#snippet footer()}

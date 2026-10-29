@@ -84,7 +84,7 @@ func ensureTenantRuntime(t *tenant) error {
 	if err := ensureOwnedDir(filepath.Join(PHPSocketRoot, t.Name), 0o750, 0, caddyGID); err != nil {
 		return err
 	}
-	return ensureOwnedDir(filepath.Join(SiteLogRoot, t.Name), 0o750, 0, t.GID)
+	return ensureUserLogDir(t)
 }
 
 // ensureOwnedDir creates or fixes a directory in a root-owned tree.
@@ -201,17 +201,36 @@ func grantSiteAccess(t *tenant, site *safefs.Dir, recursive bool) {
 	}
 }
 
+// ensureUserLogDir creates /var/log/fastcp/sites/<user>, readable by the
+// tenant's group. Caddy may only pass through it to the site directories.
+func ensureUserLogDir(t *tenant) error {
+	dir := filepath.Join(SiteLogRoot, t.Name)
+	if err := ensureOwnedDir(dir, 0o750, 0, t.GID); err != nil {
+		return err
+	}
+	caddyUID, _ := caddyIDs()
+	if caddyUID < 0 {
+		return nil
+	}
+	d, err := safefs.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	return d.SetUserACL(caddyUID, safefs.ACLExec, -1)
+}
+
 // ensureSiteLogDir creates /var/log/fastcp/sites/<user>/<slug>, writable by
 // Caddy and readable by the tenant's group.
 func ensureSiteLogDir(t *tenant, slug string) error {
-	if err := ensureOwnedDir(filepath.Join(SiteLogRoot, t.Name), 0o750, 0, t.GID); err != nil {
+	if err := ensureUserLogDir(t); err != nil {
 		return err
 	}
 	caddyUID, _ := caddyIDs()
 	if caddyUID < 0 {
 		caddyUID = 0
 	}
-	return ensureOwnedDir(filepath.Join(SiteLogRoot, t.Name, slug), 0o2750, caddyUID, t.GID)
+	return ensureOwnedDir(filepath.Join(SiteLogRoot, t.Name, slug), 0o750|os.ModeSetgid, caddyUID, t.GID)
 }
 
 // ensureSpool prepares the export spool directory of a tenant: owned by the
@@ -225,7 +244,7 @@ func ensureSpool(t *tenant) (string, error) {
 		return "", err
 	}
 	dir := filepath.Join(ExportSpoolDir, t.Name)
-	if err := ensureOwnedDir(dir, 0o2770, t.UID, panelGID); err != nil {
+	if err := ensureOwnedDir(dir, 0o770|os.ModeSetgid, t.UID, panelGID); err != nil {
 		return "", err
 	}
 	return dir, nil
