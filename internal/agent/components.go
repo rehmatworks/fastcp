@@ -41,6 +41,22 @@ func pmaURL() string {
 	return fmt.Sprintf("https://files.phpmyadmin.net/phpMyAdmin/%[1]s/phpMyAdmin-%[1]s-all-languages.tar.gz", PMAVersion)
 }
 
+// parseCaddyVersion returns the version from `caddy version` output, without
+// the leading "v". Caddy logs a warning before it when it has no home
+// directory, which is the case under systemd.
+func parseCaddyVersion(out string) string {
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Fields(line)
+		if len(f) == 0 {
+			continue
+		}
+		if _, err := validate.ParseSemVer(f[0]); err == nil {
+			return strings.TrimPrefix(f[0], "v")
+		}
+	}
+	return ""
+}
+
 // needsUpgrade reports whether installed should be replaced by want. A
 // missing component is installed; a version that cannot be parsed (a custom
 // build, for example) is left alone.

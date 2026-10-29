@@ -120,10 +120,7 @@ func caddyVersion(ctx context.Context) string {
 	if err != nil {
 		return ""
 	}
-	if f := strings.Fields(out); len(f) > 0 {
-		return strings.TrimPrefix(f[0], "v")
-	}
-	return ""
+	return parseCaddyVersion(out)
 }
 
 func osPrettyName() string {

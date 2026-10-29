@@ -14,6 +14,22 @@ import (
 	"testing"
 )
 
+func TestParseCaddyVersion(t *testing.T) {
+	cases := map[string]string{
+		"v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=\n": "2.11.7",
+		`{"level":"warn","ts":1793260374.85,"msg":"unable to determine directory for user configuration; falling back to current directory"}` +
+			"\nv2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=\n": "2.11.7",
+		"":                 "",
+		"(devel)\n":        "",
+		"caddy: not found": "",
+	}
+	for out, want := range cases {
+		if got := parseCaddyVersion(out); got != want {
+			t.Errorf("parseCaddyVersion(%q) = %q, want %q", out, got, want)
+		}
+	}
+}
+
 func TestNeedsUpgrade(t *testing.T) {
 	cases := []struct {
 		installed, want string
