@@ -252,6 +252,7 @@
   main {
     width: 100%;
     max-width: calc(var(--content) + 64px);
+    margin-inline: auto;
     padding: 32px 32px 64px;
     outline: none;
   }
