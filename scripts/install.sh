@@ -15,7 +15,7 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 export NEEDRESTART_SUSPEND=1
 
-FASTCP_VERSION_DEFAULT="v3.0.0"
+FASTCP_VERSION_DEFAULT="v3.0.1"
 # Ed25519 public key that signs SHA256SUMS in every release. Set with
 # `go run ./tools/releasekey gen -pub internal/release/signing.pub -installer scripts/install.sh`.
 FASTCP_SIGNING_PUBKEY="iTMGgOsWcbaI+uKYmjR3X1XcLgvUfAeJiGgBTWfx96g="

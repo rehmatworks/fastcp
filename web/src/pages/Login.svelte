@@ -49,7 +49,7 @@
 
 <div class="login">
   <div class="panel">
-    <div class="brand"><Logo size={30} /></div>
+    <div class="brand"><Logo height={32} /></div>
     <div class="intro">
       <h1>Sign in</h1>
       <p class="muted">Use your server account to manage your sites.</p>

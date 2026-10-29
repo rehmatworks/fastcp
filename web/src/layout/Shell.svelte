@@ -66,7 +66,7 @@
     <button type="button" class="nav-toggle" aria-label="Open navigation" aria-expanded={navOpen} onclick={() => (navOpen = true)}>
       <Menu size={18} strokeWidth={1.75} aria-hidden="true" />
     </button>
-    <a href="/" class="brand" aria-label="FastCP overview"><Logo size={22} /></a>
+    <a href="/" class="brand" aria-label="FastCP overview"><Logo height={20} /></a>
   </header>
 
   {#if navOpen}
@@ -75,7 +75,7 @@
 
   <aside class="sidebar" class:open={navOpen} aria-label="Main navigation">
     <div class="side-head">
-      <a href="/" class="brand"><Logo size={22} /></a>
+      <a href="/" class="brand" aria-label="FastCP overview"><Logo height={24} /></a>
       <button type="button" class="nav-close" aria-label="Close navigation" onclick={() => (navOpen = false)}>
         <X size={18} strokeWidth={1.75} aria-hidden="true" />
       </button>
