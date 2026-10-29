@@ -309,6 +309,7 @@ func (s *Server) saveBackupConfig(w http.ResponseWriter, r *http.Request) error 
 	if err := s.db.SaveBackupConfig(ctx, cfg); err != nil {
 		return err
 	}
+	s.snapshotsChanged(ctx, p.User.Username, nil)
 	return s.getBackups(w, r)
 }
 
@@ -479,6 +480,10 @@ func (b *backupRunner) start(ctx context.Context, username, jobType string) (*da
 	job.Status = "running"
 	b.background("backup", func(ctx context.Context) {
 		snapshot, msg, err := b.backup(ctx, cfg, job.ID)
+		// Before the run is recorded as finished, which makes the panel
+		// list the snapshots again.
+		repo, _ := b.s.openRepo(cfg)
+		b.s.snapshotsChanged(ctx, username, repo)
 		status := "success"
 		if err != nil {
 			status = "failed"
@@ -735,7 +740,7 @@ func (s *Server) listSnapshots(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	list, err := s.snapshots(ctx, repo)
+	list, err := s.cachedSnapshots(ctx, repo)
 	if err != nil {
 		return errf(http.StatusBadGateway, "Could not list snapshots: %s", describeExecErr(err))
 	}
@@ -775,6 +780,7 @@ func (s *Server) deleteSnapshot(w http.ResponseWriter, r *http.Request) error {
 	}
 	job, err := s.backups.startJob(ctx, username, "delete_snapshot", sn.ID, "Deleting snapshot "+sn.ShortID+"…", func(ctx context.Context) (string, string, error) {
 		_, err := s.runRestic(ctx, repo, `rr forget "$FASTCP_SNAPSHOT" >/dev/null`, map[string]string{"FASTCP_SNAPSHOT": sn.ID}, 30*time.Minute, 0)
+		s.snapshotsChanged(ctx, username, repo)
 		return "Deleted snapshot " + sn.ShortID + ". Its data is freed at the next prune.", "", err
 	})
 	if err != nil {

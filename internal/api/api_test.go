@@ -18,6 +18,7 @@ import (
 	"sync"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/rehmatworks/fastcp/internal/agent"
 	"github.com/rehmatworks/fastcp/internal/crypto"
@@ -43,6 +44,12 @@ type fakeAgent struct {
 	dbs       map[string]bool
 	logs      map[string]string // "user/slug/kind" -> contents
 	caddy     agent.CaddyConfig
+
+	// snapshots is what restic lists; listings counts the listings, and a
+	// listing waits for hold, when set, before it answers.
+	snapshots []string
+	listings  int
+	hold      chan struct{}
 }
 
 func (f *fakeAgent) handlers() map[string]agent.HandlerFunc {
@@ -163,6 +170,26 @@ func (f *fakeAgent) handlers() map[string]agent.HandlerFunc {
 		},
 		"system.services": func(ctx context.Context, p json.RawMessage) (any, error) { return []agent.ServiceStatus{}, nil },
 		"rclone.status":   func(ctx context.Context, p json.RawMessage) (any, error) { return agent.ToolStatus{}, nil },
+		"user.exec": func(ctx context.Context, p json.RawMessage) (any, error) {
+			var req agent.UserExecRequest
+			_ = decode(p, &req)
+			if !strings.Contains(req.Script, "snapshots --json") {
+				return agent.UserExecResult{ExitCode: 1, Output: "unexpected script"}, nil
+			}
+			f.mu.Lock()
+			f.listings++
+			var list []map[string]any
+			for i, id := range f.snapshots {
+				list = append(list, map[string]any{"id": id, "short_id": id[:8], "time": time.Unix(int64(1000+i), 0)})
+			}
+			hold := f.hold
+			f.mu.Unlock()
+			if hold != nil {
+				<-hold
+			}
+			data, _ := json.Marshal(list)
+			return agent.UserExecResult{Output: "@@FASTCP-BEGIN@@\n" + string(data) + "\n@@FASTCP-END@@\n"}, nil
+		},
 	}
 }
 
@@ -241,7 +268,7 @@ func (h *harness) do(method, path, token string, body any) resp {
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	client := h.ts.Client()
+	client := *h.ts.Client()
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	res, err := client.Do(req)
 	if err != nil {

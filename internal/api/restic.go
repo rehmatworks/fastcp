@@ -34,7 +34,9 @@ command -v restic >/dev/null 2>&1 || { echo "restic is not installed on this ser
 mkdir -p "$HOME/.tmp" "$HOME/` + backupDir + `"
 OPTS=()
 if [ -n "${FASTCP_RESTIC_OPTS:-}" ]; then mapfile -t OPTS <<< "$FASTCP_RESTIC_OPTS"; fi
-rr() { restic --retry-lock 2m "${OPTS[@]}" "$@"; }
+RETRY=()
+if [[ "$(restic --help 2>&1)" == *--retry-lock* ]]; then RETRY=(--retry-lock 2m); fi
+rr() { restic "${RETRY[@]}" "${OPTS[@]}" "$@"; }
 capture() {
   local e out
   e=$(mktemp)
@@ -270,12 +272,25 @@ func viewSnapshot(sn resticSnapshot) snapshotView {
 	return v
 }
 
+// snapshotsScript opens the repository once, without a lock: listing only
+// reads snapshot files, and a lock would wait behind a running prune. A
+// repository that was not created yet has no snapshots.
 const snapshotsScript = `
-if ! rr cat config >/dev/null 2>&1; then printf '@@FASTCP-BEGIN@@\n[]\n@@FASTCP-END@@\n'; exit 0; fi
-capture rr snapshots --json --tag "fastcp,user:$FASTCP_OWNER"
+e=$(mktemp)
+if out=$(rr --no-lock snapshots --json --tag "fastcp,user:$FASTCP_OWNER" 2>"$e"); then
+  printf '@@FASTCP-BEGIN@@\n%s\n@@FASTCP-END@@\n' "$out"
+elif grep -qE 'Is there a repository|repository does not exist' "$e"; then
+  printf '@@FASTCP-BEGIN@@\n[]\n@@FASTCP-END@@\n'
+else
+  cat "$e" >&2
+  rm -f "$e"
+  exit 1
+fi
+rm -f "$e"
 `
 
-// snapshots lists the user's snapshots, newest first.
+// snapshots lists the user's snapshots from the repository, newest first.
+// Requests go through cachedSnapshots.
 func (s *Server) snapshots(ctx context.Context, repo *resticRepo) ([]resticSnapshot, error) {
 	out, err := s.runRestic(ctx, repo, snapshotsScript, map[string]string{"FASTCP_OWNER": repo.username}, 5*time.Minute, 16<<20)
 	if err != nil {
@@ -295,16 +310,22 @@ func (s *Server) snapshots(ctx context.Context, repo *resticRepo) ([]resticSnaps
 
 // findSnapshot resolves a (short) snapshot ID among the user's snapshots.
 func (s *Server) findSnapshot(ctx context.Context, repo *resticRepo, id string) (*resticSnapshot, error) {
-	list, err := s.snapshots(ctx, repo)
-	if err != nil {
-		return nil, err
-	}
-	for i := range list {
-		if list[i].ID == id || strings.HasPrefix(list[i].ID, id) {
-			return &list[i], nil
+	for attempt := 0; ; attempt++ {
+		list, err := s.cachedSnapshots(ctx, repo)
+		if err != nil {
+			return nil, err
 		}
+		for i := range list {
+			if list[i].ID == id || strings.HasPrefix(list[i].ID, id) {
+				return &list[i], nil
+			}
+		}
+		if attempt > 0 {
+			return nil, notFound("Snapshot")
+		}
+		// The cached list may predate the snapshot.
+		s.snapshotsChanged(ctx, repo.username, nil)
 	}
-	return nil, notFound("Snapshot")
 }
 
 type backupManifest struct {

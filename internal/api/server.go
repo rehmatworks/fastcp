@@ -51,6 +51,7 @@ type Server struct {
 	downloads   *tokenStore[downloadGrant]
 	ssl         *sslChecker
 	backups     *backupRunner
+	snapCache   snapshotCache
 	php         cached[*agent.PHPStatus]
 	updates     cached[*updateInfo]
 
