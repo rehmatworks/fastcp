@@ -6,7 +6,7 @@ A lightweight control panel for Ubuntu and Debian servers, built on Caddy, PHP-F
 
 - **Sites** with automatic HTTPS from Let's Encrypt, extra domains and redirects, one-click WordPress, and each site's PHP error log and access log in the panel. Domains behind Cloudflare's proxy are recognized.
 - **PHP 8.x**, several versions side by side and chosen per site. Patch releases are installed automatically every night, and new PHP versions are installed as soon as they are published.
-- **Isolation**: each account is a Linux user, each site runs in its own PHP-FPM pool as that user, and memory and CPU limits are enforced with systemd.
+- **Isolation**: each account is a Linux user, each site runs in its own PHP-FPM pool as that user, the web server follows links only to files of the site's owner, and memory and CPU limits are enforced with systemd.
 - **MySQL** databases and users, with phpMyAdmin built in.
 - **Backups** with restic to SFTP, S3, rclone or a local folder, on a schedule, with per-site and per-database restore and zip downloads.
 - **Cron jobs**, **SSH keys and SFTP**, and a **firewall** (ufw) that keeps SSH and the panel reachable.
@@ -29,7 +29,7 @@ The installer verifies the release signature, installs MySQL, Caddy, phpMyAdmin 
 To install a specific release, set `FASTCP_VERSION`:
 
 ```bash
-curl -fsSL https://get.fastcp.org | sudo FASTCP_VERSION=v3.1.0 bash
+curl -fsSL https://get.fastcp.org | sudo FASTCP_VERSION=v3.1.1 bash
 ```
 
 Accounts sign in with their Linux user name and password. `root` cannot sign in.
@@ -57,9 +57,12 @@ Updating from FastCP 2 works the same way. The first start of version 3 moves th
 
 The panel keeps its data in SQLite and pushes the desired configuration to the agent, which renders the Caddyfile and PHP-FPM pools, validates them, and reloads the services without dropping connections.
 
+Caddy is FastCP's build of the upstream release ([`caddy/`](caddy)), published and signed with each FastCP release. It adds a file system for sites: a file reached through a symbolic link is served only if it belongs to the site's owner, like nginx's `disable_symlinks if_not_owner`.
+
 | Path | Contents |
 | --- | --- |
 | `/opt/fastcp/bin` | `fastcp` and `fastcp-agent` |
+| `/usr/local/bin/caddy` | FastCP's Caddy build |
 | `/opt/fastcp/data` | panel database and keys (owned by `fastcp-panel`) |
 | `/opt/fastcp/config` | generated Caddyfile and settings |
 | `/var/lib/fastcp/caddy` | certificates (owned by `caddy`) |
@@ -76,6 +79,8 @@ sudo systemctl restart fastcp-agent fastcp
 ```
 
 A site's PHP errors and requests are under **Sites → your site → Logs**.
+
+A file reached through a symbolic link returns 404 unless it belongs to the site's owner. Copy the file into the site, or change its owner, instead.
 
 **Behind Cloudflare's proxy**, set SSL/TLS encryption to **Full (strict)** in Cloudflare. With Flexible, Cloudflare reaches the server over plain HTTP, so a site that redirects to HTTPS shows an explanation instead of loading. If the first certificate is not issued, turn off Always Use HTTPS in Cloudflare (or set the record to DNS only) until it is.
 
@@ -95,8 +100,9 @@ You need Go 1.27, Node.js 22 or newer, and on Linux `libpam0g-dev`.
 ```bash
 make dev                 # panel on http://127.0.0.1:2050 with an in-memory agent (macOS)
 cd web && npm run dev    # UI with hot reload on http://127.0.0.1:5173
-make check               # go vet, go test, svelte-check and vitest
+make check               # go vet, go test (also in caddy/), svelte-check and vitest
 make ui                  # rebuild cmd/fastcp/ui/dist (committed)
+make caddy               # build FastCP's Caddy into bin/caddy
 make docker              # install FastCP in a container with the real installer
 ```
 
@@ -115,7 +121,7 @@ docker run --rm -v "$PWD":/src -w /src -e FASTCP_INTEGRATION=1 golang:1.27-bookw
    ```
    Commit both changed files. Never commit the private key.
 2. `make bump V=x.y.z`, then `make ui`, and commit.
-3. Push the commit and the tag `vx.y.z` together. The release workflow runs the checks, builds the binaries, and publishes them with `SHA256SUMS` and `SHA256SUMS.sig`.
+3. Push the commit and the tag `vx.y.z` together. The release workflow runs the checks, builds the binaries and FastCP's Caddy, and publishes them with `SHA256SUMS` and `SHA256SUMS.sig`.
 
 ## License
 

@@ -64,12 +64,20 @@ jobs:
           go build -trimpath -ldflags "$ldflags" -o fastcp-linux-${{ matrix.arch }} ./cmd/fastcp
           go build -trimpath -ldflags "$ldflags" -o fastcp-agent-linux-${{ matrix.arch }} ./cmd/fastcp-agent
           ./fastcp-linux-${{ matrix.arch }} --version
+      - name: Build Caddy
+        working-directory: caddy
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          go build -trimpath -ldflags "-s -w" -o ../caddy-linux-${{ matrix.arch }} .
+          ../caddy-linux-${{ matrix.arch }} version
       - uses: actions/upload-artifact@v7
         with:
           name: binaries-${{ matrix.arch }}
           path: |
             fastcp-linux-${{ matrix.arch }}
             fastcp-agent-linux-${{ matrix.arch }}
+            caddy-linux-${{ matrix.arch }}
           if-no-files-found: error
 
   release:
@@ -96,7 +104,7 @@ jobs:
             echo "::error::The FASTCP_SIGNING_KEY secret is not set. See README.md, 'Releasing'."
             exit 1
           fi
-          sha256sum fastcp-linux-amd64 fastcp-linux-arm64 fastcp-agent-linux-amd64 fastcp-agent-linux-arm64 > SHA256SUMS
+          sha256sum fastcp-linux-amd64 fastcp-linux-arm64 fastcp-agent-linux-amd64 fastcp-agent-linux-arm64 caddy-linux-amd64 caddy-linux-arm64 > SHA256SUMS
           go run ./tools/releasekey sign SHA256SUMS
           go run ./tools/releasekey verify SHA256SUMS
           cp scripts/install.sh install.sh
@@ -121,6 +129,8 @@ jobs:
             fastcp-linux-arm64
             fastcp-agent-linux-amd64
             fastcp-agent-linux-arm64
+            caddy-linux-amd64
+            caddy-linux-arm64
             SHA256SUMS
             SHA256SUMS.sig
             install.sh

@@ -59,6 +59,30 @@ jobs:
       - name: Vulnerability check
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
+  caddy:
+    name: Caddy
+    runs-on: ubuntu-latest
+    container: golang:1.27-bookworm
+    defaults:
+      run:
+        working-directory: caddy
+    steps:
+      - uses: actions/checkout@v7
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race -count=1 ./...
+      # Links to root-owned files are only refused for other users.
+      - name: Test as a regular user
+        run: |
+          useradd -m tester
+          cp -r . /tmp/caddy-src && chown -R tester /tmp/caddy-src
+          su tester -c "cd /tmp/caddy-src && PATH=$PATH GOMODCACHE=$(go env GOMODCACHE) GOCACHE=/tmp/tester-cache GOPROXY=off go test -count=1 ./ownerfs"
+      - name: Vulnerability check
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - name: Build
+        run: CGO_ENABLED=0 go build -trimpath -o /tmp/caddy . && /tmp/caddy version
+
   release-build:
     name: Release build
     runs-on: ubuntu-latest

@@ -37,6 +37,11 @@ const (
 	// LegacyUserConfigDir held per-user Caddyfiles in FastCP 2.
 	LegacyUserConfigDir = "/opt/fastcp/config/users"
 
+	// StagedCaddy is FastCP's Caddy build left by the installer when it
+	// installs from source or in Docker; the agent installs it instead of
+	// downloading one.
+	StagedCaddy = "/opt/fastcp/tmp/caddy"
+
 	PanelUser = "fastcp-panel"
 	CaddyUser = "caddy"
 	PMAUser   = "www-data"

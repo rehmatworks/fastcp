@@ -7,12 +7,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/rehmatworks/fastcp/internal/release"
+	"github.com/rehmatworks/fastcp/internal/version"
 )
 
 // Provision installs the pinned Caddy and phpMyAdmin and the newest PHP
@@ -35,7 +39,7 @@ func (a *Agent) ensureComponents(ctx context.Context, log io.Writer) error {
 	}
 	var errs []error
 	if err := a.ensureCaddy(ctx, log); err != nil {
-		errs = append(errs, fmt.Errorf("installing Caddy %s: %w", CaddyVersion, err))
+		errs = append(errs, fmt.Errorf("installing Caddy %s: %w", CaddyBuild, err))
 	}
 	if err := ensurePMA(ctx, log); err != nil {
 		errs = append(errs, fmt.Errorf("installing phpMyAdmin %s: %w", PMAVersion, err))
@@ -44,15 +48,26 @@ func (a *Agent) ensureComponents(ctx context.Context, log io.Writer) error {
 }
 
 // upgradeComponents runs ensureComponents in the background of a running
-// agent; failures are retried on the next start.
+// agent, retrying failures with growing delays.
 func (a *Agent) upgradeComponents(ctx context.Context) {
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
-	defer cancel()
-	if err := a.ensureComponents(ctx, slogWriter{}); err != nil {
-		slog.Warn("could not upgrade bundled components", "error", err)
+	for delay := 5 * time.Minute; ; delay = min(2*delay, 6*time.Hour) {
+		attempt, cancel := context.WithTimeout(ctx, 15*time.Minute)
+		err := a.ensureComponents(attempt, slogWriter{})
+		cancel()
+		if err == nil {
+			return
+		}
+		slog.Warn("could not upgrade bundled components", "error", err, "retry_in", delay)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(delay):
+		}
 	}
 }
 
+// ensureCaddy installs FastCP's Caddy build: the one the installer staged,
+// or the one published with the FastCP release the agent belongs to.
 func (a *Agent) ensureCaddy(ctx context.Context, log io.Writer) error {
 	installed := ""
 	if _, err := os.Stat(CaddyBinary); err == nil {
@@ -61,48 +76,85 @@ func (a *Agent) ensureCaddy(ctx context.Context, log io.Writer) error {
 			installed = "unknown"
 		}
 	}
-	if !needsUpgrade(installed, CaddyVersion) {
+	if installed == CaddyBuild {
+		_ = os.Remove(StagedCaddy)
 		return nil
 	}
-	sum, ok := caddySHA256[runtime.GOARCH]
-	if !ok {
-		return fmt.Errorf("no Caddy build is pinned for %s", runtime.GOARCH)
-	}
-	fmt.Fprintf(log, "Downloading Caddy %s\n", CaddyVersion)
-	archive, err := downloadVerified(ctx, caddyURL(runtime.GOARCH), sum, PrivateTmpDir)
-	if err != nil {
-		return err
-	}
-	defer os.Remove(archive)
 	work, err := os.MkdirTemp(PrivateTmpDir, "caddy-")
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(work)
-	if err := extractTarGz(archive, work, 0); err != nil {
+	bin, err := obtainCaddy(ctx, log, work)
+	if err != nil {
 		return err
 	}
-	bin := filepath.Join(work, "caddy")
-	if fi, err := os.Lstat(bin); err != nil || !fi.Mode().IsRegular() {
-		return errors.New("the archive does not contain the caddy binary")
+	out, err := run(ctx, 10*time.Second, bin, "version")
+	if got := parseCaddyVersion(out); err != nil || got != CaddyBuild {
+		return fmt.Errorf("the new Caddy binary reports version %q, want %s", got, CaddyBuild)
 	}
 
 	a.reloadMu.Lock()
-	defer a.reloadMu.Unlock()
-	if err := os.MkdirAll(filepath.Dir(CaddyBinary), 0o755); err != nil {
-		return err
-	}
-	if err := copyFile(bin, CaddyBinary, 0o755); err != nil {
-		return err
+	err = os.MkdirAll(filepath.Dir(CaddyBinary), 0o755)
+	if err == nil {
+		err = copyFile(bin, CaddyBinary, 0o755)
 	}
 	versions.invalidate()
-	fmt.Fprintf(log, "Caddy %s installed\n", CaddyVersion)
-	if installed != "" && a.systemd && a.unitActive("fastcp-caddy") {
+	running := err == nil && installed != "" && a.systemd && a.unitActive("fastcp-caddy")
+	if running {
+		// The running Caddy may not load configuration written for the new
+		// one, so the next apply restarts it instead of reloading.
+		a.caddyRestart = true
+		if err := writeFileAtomic(caddyRestartFlag, nil, 0o600); err != nil {
+			slog.Warn("could not record the pending web server restart", "error", err)
+		}
+	}
+	a.reloadMu.Unlock()
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(log, "Caddy %s installed\n", CaddyBuild)
+	if !running {
+		return nil
+	}
+
+	if err := a.reapply(ctx); err != nil {
+		return fmt.Errorf("applying the web server configuration: %w", err)
+	}
+	a.reloadMu.Lock()
+	defer a.reloadMu.Unlock()
+	if a.caddyRestart {
+		// No state yet: the configuration on disk suits either build.
 		if err := a.systemctl(ctx, "restart", "fastcp-caddy"); err != nil {
 			return fmt.Errorf("restarting the web server: %w", err)
 		}
+		a.caddyRestart = false
+		clearCaddyRestart()
 	}
 	return nil
+}
+
+// obtainCaddy moves the staged Caddy build into dir, or downloads it there.
+func obtainCaddy(ctx context.Context, log io.Writer, dir string) (string, error) {
+	bin := filepath.Join(dir, "caddy")
+	if err := os.Rename(StagedCaddy, bin); err == nil {
+		if fi, err := os.Lstat(bin); err != nil || !fi.Mode().IsRegular() {
+			return "", fmt.Errorf("%s is not a regular file", StagedCaddy)
+		}
+		return bin, nil
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return "", err
+	}
+	tag := version.Tag()
+	if tag == "dev" {
+		return "", fmt.Errorf("a development build cannot download Caddy; build caddy/ into %s", StagedCaddy)
+	}
+	name := caddyAsset(runtime.GOARCH)
+	fmt.Fprintf(log, "Downloading Caddy %s\n", CaddyBuild)
+	if err := release.NewClient().Fetch(ctx, tag, dir, []string{name}); err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, name), nil
 }
 
 // installedPMAVersion reads the RELEASE-DATE-<version> marker shipped in

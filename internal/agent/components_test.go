@@ -16,7 +16,8 @@ import (
 
 func TestParseCaddyVersion(t *testing.T) {
 	cases := map[string]string{
-		"v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=\n": "2.11.7",
+		"v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=\n":                  "2.11.7",
+		"v2.11.7-fastcp.1 v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=\n": "2.11.7-fastcp.1",
 		`{"level":"warn","ts":1793260374.85,"msg":"unable to determine directory for user configuration; falling back to current directory"}` +
 			"\nv2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=\n": "2.11.7",
 		"":                 "",
@@ -52,13 +53,26 @@ func TestNeedsUpgrade(t *testing.T) {
 }
 
 func TestPinnedChecksums(t *testing.T) {
-	for _, arch := range []string{"amd64", "arm64"} {
-		if len(caddySHA256[arch]) != 64 {
-			t.Errorf("caddy %s checksum is not a SHA-256", arch)
-		}
-	}
 	if len(pmaSHA256) != 64 {
 		t.Error("phpMyAdmin checksum is not a SHA-256")
+	}
+}
+
+// The agent installs the Caddy it expects only if the build reports it.
+func TestCaddyBuildMatchesSource(t *testing.T) {
+	main, err := os.ReadFile("../../caddy/main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(main, []byte(`Version = "v`+CaddyBuild+`"`)) {
+		t.Errorf("caddy/main.go does not report v%s", CaddyBuild)
+	}
+	mod, err := os.ReadFile("../../caddy/go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(mod, []byte("github.com/caddyserver/caddy/v2 v"+CaddyVersion+"\n")) {
+		t.Errorf("caddy/go.mod does not build Caddy v%s", CaddyVersion)
 	}
 }
 

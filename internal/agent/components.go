@@ -17,25 +17,26 @@ import (
 	"github.com/rehmatworks/fastcp/internal/validate"
 )
 
-// Third-party components FastCP installs, pinned by version and SHA-256 of
-// the release archive. The agent upgrades older copies when it starts.
+// Third-party components FastCP installs. The agent upgrades older copies
+// when it starts.
 const (
+	// CaddyVersion is the upstream release FastCP's Caddy is built from
+	// (see caddy/ at the repository root). CaddyBuild is what that build
+	// reports; it is published with each FastCP release, signed like the
+	// FastCP binaries, and the agent installs it whenever another version
+	// is installed.
 	CaddyVersion = "2.11.7"
-	PMAVersion   = "5.2.3"
+	CaddyBuild   = CaddyVersion + "-fastcp.1"
 
-	pmaSHA256 = "12ba1c425fa4071abbd4e7668c9ebdeac0b0755a467a6d6d5026122bb47c102b"
+	// phpMyAdmin is pinned by version and SHA-256 of the release archive.
+	PMAVersion = "5.2.3"
+	pmaSHA256  = "12ba1c425fa4071abbd4e7668c9ebdeac0b0755a467a6d6d5026122bb47c102b"
 
 	componentMaxBytes = 128 << 20
 )
 
-var caddySHA256 = map[string]string{
-	"amd64": "727b91701a392de6ebc5027509f548bf39979e5216340d0faed8fa5e69c84f8b",
-	"arm64": "d8fc6d179a5d283028a472a5618564f6ad8a86fed513e64f032b3b0b7cc45e42",
-}
-
-func caddyURL(arch string) string {
-	return fmt.Sprintf("https://github.com/caddyserver/caddy/releases/download/v%[1]s/caddy_%[1]s_linux_%[2]s.tar.gz", CaddyVersion, arch)
-}
+// caddyAsset is the name of FastCP's Caddy build in a FastCP release.
+func caddyAsset(arch string) string { return "caddy-linux-" + arch }
 
 func pmaURL() string {
 	return fmt.Sprintf("https://files.phpmyadmin.net/phpMyAdmin/%[1]s/phpMyAdmin-%[1]s-all-languages.tar.gz", PMAVersion)

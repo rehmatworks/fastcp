@@ -15,7 +15,7 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 export NEEDRESTART_SUSPEND=1
 
-FASTCP_VERSION_DEFAULT="v3.1.0"
+FASTCP_VERSION_DEFAULT="v3.1.1"
 # Ed25519 public key that signs SHA256SUMS in every release. Set with
 # `go run ./tools/releasekey gen -pub internal/release/signing.pub -installer scripts/install.sh`.
 FASTCP_SIGNING_PUBKEY="iTMGgOsWcbaI+uKYmjR3X1XcLgvUfAeJiGgBTWfx96g="
@@ -187,17 +187,23 @@ if [[ $IN_CONTAINER -eq 0 && $TOTAL_RAM_KB -le 2097152 && $SWAP_KB -lt 524288 &&
     grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >>/etc/fstab
 fi
 
-mkdir -p /opt/fastcp/bin /opt/fastcp/data /opt/fastcp/ssl
-chmod 700 /opt/fastcp/data /opt/fastcp/ssl
+mkdir -p /opt/fastcp/bin /opt/fastcp/data /opt/fastcp/ssl /opt/fastcp/tmp
+chmod 700 /opt/fastcp/data /opt/fastcp/ssl /opt/fastcp/tmp
 
+# A Caddy build left in /opt/fastcp/tmp is installed by the agent instead of
+# the one published with the release.
 if [[ -f ./go.mod && -d ./cmd/fastcp-agent ]] && command -v go >/dev/null 2>&1; then
     log "Building FastCP from this source tree..."
     go build -trimpath -o /opt/fastcp/bin/fastcp ./cmd/fastcp
     go build -trimpath -o /opt/fastcp/bin/fastcp-agent ./cmd/fastcp-agent
+    (cd caddy && CGO_ENABLED=0 go build -trimpath -o /opt/fastcp/tmp/caddy .)
 elif [[ -f ./fastcp && -f ./fastcp-agent ]]; then
     warn "installing ./fastcp and ./fastcp-agent from the current directory without signature verification."
     install -m 0755 -o root -g root ./fastcp /opt/fastcp/bin/fastcp
     install -m 0755 -o root -g root ./fastcp-agent /opt/fastcp/bin/fastcp-agent
+    if [[ -f ./caddy ]]; then
+        install -m 0755 -o root -g root ./caddy /opt/fastcp/tmp/caddy
+    fi
 else
     DOWNLOAD_DIR="$(mktemp -d /tmp/fastcp-install.XXXXXX)"
     trap 'rm -rf "$DOWNLOAD_DIR"' EXIT

@@ -108,7 +108,8 @@ func (a *Agent) apply(ctx context.Context, st *State, save bool) (*ApplyResult, 
 	}
 
 	cfg := loadCaddySettings(ram)
-	opts := renderOptions{Dev: a.dev, Admin: "unix/" + CaddyAdminSocket}
+	_, caddy, _, _ := versions.get(ctx)
+	opts := renderOptions{Dev: a.dev, Admin: "unix/" + CaddyAdminSocket, OwnerFS: caddy == CaddyBuild}
 	if _, ok := pools[pmaPoolKey]; ok {
 		opts.PMASocket = pmaSocketPath()
 	}

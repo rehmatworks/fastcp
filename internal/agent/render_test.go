@@ -162,6 +162,28 @@ func TestRenderSuspendedForcedHTTPS(t *testing.T) {
 	}
 }
 
+func TestRenderOwnerFS(t *testing.T) {
+	p := buildPlan(testState(), testLookup, map[string]bool{"8.3": true, "8.4": true}, "8.4")
+	opts := renderOptions{Admin: "unix/" + CaddyAdminSocket, PMASocket: pmaSocketPath()}
+	if out := renderCaddyfile(p, defaultCaddyConfig(1024), opts); strings.Contains(out, "filesystem") || strings.Contains(out, "\tfs ") {
+		t.Errorf("file systems rendered for a Caddy without them:\n%s", out)
+	}
+	opts.OwnerFS = true
+	out := renderCaddyfile(p, defaultCaddyConfig(1024), opts)
+	for _, want := range []string{
+		"\tstorage file_system /var/lib/fastcp/caddy\n\tfilesystem fastcp_alice fastcp_owner 1001\n",
+		"\troot * /home/alice/apps/example-com/public\n\tfs fastcp_alice\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("Caddyfile missing %q\n%s", want, out)
+		}
+	}
+	// bob is suspended; his sites, and phpMyAdmin, serve FastCP's own files.
+	if strings.Contains(out, "fastcp_bob") || strings.Count(out, "\tfs ") != 1 {
+		t.Errorf("unexpected file systems:\n%s", out)
+	}
+}
+
 func TestReadTail(t *testing.T) {
 	for _, tc := range []struct {
 		data, want string

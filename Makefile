@@ -6,7 +6,7 @@ PKG        := github.com/rehmatworks/fastcp/internal/version
 LDFLAGS    := -s -w -X $(PKG).Version=$(VERSION) -X $(PKG).BuildTime=$(BUILD_TIME)
 GO_IMAGE   := golang:1.27-bookworm
 
-.PHONY: all build build-linux build-linux-arm64 ui ui-check test vet check release-sums clean dev docker install bump
+.PHONY: all build build-linux build-linux-arm64 caddy caddy-check ui ui-check test vet check release-sums clean dev docker install bump
 
 all: build
 
@@ -32,6 +32,14 @@ build-linux-arm64:
 		go build -trimpath -ldflags "$(LDFLAGS)" -o dist/fastcp-agent-linux-arm64 ./cmd/fastcp-agent'
 	@echo "Built dist/fastcp-linux-arm64 and dist/fastcp-agent-linux-arm64"
 
+# FastCP's Caddy build (its own module in caddy/). The release publishes it
+# as caddy-linux-<arch>; the agent installs it as /usr/local/bin/caddy.
+caddy:
+	cd caddy && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o ../bin/caddy .
+
+caddy-check:
+	cd caddy && go vet ./... && go test ./...
+
 # Build the web UI into cmd/fastcp/ui/dist (committed so plain `go build` works).
 ui:
 	cd web && npm ci && npm run build
@@ -46,12 +54,12 @@ vet:
 test:
 	go test ./...
 
-check: vet test ui-check
+check: vet test caddy-check ui-check
 
 # Write SHA256SUMS for the release binaries in dist/ and sign it.
 # Requires FASTCP_SIGNING_KEY in the environment.
 release-sums:
-	cd dist && sha256sum fastcp-linux-* fastcp-agent-linux-* > SHA256SUMS
+	cd dist && sha256sum fastcp-linux-* fastcp-agent-linux-* caddy-linux-* > SHA256SUMS
 	go run ./tools/releasekey sign dist/SHA256SUMS
 
 # Set the version everywhere: make bump V=3.0.1
