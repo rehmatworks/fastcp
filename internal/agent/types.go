@@ -61,6 +61,7 @@ type StateSite struct {
 	Username            string        `json:"username"`
 	Slug                string        `json:"slug"`
 	PHPVersion          string        `json:"php_version"`
+	ProxyURL            string        `json:"proxy_url,omitempty"` // set for reverse proxy sites, which run no PHP
 	Domains             []StateDomain `json:"domains"`
 	ForceHTTPS          bool          `json:"force_https"`
 	CompressionEnabled  bool          `json:"compression_enabled"`

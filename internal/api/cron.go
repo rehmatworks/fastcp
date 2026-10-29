@@ -68,6 +68,8 @@ func num(s string, lo, hi int) (int, bool) {
 func describeCron(expr string) string {
 	expr = strings.TrimSpace(expr)
 	switch expr {
+	case "@reboot":
+		return "At server startup"
 	case "@hourly":
 		return "Every hour"
 	case "@daily", "@midnight":
@@ -147,7 +149,7 @@ func (req *cronRequest) validate() error {
 	if err := validate.Label("name", req.Name, 100); err != nil {
 		return validation(err)
 	}
-	if err := validate.CronExpression(req.Expression); err != nil {
+	if err := validate.CronJobSchedule(req.Expression); err != nil {
 		return validation(err)
 	}
 	if err := validate.CronCommand(req.Command); err != nil {
@@ -184,7 +186,7 @@ func (s *Server) describeCron(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	expr := strings.Join(strings.Fields(req.Expression), " ")
-	if err := validate.CronExpression(expr); err != nil {
+	if err := validate.CronJobSchedule(expr); err != nil {
 		return ok(w, map[string]any{"valid": false, "message": err.Error()})
 	}
 	return ok(w, map[string]any{"valid": true, "description": describeCron(expr), "next_runs": nextRuns(expr, 3)})

@@ -55,7 +55,10 @@
   }
 </script>
 
-<Card title="Caching & compression" description="Applied by the web server in front of PHP.">
+<Card
+  title="Caching & compression"
+  description={site.site_type === 'proxy' ? 'Applied by the web server in front of your application.' : 'Applied by the web server in front of PHP.'}
+>
   <form id="site-cache" class="stack" onsubmit={save}>
     <Switch
       label="Compress responses"

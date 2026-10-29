@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/rehmatworks/fastcp/internal/release"
@@ -37,6 +38,13 @@ func (a *Agent) ensureComponents(ctx context.Context, log io.Writer) error {
 	if err := os.MkdirAll(PrivateTmpDir, 0o700); err != nil {
 		return err
 	}
+	// The running agent and the installer's provision step both install
+	// components, staging into the same paths.
+	unlock, err := lockFile(ctx, filepath.Join(PrivateTmpDir, "components.lock"))
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	var errs []error
 	if err := a.ensureCaddy(ctx, log); err != nil {
 		errs = append(errs, fmt.Errorf("installing Caddy %s: %w", CaddyBuild, err))
@@ -45,6 +53,31 @@ func (a *Agent) ensureComponents(ctx context.Context, log io.Writer) error {
 		errs = append(errs, fmt.Errorf("installing phpMyAdmin %s: %w", PMAVersion, err))
 	}
 	return errors.Join(errs...)
+}
+
+// lockFile waits for an exclusive lock on path, shared with other processes.
+// Calling the returned function releases it.
+func lockFile(ctx context.Context, path string) (func(), error) {
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	for {
+		err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if err == nil {
+			return func() { f.Close() }, nil
+		}
+		if !errors.Is(err, syscall.EWOULDBLOCK) {
+			f.Close()
+			return nil, err
+		}
+		select {
+		case <-ctx.Done():
+			f.Close()
+			return nil, ctx.Err()
+		case <-time.After(250 * time.Millisecond):
+		}
+	}
 }
 
 // upgradeComponents runs ensureComponents in the background of a running

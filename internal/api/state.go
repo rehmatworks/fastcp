@@ -64,6 +64,9 @@ func (s *Server) buildState(ctx context.Context) (*agent.State, error) {
 			PHPUploadMaxSize: site.PHPUploadMaxSize, PHPMaxExecutionTime: site.PHPMaxExecutionTime,
 			PHPMaxInputVars: site.PHPMaxInputVars,
 		}
+		if site.SiteType == "proxy" {
+			ss.ProxyURL = site.ProxyURL
+		}
 		if site.CacheControlEnabled {
 			ss.CacheControl = site.CacheControlValue
 		}

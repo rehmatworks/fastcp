@@ -244,6 +244,19 @@ func (c *Client) SetCaddyConfig(ctx context.Context, cfg *CaddyConfig) error {
 	return c.callTimeout(ctx, 2*time.Minute, "caddy.setConfig", cfg, nil)
 }
 
+func (c *Client) CustomCaddyStatus(ctx context.Context) (*CustomCaddyStatus, error) {
+	var out CustomCaddyStatus
+	err := c.callTimeout(ctx, 15*time.Second, "caddy.customStatus", nil, &out)
+	return &out, err
+}
+
+// ApplyCustomCaddy loads the administrator's Caddy configuration files.
+func (c *Client) ApplyCustomCaddy(ctx context.Context) (*CustomCaddyStatus, error) {
+	var out CustomCaddyStatus
+	err := c.callTimeout(ctx, 3*time.Minute, "caddy.applyCustom", nil, &out)
+	return &out, err
+}
+
 func (c *Client) FirewallStatus(ctx context.Context) (*FirewallStatus, error) {
 	var out FirewallStatus
 	err := c.Call(ctx, "firewall.status", nil, &out)

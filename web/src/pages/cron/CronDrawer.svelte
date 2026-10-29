@@ -99,13 +99,15 @@
       spellcheck={false}
       oninput={() => (preset = cronPresets.some((p) => p.value === expression.trim()) ? expression.trim() : CUSTOM)}
       error={described && !described.valid ? (described.message ?? 'Invalid schedule.') : null}
-      hint="minute hour day-of-month month day-of-week, or a macro such as @daily."
+      hint="minute hour day-of-month month day-of-week, or a macro such as @daily or @reboot."
     />
     {#if described?.valid}
       <div class="preview">
         <p><strong>{described.description}</strong></p>
         {#if described.next_runs?.length}
           <p class="muted small">Next: {described.next_runs.map((r) => dateTime(r)).join(' · ')}</p>
+        {:else if expression.trim() === '@reboot'}
+          <p class="muted small">Runs each time the server boots, not when you save. Start the command yourself the first time.</p>
         {/if}
       </div>
     {/if}

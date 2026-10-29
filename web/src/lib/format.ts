@@ -81,6 +81,12 @@ export function elapsed(start: string | undefined, end?: string): string {
   return duration((b.getTime() - a.getTime()) / 1000);
 }
 
+export function siteType(type: string): string {
+  if (type === 'wordpress') return 'WordPress';
+  if (type === 'proxy') return 'Reverse proxy';
+  return 'PHP app';
+}
+
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
 }

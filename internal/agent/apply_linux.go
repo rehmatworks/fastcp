@@ -109,7 +109,7 @@ func (a *Agent) apply(ctx context.Context, st *State, save bool) (*ApplyResult, 
 
 	cfg := loadCaddySettings(ram)
 	_, caddy, _, _ := versions.get(ctx)
-	opts := renderOptions{Dev: a.dev, Admin: "unix/" + CaddyAdminSocket, OwnerFS: caddy == CaddyBuild}
+	opts := renderOptions{Dev: a.dev, Admin: "unix/" + CaddyAdminSocket, OwnerFS: caddy == CaddyBuild, Custom: a.appliedCustom()}
 	if _, ok := pools[pmaPoolKey]; ok {
 		opts.PMASocket = pmaSocketPath()
 	}
@@ -456,18 +456,6 @@ func caddyValidate(ctx context.Context, path string) (string, error) {
 	cmd.WaitDelay = 5 * time.Second
 	out, err := cmd.CombinedOutput()
 	return caddyErrorLines(string(out)), err
-}
-
-// caddyErrorLines drops Caddy's JSON info logs and keeps the error text.
-func caddyErrorLines(out string) string {
-	var keep []string
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		if strings.Contains(line, `"level":"info"`) || strings.Contains(line, `"level":"warn"`) {
-			continue
-		}
-		keep = append(keep, line)
-	}
-	return strings.Join(keep, "\n")
 }
 
 func (a *Agent) caddyRunning() bool {

@@ -5,7 +5,7 @@ import (
 )
 
 func validateCronJob(j *CronJob) error {
-	if err := validate.CronExpression(j.Expression); err != nil {
+	if err := validate.CronJobSchedule(j.Expression); err != nil {
 		return err
 	}
 	if err := validate.CronCommand(j.Command); err != nil {

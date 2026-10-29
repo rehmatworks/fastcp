@@ -4,7 +4,7 @@
   import CopyField from '../../components/CopyField.svelte';
   import Button from '../../components/Button.svelte';
   import { session } from '../../lib/session.svelte';
-  import { dateTime } from '../../lib/format';
+  import { dateTime, siteType } from '../../lib/format';
   import type { Site } from '../../lib/types';
 
   let { site }: { site: Site } = $props();
@@ -12,6 +12,7 @@
   const host = $derived(session.meta?.hostname || location.hostname);
   const port = $derived(session.meta?.ssh_port ?? 22);
   const folder = $derived(site.document_root.replace(/\/public$/, ''));
+  const proxy = $derived(site.site_type === 'proxy');
 </script>
 
 <div class="grid-2">
@@ -22,9 +23,14 @@
       <dt>Other domains</dt>
       <dd>{site.domains.length > 1 ? site.domains.filter((d) => !d.is_primary).map((d) => d.domain).join(', ') : 'None'}</dd>
       <dt>Type</dt>
-      <dd>{site.site_type === 'wordpress' ? 'WordPress' : 'PHP app'}</dd>
-      <dt>PHP</dt>
-      <dd class="mono">{site.php_version}</dd>
+      <dd>{siteType(site.site_type)}</dd>
+      {#if proxy}
+        <dt>Application</dt>
+        <dd class="mono">{site.proxy_url}</dd>
+      {:else}
+        <dt>PHP</dt>
+        <dd class="mono">{site.php_version}</dd>
+      {/if}
       <dt>HTTPS redirect</dt>
       <dd>{site.force_https ? 'On' : 'Off'}</dd>
       <dt>Created</dt>
@@ -37,9 +43,14 @@
     {/if}
   </Card>
 
-  <Card title="Files" description="Upload your code with SFTP. Files in public/ are served on the web.">
+  <Card
+    title="Files"
+    description={proxy
+      ? 'Upload your application with SFTP. Visitors reach it only through the web server, never the files directly.'
+      : 'Upload your code with SFTP. Files in public/ are served on the web.'}
+  >
     <div class="stack-sm">
-      <CopyField label="Web root" value={site.document_root} />
+      {#if !proxy}<CopyField label="Web root" value={site.document_root} />{/if}
       <CopyField label="Site folder" value={folder} />
       <CopyField label="SFTP" value="sftp://{site.username}@{host}:{port}{folder}" />
       <p class="muted small">
@@ -50,8 +61,25 @@
   </Card>
 </div>
 
+{#if session.isAdmin}
+  <div class="gap">
+    <Card
+      title="Custom web server configuration"
+      description="As root, add your own Caddy directives for this site to this file. FastCP never changes it."
+    >
+      <div class="stack-sm">
+        <CopyField label="File" value="/opt/fastcp/config/caddy.d/sites/{site.username}/{site.slug}.caddy" />
+        <p class="muted small">Changes take effect when you apply them under <a href="/settings/webserver">Settings → Web server</a>.</p>
+      </div>
+    </Card>
+  </div>
+{/if}
+
 <style>
   .wp {
     margin-top: 16px;
+  }
+  .gap {
+    margin-top: 24px;
   }
 </style>

@@ -6,6 +6,7 @@
   import SaveBar from '../../components/SaveBar.svelte';
   import Skeleton from '../../components/Skeleton.svelte';
   import ErrorState from '../../components/ErrorState.svelte';
+  import CustomCaddyCard from './CustomCaddyCard.svelte';
   import { api, errorMessage } from '../../lib/api';
   import { Form, Resource } from '../../lib/page.svelte';
   import { toast } from '../../lib/toast.svelte';
@@ -128,4 +129,11 @@
       <SaveBar form="webserver" dirty={form.dirty} saving={form.saving} disabled={invalid} onreset={() => form.reset()} />
     {/snippet}
   </Card>
+  <div class="gap"><CustomCaddyCard /></div>
 {/if}
+
+<style>
+  .gap {
+    margin-top: 24px;
+  }
+</style>

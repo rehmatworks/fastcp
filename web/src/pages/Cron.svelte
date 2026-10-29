@@ -73,17 +73,19 @@
       <tbody>
         {#each jobs.data ?? [] as job (job.id)}
           <tr>
-            <td class="primary-cell">
+            <td class="primary-cell job">
               <div class="cell-title">{job.name}</div>
               <code class="cmd truncate" title={job.command}>{job.command}</code>
             </td>
-            <td data-label="Schedule">
+            <td data-label="Schedule" class="nowrap">
               <div>{job.description}</div>
               {#if job.description !== job.expression}<div class="cell-sub mono">{job.expression}</div>{/if}
             </td>
             <td data-label="Next run" class="nowrap">
               {#if job.enabled && job.next_run}
                 <span title={dateTime(job.next_run)}>{relative(job.next_run)}</span>
+              {:else if job.enabled && job.expression === '@reboot'}
+                <span class="muted">Next boot</span>
               {:else}
                 <span class="muted">Paused</span>
               {/if}
@@ -134,15 +136,20 @@
 />
 
 <style>
+  /* The job column takes the remaining width and truncates the command,
+     so the other columns and the actions menu stay visible. */
+  .job {
+    width: 100%;
+    max-width: 0;
+  }
   .cmd {
     display: block;
-    max-width: 420px;
     margin-top: 2px;
     color: var(--fg-subtle);
   }
   @media (max-width: 720px) {
-    .cmd {
-      max-width: 100%;
+    .job {
+      max-width: none;
     }
   }
 </style>

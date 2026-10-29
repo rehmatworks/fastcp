@@ -15,7 +15,7 @@
   import { Resource } from '../lib/page.svelte';
   import { router } from '../lib/router.svelte';
   import { session } from '../lib/session.svelte';
-  import { date } from '../lib/format';
+  import { date, siteType } from '../lib/format';
   import { siteSSL } from '../lib/status';
   import type { Site } from '../lib/types';
 
@@ -91,9 +91,9 @@
                   {/if}
                 </td>
                 <td data-label="Type">
-                  {#if site.site_type === 'wordpress'}<Badge>WordPress</Badge>{:else}<Badge>PHP</Badge>{/if}
+                  <Badge>{siteType(site.site_type)}</Badge>
                 </td>
-                <td data-label="PHP" class="mono">{site.php_version}</td>
+                <td data-label="PHP" class="mono">{site.site_type === 'proxy' ? '—' : site.php_version}</td>
                 <td data-label="HTTPS"><Status kind={ssl.kind} label={ssl.label} title={ssl.title} /></td>
                 <td data-label="Created" class="muted nowrap">{date(site.created_at)}</td>
               </tr>

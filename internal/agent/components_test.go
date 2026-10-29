@@ -31,6 +31,21 @@ func TestParseCaddyVersion(t *testing.T) {
 	}
 }
 
+func TestCaddyErrorLines(t *testing.T) {
+	cases := map[string]string{
+		`{"level":"info","ts":1793275114.47,"msg":"using config from file","file":"/opt/fastcp/config/Caddyfile.next"}` + "\n" +
+			`{"level":"error","ts":1793275114.47,"msg":"adapting config using caddyfile: /x.caddy:2: unrecognized directive: bogus_directive"}` + "\n": "adapting config using caddyfile: /x.caddy:2: unrecognized directive: bogus_directive",
+		`{"level":"error","msg":"loading config","error":"port 80 is in use"}`: "loading config: port 80 is in use",
+		"Error: adapting config using caddyfile: wrong argument count\n":       "Error: adapting config using caddyfile: wrong argument count",
+		`{"level":"warn","msg":"Caddyfile input is not formatted"}`:            "",
+	}
+	for out, want := range cases {
+		if got := caddyErrorLines(out); got != want {
+			t.Errorf("caddyErrorLines(%q) = %q, want %q", out, got, want)
+		}
+	}
+}
+
 func TestNeedsUpgrade(t *testing.T) {
 	cases := []struct {
 		installed, want string

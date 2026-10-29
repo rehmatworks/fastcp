@@ -18,6 +18,8 @@ const (
 	WWWDir            = "/opt/fastcp/www"
 	SuspendedDir      = "/opt/fastcp/www/suspended"
 	CaddyfilePath     = "/opt/fastcp/config/Caddyfile"
+	CaddyCustomDir    = "/opt/fastcp/config/caddy.d"
+	CaddyAppliedDir   = "/opt/fastcp/config/caddy.applied"
 	StatePath         = "/opt/fastcp/config/state.json"
 	CaddySettingsPath = "/opt/fastcp/config/caddy-settings.json"
 	PHPSettingsPath   = "/opt/fastcp/config/php.json"
@@ -49,3 +51,7 @@ const (
 	PanelPort = 2050
 	PMAPort   = 2088
 )
+
+// ServerPorts are served by FastCP itself; reverse proxy sites may not
+// forward to them on this server.
+var ServerPorts = []int{80, 443, PanelPort, PMAPort}

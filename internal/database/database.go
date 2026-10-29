@@ -275,6 +275,13 @@ var v3Columns = []column{
 	{"backup_jobs", "artifact", "TEXT NOT NULL DEFAULT ''"},
 }
 
+// laterColumns were added after schema version 3. Builds without them
+// ignore them, so the version is unchanged and the previous version still
+// opens the database when an update is rolled back.
+var laterColumns = []column{
+	{"sites", "proxy_url", "TEXT NOT NULL DEFAULT ''"},
+}
+
 func hasColumn(ctx context.Context, tx *sql.Tx, table, name string) (bool, error) {
 	rows, err := tx.QueryContext(ctx, "SELECT name FROM pragma_table_info(?)", table)
 	if err != nil {
@@ -330,14 +337,17 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	if version > SchemaVersion {
 		return fmt.Errorf("the database schema (version %d) is newer than this FastCP build supports (%d)", version, SchemaVersion)
 	}
-	if version == SchemaVersion {
-		return nil
-	}
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+	if version == SchemaVersion {
+		if err := addColumns(ctx, tx, laterColumns); err != nil {
+			return err
+		}
+		return tx.Commit()
+	}
 
 	if version < 2 {
 		if err := execAll(ctx, tx, v2Tables); err != nil {
@@ -363,6 +373,9 @@ func migrate(ctx context.Context, db *sql.DB) error {
 		if err := syncPrimaryDomains(ctx, tx); err != nil {
 			return err
 		}
+	}
+	if err := addColumns(ctx, tx, laterColumns); err != nil {
+		return err
 	}
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", SchemaVersion)); err != nil {
 		return err

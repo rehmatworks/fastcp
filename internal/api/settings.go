@@ -90,6 +90,40 @@ func (s *Server) saveWebServer(w http.ResponseWriter, r *http.Request) error {
 	return s.getWebServer(w, r)
 }
 
+func (s *Server) getCustomCaddy(w http.ResponseWriter, r *http.Request) error {
+	st, err := s.agent.CustomCaddyStatus(r.Context())
+	if err != nil {
+		return err
+	}
+	return ok(w, s.withSiteDomains(r.Context(), st))
+}
+
+func (s *Server) applyCustomCaddy(w http.ResponseWriter, r *http.Request) error {
+	st, err := s.agent.ApplyCustomCaddy(r.Context())
+	if err != nil {
+		return err
+	}
+	return ok(w, s.withSiteDomains(r.Context(), st))
+}
+
+// withSiteDomains names the site each per-site file belongs to.
+func (s *Server) withSiteDomains(ctx context.Context, st *agent.CustomCaddyStatus) *agent.CustomCaddyStatus {
+	sites, err := s.db.ListAllSites(ctx)
+	if err != nil {
+		return st
+	}
+	domains := map[string]string{}
+	for _, site := range sites {
+		domains[site.Username+"/"+site.Slug] = site.Domain
+	}
+	for i, f := range st.Files {
+		if f.Username != "" {
+			st.Files[i].Domain = domains[f.Username+"/"+f.Slug]
+		}
+	}
+	return st
+}
+
 func (s *Server) getMySQL(w http.ResponseWriter, r *http.Request) error {
 	cfg, err := s.agent.GetMySQLConfig(r.Context())
 	if err != nil {

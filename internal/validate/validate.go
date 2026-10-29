@@ -280,6 +280,15 @@ func CronExpression(expr string) error {
 	return nil
 }
 
+// CronJobSchedule checks a cron job's schedule: a CronExpression, or
+// @reboot to run the command when the server starts.
+func CronJobSchedule(expr string) error {
+	if strings.TrimSpace(expr) == "@reboot" {
+		return nil
+	}
+	return CronExpression(expr)
+}
+
 // CronCommand checks a command line that will be written to a crontab.
 func CronCommand(cmd string) error {
 	if strings.TrimSpace(cmd) == "" {

@@ -135,6 +135,14 @@ func buildPlan(st *State, lookup func(string) (*tenant, error), installed map[st
 			continue
 		}
 		sockets[sid] = label
+		if s.ProxyURL != "" {
+			u, err := validate.ProxyURL(s.ProxyURL, ServerPorts...)
+			if err != nil {
+				p.warnf("site %s skipped: %v", label, err)
+				continue
+			}
+			s.ProxyURL = u
+		}
 
 		sp := &sitePlan{StateSite: s, Tenant: t, Suspended: p.Users[s.Username].Suspended}
 		sp.SiteDir = path.Join(t.Home, "apps", s.Slug)
@@ -180,21 +188,23 @@ func buildPlan(st *State, lookup func(string) (*tenant, error), installed map[st
 			}
 		}
 
-		version := s.PHPVersion
-		if validate.PHPVersion(version) != nil || !installed[version] {
-			if installed[defaultPHP] {
-				if version != "" {
-					p.warnf("site %s: PHP %s is not installed, using PHP %s", label, version, defaultPHP)
+		if s.ProxyURL == "" {
+			version := s.PHPVersion
+			if validate.PHPVersion(version) != nil || !installed[version] {
+				if installed[defaultPHP] {
+					if version != "" {
+						p.warnf("site %s: PHP %s is not installed, using PHP %s", label, version, defaultPHP)
+					}
+					version = defaultPHP
+				} else {
+					p.warnf("site %s: no PHP runtime is installed, serving static files only", label)
+					version = ""
 				}
-				version = defaultPHP
-			} else {
-				p.warnf("site %s: no PHP runtime is installed, serving static files only", label)
-				version = ""
 			}
-		}
-		sp.PHPVersion = version
-		if version != "" {
-			sp.Socket = siteSocketPath(s.Username, s.ID, version)
+			sp.PHPVersion = version
+			if version != "" {
+				sp.Socket = siteSocketPath(s.Username, s.ID, version)
+			}
 		}
 
 		sp.PHPMemoryLimit = phpSizeOr(p, label, "memory_limit", s.PHPMemoryLimit, "256M", phpMemoryMin, phpMemoryMax)

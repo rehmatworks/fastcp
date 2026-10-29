@@ -87,12 +87,16 @@ export interface SiteLog {
   entries: AccessEntry[];
 }
 
+export type SiteType = 'php' | 'wordpress' | 'proxy';
+
 export interface Site {
   id: string;
   username: string;
   domain: string;
   slug: string;
-  site_type: 'php' | 'wordpress';
+  site_type: SiteType;
+  /** The application a reverse proxy site forwards to. */
+  proxy_url: string;
   document_root: string;
   force_https: boolean;
   compression_enabled: boolean;
@@ -114,6 +118,7 @@ export interface Site {
 export type SiteSettings = Partial<
   Pick<
     Site,
+    | 'proxy_url'
     | 'force_https'
     | 'compression_enabled'
     | 'gzip_enabled'
@@ -407,6 +412,24 @@ export interface CaddyConfig {
   idle_timeout: string;
   grace_period: string;
   max_header_size: number;
+}
+
+export interface CustomCaddyFile {
+  path: string;
+  /** Set for files that apply to one site. */
+  username?: string;
+  slug?: string;
+  domain?: string;
+  /** pending: new or changed since applied; removed: applied but gone; ignored: see problem. */
+  state: 'applied' | 'pending' | 'removed' | 'ignored';
+  problem?: string;
+}
+
+export interface CustomCaddyStatus {
+  dir: string;
+  files: CustomCaddyFile[];
+  /** Applying would change the running configuration. */
+  pending: boolean;
 }
 
 export interface MySQLConfig {

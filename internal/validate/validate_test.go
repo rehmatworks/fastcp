@@ -150,6 +150,16 @@ func TestCron(t *testing.T) {
 			t.Errorf("CronExpression(%q) = nil error", s)
 		}
 	}
+	for _, s := range []string{"@reboot", " @reboot ", "@daily", "*/5 * * * *"} {
+		if err := CronJobSchedule(s); err != nil {
+			t.Errorf("CronJobSchedule(%q) = %v", s, err)
+		}
+	}
+	for _, s := range []string{"@reboot\n* * * * * id", "@reboot x", "@every 1m"} {
+		if err := CronJobSchedule(s); err == nil {
+			t.Errorf("CronJobSchedule(%q) = nil error", s)
+		}
+	}
 	if err := CronCommand("php artisan schedule:run\n* * * * * curl evil"); err == nil {
 		t.Error("CronCommand accepted a newline")
 	}

@@ -320,6 +320,12 @@ func (a *devAgent) register(s *RPCServer) {
 		a.caddy = cfg
 		return &cfg, nil
 	})
+	h("caddy.customStatus", func(p json.RawMessage) (any, error) {
+		return customStatus(CaddyCustomDir, nil, nil), nil
+	})
+	h("caddy.applyCustom", func(p json.RawMessage) (any, error) {
+		return customStatus(CaddyCustomDir, nil, nil), nil
+	})
 	h("firewall.status", func(p json.RawMessage) (any, error) { st := a.firewall; return &st, nil })
 	h("firewall.install", func(p json.RawMessage) (any, error) {
 		return a.jobs.Start(a.ctx, "firewall.install", "ufw", func(context.Context, *JobLog) (string, error) {

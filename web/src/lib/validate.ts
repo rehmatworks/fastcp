@@ -24,6 +24,24 @@ export function domainError(input: string): string | null {
   return null;
 }
 
+/** Returns an error message for an obviously invalid application address, or null. */
+export function proxyError(input: string): string | null {
+  const v = input.trim();
+  if (!v) return 'Enter the address your application listens on.';
+  if (/^\d+$/.test(v)) return Number(v) >= 1 && Number(v) <= 65535 ? null : 'Ports are between 1 and 65535.';
+  let u: URL;
+  try {
+    u = new URL(v.includes('://') ? v : `http://${v}`);
+  } catch {
+    return 'Enter an address such as http://127.0.0.1:3000.';
+  }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return 'Use http:// or https://.';
+  if (u.username || u.password || u.search || u.hash || u.pathname !== '/' || /[?#]/.test(v)) {
+    return 'Use only a host and a port, such as http://127.0.0.1:3000.';
+  }
+  return null;
+}
+
 export const usernamePattern = /^[a-z][a-z0-9_-]{1,31}$/;
 
 export function usernameError(input: string): string | null {
@@ -49,4 +67,5 @@ export const cronPresets = [
   { value: '0 3 * * *', label: 'Every day at 03:00' },
   { value: '0 0 * * 0', label: 'Every Sunday at midnight' },
   { value: '0 0 1 * *', label: 'On the 1st of every month' },
+  { value: '@reboot', label: 'At server startup' },
 ];

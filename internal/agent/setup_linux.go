@@ -49,6 +49,9 @@ func (a *Agent) Setup(ctx context.Context) error {
 	if err := ensureLayout(); err != nil {
 		return err
 	}
+	if err := ensureCustomDir(); err != nil {
+		slog.Warn("could not prepare the custom Caddy configuration folder", "error", err)
+	}
 	if _, err := writeIfChanged("/etc/pam.d/fastcp", []byte(pamConfig), 0o644); err != nil {
 		slog.Warn("could not write the PAM configuration", "error", err)
 	}

@@ -164,6 +164,11 @@ func (f *fakeAgent) handlers() map[string]agent.HandlerFunc {
 			defer f.mu.Unlock()
 			return f.caddy, nil
 		},
+		"caddy.customStatus": func(ctx context.Context, p json.RawMessage) (any, error) {
+			return agent.CustomCaddyStatus{Dir: "/custom", Pending: true, Files: []agent.CustomCaddyFile{
+				{Path: "/custom/sites/fastcp/app_example_com.caddy", Username: "fastcp", Slug: "app_example_com", State: "pending"},
+			}}, nil
+		},
 		"ssh.getConfig": func(ctx context.Context, p json.RawMessage) (any, error) { return agent.SSHConfig{Port: 2222}, nil },
 		"system.status": func(ctx context.Context, p json.RawMessage) (any, error) {
 			return agent.SystemStatus{Hostname: "test"}, nil
@@ -415,6 +420,50 @@ func TestSitesUsersAndImpersonation(t *testing.T) {
 	}
 }
 
+func TestProxySites(t *testing.T) {
+	h := newHarness(t)
+	admin := h.login("fastcp", "admin-pass")
+
+	r := h.do("POST", "/api/sites", admin, map[string]any{"domain": "app.example.com", "site_type": "proxy", "proxy_url": "3000"})
+	expect(t, r, 201, "create proxy site")
+	id := r.body["id"].(string)
+	if r.body["proxy_url"] != "http://127.0.0.1:3000" || r.body["php_version"] != "" || r.body["site_type"] != "proxy" {
+		t.Fatalf("site = %v", r.body)
+	}
+	h.agent.mu.Lock()
+	pushed := h.agent.state.Sites[0].ProxyURL
+	h.agent.mu.Unlock()
+	if pushed != "http://127.0.0.1:3000" {
+		t.Fatalf("pushed upstream = %q", pushed)
+	}
+	for _, bad := range []string{"", "http://127.0.0.1:2050", "http://169.254.169.254", "http://127.0.0.1:3000/app"} {
+		expect(t, h.do("POST", "/api/sites", admin, map[string]any{"domain": "bad.example.com", "site_type": "proxy", "proxy_url": bad}), 400, "upstream "+bad)
+	}
+	expect(t, h.do("POST", "/api/sites", admin, map[string]any{"domain": "bad.example.com", "site_type": "nodejs"}), 400, "unknown type")
+
+	r = h.do("PATCH", "/api/sites/"+id, admin, map[string]any{"proxy_url": "https://backend.example.net"})
+	expect(t, r, 200, "change upstream")
+	if r.body["proxy_url"] != "https://backend.example.net" {
+		t.Fatalf("upstream = %v", r.body["proxy_url"])
+	}
+	expect(t, h.do("PATCH", "/api/sites/"+id, admin, map[string]any{"proxy_url": "http://localhost:443"}), 400, "proxy to the web server")
+	expect(t, h.do("PATCH", "/api/sites/"+id, admin, map[string]any{"php_version": "8.3"}), 400, "PHP on a proxy site")
+
+	r = h.do("POST", "/api/sites", admin, map[string]any{"domain": "php.example.com"})
+	expect(t, r, 201, "PHP site")
+	expect(t, h.do("PATCH", "/api/sites/"+r.body["id"].(string), admin, map[string]any{"proxy_url": "3000"}), 400, "upstream on a PHP site")
+
+	r = h.do("GET", "/api/settings/webserver/custom", admin, nil)
+	expect(t, r, 200, "custom configuration status")
+	if f := r.body["files"].([]any)[0].(map[string]any); f["domain"] != "app.example.com" {
+		t.Fatalf("custom file = %v", f)
+	}
+	expect(t, h.do("POST", "/api/users", admin, map[string]any{"username": "alice", "password": "alice-password"}), 201, "create user")
+	alice := h.login("alice", "alice-password")
+	expect(t, h.do("GET", "/api/settings/webserver/custom", alice, nil), 403, "tenant reads custom configuration")
+	expect(t, h.do("POST", "/api/settings/webserver/custom/apply", alice, nil), 403, "tenant applies custom configuration")
+}
+
 func jsonNum(f float64) string {
 	b, _ := json.Marshal(int64(f))
 	return string(b)
@@ -534,6 +583,7 @@ func TestDescribeCron(t *testing.T) {
 		"0 0 * * 0":    "Every Sunday at 00:00",
 		"0 3 1 * *":    "On day 1 of every month at 03:00",
 		"@daily":       "Every day at 00:00",
+		"@reboot":      "At server startup",
 		"0 0 1 1 *":    "0 0 1 1 *",
 	} {
 		if got := describeCron(expr); got != want {

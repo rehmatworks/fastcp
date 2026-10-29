@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { domainError, parseSize, passwordError, usernameError } from './validate';
+import { domainError, parseSize, passwordError, proxyError, usernameError } from './validate';
 
 describe('parseSize', () => {
   it('parses PHP shorthand sizes', () => {
@@ -34,6 +34,26 @@ describe('domainError', () => {
     expect(domainError('bad-.example.com')).not.toBeNull();
     expect(domainError('under_score.example.com')).not.toBeNull();
     expect(domainError(`${'a'.repeat(64)}.com`)).not.toBeNull();
+  });
+});
+
+describe('proxyError', () => {
+  it('accepts application addresses the server accepts', () => {
+    expect(proxyError('3000')).toBeNull();
+    expect(proxyError('127.0.0.1:8080')).toBeNull();
+    expect(proxyError('http://localhost:5678/')).toBeNull();
+    expect(proxyError('https://backend.example.com')).toBeNull();
+    expect(proxyError('http://[::1]:3000')).toBeNull();
+  });
+
+  it('rejects anything with more than a host and a port', () => {
+    expect(proxyError('')).not.toBeNull();
+    expect(proxyError('70000')).not.toBeNull();
+    expect(proxyError('ftp://127.0.0.1:21')).not.toBeNull();
+    expect(proxyError('http://127.0.0.1:3000/app')).not.toBeNull();
+    expect(proxyError('http://user:pw@127.0.0.1:3000')).not.toBeNull();
+    expect(proxyError('http://127.0.0.1:3000?')).not.toBeNull();
+    expect(proxyError('http://127.0.0.1:99999')).not.toBeNull();
   });
 });
 

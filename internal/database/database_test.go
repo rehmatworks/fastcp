@@ -91,6 +91,47 @@ func TestMigrateFromV2(t *testing.T) {
 	}
 }
 
+// TestLaterColumns opens a database written by an earlier FastCP 3 build:
+// the new columns are added and the schema version stays, so that build
+// can still open it after a rolled-back update.
+func TestLaterColumns(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fastcp.db")
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("ALTER TABLE sites DROP COLUMN proxy_url"); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	if db, err = Open(path); err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := db.CreateUser(ctx, &User{Username: "alice", MemoryMB: 512, CPUPercent: 100, MaxSites: -1, StorageMB: -1}); err != nil {
+		t.Fatal(err)
+	}
+	site := testSite("s1", "alice", "app.example.com", "app")
+	site.SiteType, site.ProxyURL, site.PHPVersion = "proxy", "http://127.0.0.1:3000", ""
+	if err := db.CreateSite(ctx, site); err != nil {
+		t.Fatal(err)
+	}
+	site.ProxyURL = "http://127.0.0.1:4000"
+	if err := db.UpdateSite(ctx, site); err != nil {
+		t.Fatal(err)
+	}
+	got, err := db.GetSite(ctx, "s1")
+	if err != nil || got.SiteType != "proxy" || got.ProxyURL != "http://127.0.0.1:4000" {
+		t.Fatalf("site = %+v, %v", got, err)
+	}
+	var v int
+	if err := db.QueryRow("PRAGMA user_version").Scan(&v); err != nil || v != 3 {
+		t.Fatalf("user_version = %d, %v", v, err)
+	}
+}
+
 func TestSitesAndDomains(t *testing.T) {
 	db := openTest(t)
 	ctx := context.Background()

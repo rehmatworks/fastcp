@@ -37,6 +37,8 @@ type Agent struct {
 	// running apply.
 	stateMu sync.RWMutex
 	state   *State
+	// custom is the administrator's Caddy configuration as last applied.
+	custom []customFile
 	// bootstrapped records tenants whose home layout was checked since start.
 	bootstrapped map[string]bool
 	// caddyRestart forces a full restart on the next apply (set by the
@@ -69,6 +71,7 @@ func Run(ctx context.Context, socketPath string) error {
 	a.jobs = newJobStore(JobsPath, updateJobContinues)
 	a.syncUpdateResult()
 	a.loadState()
+	a.custom = loadCustom()
 	a.registerHandlers()
 
 	panelUID := -1
@@ -151,6 +154,8 @@ func (a *Agent) registerHandlers() {
 	a.handle("system.services", a.handleServices)
 	a.handle("caddy.getConfig", a.handleGetCaddyConfig)
 	a.handle("caddy.setConfig", a.handleSetCaddyConfig)
+	a.handle("caddy.customStatus", a.handleCustomStatus)
+	a.handle("caddy.applyCustom", a.handleApplyCustom)
 	a.handle("firewall.status", a.handleFirewallStatus)
 	a.handle("firewall.install", a.handleFirewallInstall)
 	a.handle("firewall.setEnabled", a.handleFirewallSetEnabled)

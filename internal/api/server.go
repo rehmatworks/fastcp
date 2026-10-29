@@ -235,6 +235,8 @@ func (s *Server) Handler() http.Handler {
 				r.Post("/settings/php/maintenance", s.h(s.runPHPMaintenance))
 				r.Get("/settings/webserver", s.h(s.getWebServer))
 				r.Put("/settings/webserver", s.h(s.saveWebServer))
+				r.Get("/settings/webserver/custom", s.h(s.getCustomCaddy))
+				r.Post("/settings/webserver/custom/apply", s.h(s.applyCustomCaddy))
 				r.Get("/settings/mysql", s.h(s.getMySQL))
 				r.Put("/settings/mysql", s.h(s.saveMySQL))
 				r.Get("/settings/ssh", s.h(s.getSSH))

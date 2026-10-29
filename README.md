@@ -5,6 +5,8 @@ A lightweight control panel for Ubuntu and Debian servers, built on Caddy, PHP-F
 ## Features
 
 - **Sites** with automatic HTTPS from Let's Encrypt, extra domains and redirects, one-click WordPress, and each site's PHP error log and access log in the panel. Domains behind Cloudflare's proxy are recognized.
+- **Reverse proxy sites** for Node.js, Python, Go or Docker applications: HTTPS and WebSockets in front of an application listening on a local port.
+- **Your own Caddy configuration**, server-wide or per site, in files FastCP never overwrites. Caddy checks them before they are applied.
 - **PHP 8.x**, several versions side by side and chosen per site. Patch releases are installed automatically every night, and new PHP versions are installed as soon as they are published.
 - **Isolation**: each account is a Linux user, each site runs in its own PHP-FPM pool as that user, the web server follows links only to files of the site's owner, and memory and CPU limits are enforced with systemd.
 - **MySQL** databases and users, with phpMyAdmin built in.
@@ -29,7 +31,7 @@ The installer verifies the release signature, installs MySQL, Caddy, phpMyAdmin 
 To install a specific release, set `FASTCP_VERSION`:
 
 ```bash
-curl -fsSL https://get.fastcp.org | sudo FASTCP_VERSION=v3.1.3 bash
+curl -fsSL https://get.fastcp.org | sudo FASTCP_VERSION=v3.2.0 bash
 ```
 
 Accounts sign in with their Linux user name and password. `root` cannot sign in.
@@ -65,6 +67,7 @@ Caddy is FastCP's build of the upstream release ([`caddy/`](caddy)), published a
 | `/usr/local/bin/caddy` | FastCP's Caddy build |
 | `/opt/fastcp/data` | panel database and keys (owned by `fastcp-panel`) |
 | `/opt/fastcp/config` | generated Caddyfile and settings |
+| `/opt/fastcp/config/caddy.d` | your own Caddy configuration, applied from **Settings → Web server** |
 | `/var/lib/fastcp/caddy` | certificates (owned by `caddy`) |
 | `/home/<user>/apps/<site>/public` | a site's document root |
 | `/home/<user>/apps/<site>/logs` | a site's PHP error log |

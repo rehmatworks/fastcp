@@ -11,6 +11,7 @@
   import SiteOverview from './sites/SiteOverview.svelte';
   import SiteDomains from './sites/SiteDomains.svelte';
   import SitePHP from './sites/SitePHP.svelte';
+  import SiteProxy from './sites/SiteProxy.svelte';
   import SiteCaching from './sites/SiteCaching.svelte';
   import SiteLogs from './sites/SiteLogs.svelte';
   import SiteBackups from './sites/SiteBackups.svelte';
@@ -18,16 +19,18 @@
   import { api, seg } from '../lib/api';
   import { Resource } from '../lib/page.svelte';
   import { siteSSL } from '../lib/status';
+  import { siteType } from '../lib/format';
   import type { Site } from '../lib/types';
 
   let { params }: { params: { id: string; tab?: string } } = $props();
 
   const site = new Resource((signal) => api.get<Site>(`/sites/${seg(params.id)}`, { signal }));
 
+  const proxy = $derived(site.data?.site_type === 'proxy');
   const tabs = $derived([
     { id: 'overview', label: 'Overview', href: `/sites/${params.id}` },
     { id: 'domains', label: 'Domains & HTTPS', href: `/sites/${params.id}/domains` },
-    { id: 'php', label: 'PHP', href: `/sites/${params.id}/php` },
+    proxy ? { id: 'proxy', label: 'Proxy', href: `/sites/${params.id}/proxy` } : { id: 'php', label: 'PHP', href: `/sites/${params.id}/php` },
     { id: 'caching', label: 'Caching', href: `/sites/${params.id}/caching` },
     { id: 'logs', label: 'Logs', href: `/sites/${params.id}/logs` },
     { id: 'backups', label: 'Backups', href: `/sites/${params.id}/backups` },
@@ -53,8 +56,8 @@
   {@const ssl = siteSSL(s)}
   <PageHeader title={s.domain} back={{ href: '/sites', label: 'Sites' }}>
     {#snippet meta()}
-      <Badge>{s.site_type === 'wordpress' ? 'WordPress' : 'PHP app'}</Badge>
-      <span class="mono small muted">PHP {s.php_version}</span>
+      <Badge>{siteType(s.site_type)}</Badge>
+      <span class="mono small muted">{s.site_type === 'proxy' ? s.proxy_url : `PHP ${s.php_version}`}</span>
       <Status kind={ssl.kind} label={ssl.label} title={ssl.title} />
     {/snippet}
     {#snippet actions()}
@@ -71,6 +74,8 @@
       <SiteDomains site={s} onchange={update} />
     {:else if active === 'php'}
       <SitePHP site={s} onchange={update} />
+    {:else if active === 'proxy'}
+      <SiteProxy site={s} onchange={update} />
     {:else if active === 'caching'}
       <SiteCaching site={s} onchange={update} />
     {:else if active === 'logs'}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -56,6 +57,26 @@ func parseCaddyVersion(out string) string {
 		}
 	}
 	return ""
+}
+
+// caddyErrorLines drops Caddy's JSON info and warning logs, and reduces its
+// JSON error logs to their messages.
+func caddyErrorLines(out string) string {
+	var keep []string
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if strings.Contains(line, `"level":"info"`) || strings.Contains(line, `"level":"warn"`) {
+			continue
+		}
+		var entry struct{ Msg, Error string }
+		if json.Unmarshal([]byte(line), &entry) == nil && entry.Msg != "" {
+			line = entry.Msg
+			if entry.Error != "" {
+				line += ": " + entry.Error
+			}
+		}
+		keep = append(keep, line)
+	}
+	return strings.Join(keep, "\n")
 }
 
 // needsUpgrade reports whether installed should be replaced by want. A

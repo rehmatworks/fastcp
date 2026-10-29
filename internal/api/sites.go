@@ -171,6 +171,7 @@ func (s *Server) createSite(w http.ResponseWriter, r *http.Request) error {
 		Domain     string `json:"domain"`
 		SiteType   string `json:"site_type"`
 		PHPVersion string `json:"php_version"`
+		ProxyURL   string `json:"proxy_url"`
 	}
 	if err := decode(r, &req); err != nil {
 		return err
@@ -178,8 +179,17 @@ func (s *Server) createSite(w http.ResponseWriter, r *http.Request) error {
 	if req.SiteType == "" {
 		req.SiteType = "php"
 	}
-	if req.SiteType != "php" && req.SiteType != "wordpress" {
-		return badRequest("Site type must be php or wordpress.")
+	proxy := ""
+	switch req.SiteType {
+	case "php", "wordpress":
+	case "proxy":
+		u, err := validate.ProxyURL(req.ProxyURL, agent.ServerPorts...)
+		if err != nil {
+			return validation(err)
+		}
+		proxy = u
+	default:
+		return badRequest("Site type must be php, wordpress or proxy.")
 	}
 	domain, err := s.newDomain(ctx, req.Domain)
 	if err != nil {
@@ -194,9 +204,11 @@ func (s *Server) createSite(w http.ResponseWriter, r *http.Request) error {
 			return forbidden("This account is limited to %s.", plural(p.User.MaxSites, "site"))
 		}
 	}
-	version, err := s.requirePHP(ctx, req.PHPVersion)
-	if err != nil {
-		return err
+	version := ""
+	if proxy == "" {
+		if version, err = s.requirePHP(ctx, req.PHPVersion); err != nil {
+			return err
+		}
 	}
 	slug, err := s.uniqueSlug(ctx, p.User.Username, domain)
 	if err != nil {
@@ -204,7 +216,7 @@ func (s *Server) createSite(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	site := &database.Site{
-		ID: uuid.NewString(), Username: p.User.Username, Domain: domain, Slug: slug, SiteType: req.SiteType,
+		ID: uuid.NewString(), Username: p.User.Username, Domain: domain, Slug: slug, SiteType: req.SiteType, ProxyURL: proxy,
 		DocumentRoot:   "/home/" + p.User.Username + "/apps/" + slug + "/public",
 		ForceHTTPSAuto: true, CompressionEnabled: true, GzipEnabled: true, ZstdEnabled: true,
 		PHPVersion: version, PHPMemoryLimit: "256M", PHPPostMaxSize: "64M", PHPUploadMaxSize: "64M",
@@ -321,6 +333,7 @@ func (s *Server) deleteSite(w http.ResponseWriter, r *http.Request) error {
 }
 
 type siteSettings struct {
+	ProxyURL            *string `json:"proxy_url"`
 	ForceHTTPS          *bool   `json:"force_https"`
 	CompressionEnabled  *bool   `json:"compression_enabled"`
 	GzipEnabled         *bool   `json:"gzip_enabled"`
@@ -360,6 +373,20 @@ func sizeBytes(v string) int64 {
 }
 
 func (s *Server) applySiteSettings(ctx context.Context, site *database.Site, req *siteSettings) error {
+	proxySite := site.SiteType == "proxy"
+	if req.ProxyURL != nil {
+		if !proxySite {
+			return badRequest("Only reverse proxy sites forward requests to an application.")
+		}
+		u, err := validate.ProxyURL(*req.ProxyURL, agent.ServerPorts...)
+		if err != nil {
+			return validation(err)
+		}
+		site.ProxyURL = u
+	}
+	if proxySite && req.PHPVersion != nil {
+		return badRequest("Reverse proxy sites do not run PHP.")
+	}
 	if req.ForceHTTPS != nil {
 		site.ForceHTTPS = *req.ForceHTTPS
 		site.ForceHTTPSAuto = false
