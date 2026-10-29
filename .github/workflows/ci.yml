@@ -81,7 +81,7 @@ jobs:
       - name: Vulnerability check
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
       - name: Build
-        run: CGO_ENABLED=0 go build -trimpath -o /tmp/caddy . && /tmp/caddy version
+        run: CGO_ENABLED=0 go build -trimpath -buildvcs=false -o /tmp/caddy . && /tmp/caddy version
 
   release-build:
     name: Release build

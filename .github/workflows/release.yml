@@ -69,7 +69,7 @@ jobs:
         env:
           CGO_ENABLED: '0'
         run: |
-          go build -trimpath -ldflags "-s -w" -o ../caddy-linux-${{ matrix.arch }} .
+          go build -trimpath -buildvcs=false -ldflags "-s -w" -o ../caddy-linux-${{ matrix.arch }} .
           ../caddy-linux-${{ matrix.arch }} version
       - uses: actions/upload-artifact@v7
         with:
