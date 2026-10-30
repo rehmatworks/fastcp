@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -219,5 +220,99 @@ func TestRenderedCrontabInstalls(t *testing.T) {
 	out, _ := run(context.Background(), 10*time.Second, "crontab", "-l", "-u", tn.Name)
 	if !strings.Contains(out, `echo 50\% done`) {
 		t.Fatalf("crontab = %q", out)
+	}
+}
+
+func TestTrimPHPLog(t *testing.T) {
+	tn := integrationTenant(t)
+	if err := bootstrapTenant(tn); err != nil {
+		t.Fatal(err)
+	}
+	site, err := ensureSiteLayout(tn, "shop", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	site.Close()
+	logPath := filepath.Join(tn.Home, "apps", "shop", "logs", "php-error.log")
+	// writeLog creates a sparse log of size bytes ending in a known line.
+	writeLog := func(path string, size int64) {
+		t.Helper()
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.Truncate(size); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.WriteAt([]byte("\nlast line\n"), size); err != nil {
+			t.Fatal(err)
+		}
+		f.Close()
+		os.Chown(path, tn.UID, tn.GID)
+	}
+	trim := func() {
+		t.Helper()
+		home, err := openHome(tn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer home.Close()
+		apps, err := home.OpenDir("apps")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer apps.Close()
+		if err := trimPHPLog(apps, "shop", tn); err != nil {
+			t.Fatal(err)
+		}
+	}
+	size := func(path string) int64 {
+		fi, err := os.Lstat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return fi.Size()
+	}
+
+	writeLog(logPath, phpLogMax+(5<<20))
+	trim()
+	fi, err := os.Stat(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(logPath)
+	if fi.Size() > phpLogKeep || !strings.HasSuffix(string(data), "last line\n") || fi.Mode().Perm() != 0o644 {
+		t.Fatalf("trimmed log: %d bytes, mode %v, ends %q", fi.Size(), fi.Mode(), data[max(0, len(data)-20):])
+	}
+	if st := fi.Sys().(*syscall.Stat_t); int(st.Uid) != tn.UID || int(st.Gid) != tn.GID {
+		t.Fatalf("trimmed log owned by %d:%d", st.Uid, st.Gid)
+	}
+
+	writeLog(logPath, 1<<20)
+	trim()
+	if size(logPath) != 1<<20+11 {
+		t.Fatal("a small log was trimmed")
+	}
+
+	big := phpLogMax + int64(1<<20)
+	writeLog(logPath, big)
+	if err := os.Link(logPath, logPath+".link"); err != nil {
+		t.Fatal(err)
+	}
+	trim()
+	if size(logPath) != big+11 {
+		t.Fatal("a hard-linked log was trimmed")
+	}
+	os.Remove(logPath + ".link")
+
+	outside := filepath.Join(t.TempDir(), "target.log")
+	writeLog(outside, big)
+	os.Remove(logPath)
+	if err := os.Symlink(outside, logPath); err != nil {
+		t.Fatal(err)
+	}
+	trim()
+	if size(outside) != big+11 {
+		t.Fatal("trimmed the target of a symlinked log")
 	}
 }

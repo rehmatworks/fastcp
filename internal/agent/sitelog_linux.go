@@ -8,11 +8,74 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"path/filepath"
 
 	"github.com/rehmatworks/fastcp/internal/safefs"
 	"github.com/rehmatworks/fastcp/internal/validate"
 )
+
+const (
+	// phpLogMax is the size at which a site's PHP error log is trimmed to
+	// its newest phpLogKeep bytes.
+	phpLogMax  = 50 << 20
+	phpLogKeep = 10 << 20
+)
+
+// trimPHPLogs trims the PHP error logs that outgrew phpLogMax, so a site
+// stuck logging the same error cannot fill the disk.
+func trimPHPLogs() {
+	for _, t := range homeTenants() {
+		home, err := openHome(t)
+		if err != nil {
+			continue
+		}
+		apps, err := home.OpenDir("apps")
+		home.Close()
+		if err != nil {
+			continue
+		}
+		sites, _ := apps.Names()
+		for _, site := range sites {
+			if err := trimPHPLog(apps, site, t); err != nil {
+				slog.Warn("could not trim PHP error log", "user", t.Name, "site", site, "error", err)
+			}
+		}
+		apps.Close()
+	}
+}
+
+// trimPHPLog replaces a site's PHP error log with its newest phpLogKeep
+// bytes once it is larger than phpLogMax. Links and files of other owners
+// are left alone. PHP opens the log for each message, so it continues in
+// the new file.
+func trimPHPLog(apps *safefs.Dir, site string, t *tenant) error {
+	dir, err := apps.OpenDir(filepath.Join(site, "logs"))
+	if err != nil {
+		return nil
+	}
+	defer dir.Close()
+	if info, err := dir.Lstat("php-error.log"); err != nil || !info.IsRegular() || info.Size <= phpLogMax {
+		return nil
+	}
+	f, info, err := dir.OpenFile("php-error.log")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if int(info.UID) != t.UID || info.Nlink != 1 {
+		return nil
+	}
+	data, _, err := readTail(f, info.Size, phpLogKeep)
+	if err != nil {
+		return err
+	}
+	if err := dir.WriteFile("php-error.log", []byte(data), info.Perm(), t.UID, t.GID); err != nil {
+		return err
+	}
+	slog.Info("trimmed PHP error log", "user", t.Name, "site", site, "bytes", info.Size)
+	return nil
+}
 
 // handleReadSiteLog returns the end of a site's PHP error log or access log.
 // The tenant controls the PHP log's directory and Caddy writes the access

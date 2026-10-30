@@ -219,13 +219,16 @@ func grantSiteAccess(t *tenant, site *safefs.Dir, recursive bool) {
 	}
 }
 
-// siteFileAccessLoop repairs web server access to site files at start and
-// then hourly.
-func siteFileAccessLoop(ctx context.Context) {
-	t := time.NewTicker(time.Hour)
+// siteMaintenanceLoop trims PHP error logs every five minutes, and repairs
+// web server access to site files at start and then hourly.
+func siteMaintenanceLoop(ctx context.Context) {
+	t := time.NewTicker(5 * time.Minute)
 	defer t.Stop()
-	for {
-		repairSiteFileACLs()
+	for i := 0; ; i++ {
+		if i%12 == 0 {
+			repairSiteFileACLs()
+		}
+		trimPHPLogs()
 		select {
 		case <-ctx.Done():
 			return
