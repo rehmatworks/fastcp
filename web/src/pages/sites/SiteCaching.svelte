@@ -1,14 +1,16 @@
 <script lang="ts">
+  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import Card from '../../components/Card.svelte';
   import Input from '../../components/Input.svelte';
   import Switch from '../../components/Switch.svelte';
   import Checkbox from '../../components/Checkbox.svelte';
   import Button from '../../components/Button.svelte';
   import SaveBar from '../../components/SaveBar.svelte';
+  import Status from '../../components/Status.svelte';
   import { api, errorMessage, seg } from '../../lib/api';
-  import { Form } from '../../lib/page.svelte';
+  import { Form, Resource } from '../../lib/page.svelte';
   import { toast } from '../../lib/toast.svelte';
-  import type { Site } from '../../lib/types';
+  import type { PageCacheStatus, Site } from '../../lib/types';
 
   let { site, onchange }: { site: Site; onchange: (s: Site) => void } = $props();
 
@@ -20,13 +22,29 @@
       cache_control_enabled: s.cache_control_enabled,
       cache_control_value: s.cache_control_value || 'public, max-age=3600',
       page_cache: s.page_cache,
-      page_cache_phones: s.page_cache_phones,
     };
   }
 
   // svelte-ignore state_referenced_locally
   const form = new Form(pick(site));
   let error = $state<string | null>(null);
+
+  const pageCache = new Resource((signal) =>
+    site.site_type === 'proxy'
+      ? Promise.resolve<PageCacheStatus>({ available: false, serving: false })
+      : api.get<PageCacheStatus>(`/sites/${seg(site.id)}/page-cache`, { signal }),
+  );
+  let rechecking = $state(false);
+
+  async function recheck() {
+    rechecking = true;
+    await pageCache.reload({ quiet: true });
+    rechecking = false;
+  }
+
+  function pluginName(pc: PageCacheStatus) {
+    return pc.version ? `${pc.plugin} ${pc.version}` : (pc.plugin ?? '');
+  }
 
   const presets = [
     { label: '1 hour', value: 'public, max-age=3600' },
@@ -104,17 +122,42 @@
       <Switch
         label="Serve cached pages without PHP"
         bind:checked={form.values.page_cache}
-        description="For WordPress with WP Rocket or WP Super Cache. The web server sends the pages they save straight from disk to visitors who aren't logged in and have no cart. Pages that aren't cached yet still go to WordPress."
+        description="For WordPress with WP Super Cache or WP Rocket. The web server follows the plugin's own settings and sends a saved page only where the plugin would send that same page. Every other request goes to WordPress, as it does with this off."
       />
-      {#if form.values.page_cache}
-        <div class="nested stack-sm">
-          <Checkbox
-            label="Phones and tablets too"
-            description="Turn this on if phones see the same page as computers, as on most sites. Leave it off if your theme shows phones a different page. WP Rocket's separate mobile pages are used either way."
-            bind:checked={form.values.page_cache_phones}
-          />
-        </div>
-      {/if}
+      <div class="nested stack-sm" aria-live="polite">
+        {#if pageCache.error}
+          <Status kind="error" label="Could not check the cache plugin" />
+          <p class="small muted">{pageCache.error}</p>
+        {:else if !pageCache.data}
+          <Status kind="running" label="Checking the cache plugin…" />
+        {:else}
+          {@const pc = pageCache.data}
+          {#if !pc.available}
+            <Status kind="off" label="Needs FastCP's web server" />
+            <p class="small muted">The installed web server is not FastCP's build, so cached pages go through PHP. Updating FastCP installs it.</p>
+          {:else if !pc.plugin}
+            <Status kind="off" label="No supported cache plugin" />
+          {:else if pc.serving}
+            <Status
+              kind={site.page_cache ? 'ok' : 'info'}
+              label={site.page_cache ? `Sending pages saved by ${pluginName(pc)}` : `${pluginName(pc)} can be served without PHP`}
+            />
+          {:else}
+            <Status kind="warn" label={`${pluginName(pc)}: pages go to PHP`} />
+          {/if}
+          {#if pc.reasons?.length}
+            {#if pc.serving}<p class="small muted">Some pages go to PHP:</p>{/if}
+            <ul class="reasons small">
+              {#each pc.reasons as reason, i (i)}<li>{reason}</li>{/each}
+            </ul>
+          {/if}
+        {/if}
+        {#if pageCache.data || pageCache.error}
+          <div>
+            <Button size="sm" variant="ghost" icon={RefreshCw} loading={rechecking} onclick={recheck}>Check again</Button>
+          </div>
+        {/if}
+      </div>
     {/if}
     {#if error}<p class="notice strong" role="alert">{error}</p>{/if}
   </form>
@@ -130,6 +173,14 @@
   }
   .error {
     font-weight: 500;
+  }
+  .reasons {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--fg-muted);
+  }
+  .reasons li + li {
+    margin-top: 4px;
   }
   @media (max-width: 520px) {
     .nested {

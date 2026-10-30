@@ -341,7 +341,6 @@ type siteSettings struct {
 	CacheControlEnabled *bool   `json:"cache_control_enabled"`
 	CacheControlValue   *string `json:"cache_control_value"`
 	PageCache           *bool   `json:"page_cache"`
-	PageCachePhones     *bool   `json:"page_cache_phones"`
 	PHPVersion          *string `json:"php_version"`
 	PHPMemoryLimit      *string `json:"php_memory_limit"`
 	PHPPostMaxSize      *string `json:"php_post_max_size"`
@@ -423,9 +422,6 @@ func (s *Server) applySiteSettings(ctx context.Context, site *database.Site, req
 			return badRequest("Reverse proxy sites have no cached pages for the web server to send; your application handles caching.")
 		}
 		site.PageCache = *req.PageCache
-	}
-	if req.PageCachePhones != nil {
-		site.PageCachePhones = *req.PageCachePhones
 	}
 	if req.PHPVersion != nil && *req.PHPVersion != site.PHPVersion {
 		v, err := s.requirePHP(ctx, *req.PHPVersion)

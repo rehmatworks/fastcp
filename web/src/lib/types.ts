@@ -106,8 +106,6 @@ export interface Site {
   cache_control_value: string;
   /** The web server sends pages saved by WP Rocket or WP Super Cache without PHP. */
   page_cache: boolean;
-  /** Including to phones and tablets. */
-  page_cache_phones: boolean;
   php_version: string;
   php_memory_limit: string;
   php_post_max_size: string;
@@ -130,7 +128,6 @@ export type SiteSettings = Partial<
     | 'cache_control_enabled'
     | 'cache_control_value'
     | 'page_cache'
-    | 'page_cache_phones'
     | 'php_version'
     | 'php_memory_limit'
     | 'php_post_max_size'
@@ -139,6 +136,18 @@ export type SiteSettings = Partial<
     | 'php_max_input_vars'
   >
 >;
+
+/** What the web server makes of a site's WordPress cache plugin. */
+export interface PageCacheStatus {
+  /** False unless FastCP's build of the web server is installed. */
+  available: boolean;
+  plugin?: string;
+  version?: string;
+  /** The web server sends the plugin's saved pages where the plugin would. */
+  serving: boolean;
+  /** Why pages go to PHP instead, in plain words. */
+  reasons?: string[];
+}
 
 export interface Database {
   id: string;

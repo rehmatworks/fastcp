@@ -15,9 +15,9 @@ type renderOptions struct {
 	PMASocket string
 	// Admin is the Caddy admin endpoint.
 	Admin string
-	// OwnerFS serves each site through FastCP's fastcp_owner file system,
-	// which refuses links to files of other users. Only FastCP's Caddy
-	// build has it.
+	// OwnerFS is set when FastCP's Caddy build is installed. Each site is
+	// then served through its fastcp_owner file system, which refuses links
+	// to files of other users, and may use its fastcp_page_cache handler.
 	OwnerFS bool
 	// Custom lists the administrator's own configuration, as last applied.
 	Custom []customFile
@@ -27,20 +27,6 @@ type renderOptions struct {
 func ownerFSName(username string) string { return "fastcp_" + username }
 
 func caddyQuote(s string) string { return strconv.Quote(s) }
-
-// pageCacheMobile matches the browsers WordPress's wp_is_mobile treats as
-// phones and tablets, which themes and WP Rocket may send another page.
-const pageCacheMobile = "(Mobile|Android|Silk/|Kindle|BlackBerry|Opera Mini|Opera Mobi)"
-
-// pageCachePath matches the addresses WordPress pages can have: ending in a
-// slash, in a name without a dot, or in .html. Images, scripts and other
-// files skip the cache lookup.
-const pageCachePath = "(/[^/.]*|[.]html?)$"
-
-// pageCacheBypass matches the cookies of visitors who must get their own
-// page: logged in, commented, unlocked a post, or with a cart.
-const pageCacheBypass = "(wordpress_logged_in|wp-postpass_|comment_author_|woocommerce_items_in_cart|woocommerce_cart_hash|" +
-	"wp_woocommerce_session_|edd_items_in_cart|wptouch_switch_toogle)"
 
 // cloudflareFlexibleMessage is a single line: Caddyfile strings keep
 // escape sequences such as \n literally.
@@ -138,34 +124,6 @@ func renderCaddyfile(p *plan, cfg CaddyConfig, opt renderOptions) string {
 		w("\t\tredir https://{host}{uri} 308\n\t}\n}\n\n")
 	}
 
-	// pageCache sends the pages WP Rocket and WP Super Cache save to disk
-	// without starting PHP, under the conditions of the plugins' own web
-	// server rules. Both save /page and /page/ as page/index-https.html,
-	// and keep non-Latin addresses percent-encoded: WP Rocket in lowercase,
-	// as WordPress links them, and WP Super Cache in uppercase, which
-	// rewrite {path} turns {uri} into. Everything else, including a page
-	// not saved yet, goes to PHP, where the plugin decides. Phones get WP
-	// Rocket's separate mobile pages, or the shared ones only if the owner
-	// says the site shows phones the same page.
-	pageCache := func(s *sitePlan) {
-		w("\tmap {header.User-Agent} {fastcp_page_device} {\n\t\t%s -mobile\n\t}\n", caddyQuote("~"+pageCacheMobile))
-		rocket := "/wp-content/cache/wp-rocket/{host}{http.request.orig_uri}/index"
-		super := "/wp-content/cache/supercache/{host}{uri}/index"
-		files := []string{rocket + "{fastcp_page_device}-https.html", super + "{fastcp_page_device}-https.html"}
-		if s.PageCachePhones {
-			files = append(files[:1], rocket+"-https.html", super+"-https.html")
-		}
-		w("\t@fastcp_page_cache {\n")
-		w("\t\tmethod GET HEAD\n\t\tprotocol https\n\t\tpath_regexp %s\n", caddyQuote(pageCachePath))
-		w("\t\tnot path */.* */feed */feed/* /wp-admin /wp-admin/*\n")
-		w("\t\tnot header_regexp Cookie %s\n", caddyQuote(pageCacheBypass))
-		w("\t\texpression `{query} == \"\"`\n\t}\n")
-		w("\troute @fastcp_page_cache {\n\t\trewrite {path}\n")
-		w("\t\t@fastcp_page_file file %s\n", strings.Join(files, " "))
-		w("\t\troute @fastcp_page_file {\n\t\t\trewrite {file_match.relative}\n")
-		w("\t\t\theader X-FastCP-Cache HIT\n\t\t\theader ?Cache-Control no-cache\n\t\t}\n\t}\n")
-	}
-
 	for _, s := range sites {
 		w("# %s/%s (%s)\n", s.Username, s.Slug, s.ID)
 		if s.Suspended {
@@ -211,8 +169,8 @@ func renderCaddyfile(p *plan, cfg CaddyConfig, opt renderOptions) string {
 		default:
 			w("\timport fastcp_hidden\n")
 			if s.Socket != "" {
-				if s.PageCache && !opt.Dev {
-					pageCache(s)
+				if s.PageCache && opt.OwnerFS {
+					w("\tfastcp_page_cache\n")
 				}
 				w("\tphp_fastcgi unix/%s\n", s.Socket)
 			}

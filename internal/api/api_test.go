@@ -159,6 +159,11 @@ func (f *fakeAgent) handlers() map[string]agent.HandlerFunc {
 			}
 			return agent.SiteLogResult{Exists: true, Size: int64(len(data)), Data: data}, nil
 		},
+		"site.pageCache": func(ctx context.Context, p json.RawMessage) (any, error) {
+			var req agent.PageCacheRequest
+			_ = decode(p, &req)
+			return agent.PageCacheStatus{Available: true, Plugin: "WP Rocket", Version: "3.24", Serving: req.Slug != ""}, nil
+		},
 		"caddy.getConfig": func(ctx context.Context, p json.RawMessage) (any, error) {
 			f.mu.Lock()
 			defer f.mu.Unlock()
@@ -449,24 +454,36 @@ func TestProxySites(t *testing.T) {
 	expect(t, h.do("PATCH", "/api/sites/"+id, admin, map[string]any{"proxy_url": "http://localhost:443"}), 400, "proxy to the web server")
 	expect(t, h.do("PATCH", "/api/sites/"+id, admin, map[string]any{"php_version": "8.3"}), 400, "PHP on a proxy site")
 	expect(t, h.do("PATCH", "/api/sites/"+id, admin, map[string]any{"page_cache": true}), 400, "page cache on a proxy site")
-	expect(t, h.do("PATCH", "/api/sites/"+id, admin, map[string]any{"page_cache": false, "page_cache_phones": false}), 200, "page cache off on a proxy site")
+	expect(t, h.do("PATCH", "/api/sites/"+id, admin, map[string]any{"page_cache": false}), 200, "page cache off on a proxy site")
 
 	r = h.do("POST", "/api/sites", admin, map[string]any{"domain": "php.example.com"})
 	expect(t, r, 201, "PHP site")
 	phpID := r.body["id"].(string)
 	expect(t, h.do("PATCH", "/api/sites/"+phpID, admin, map[string]any{"proxy_url": "3000"}), 400, "upstream on a PHP site")
-	r = h.do("PATCH", "/api/sites/"+phpID, admin, map[string]any{"page_cache": true, "page_cache_phones": true})
+	r = h.do("PATCH", "/api/sites/"+phpID, admin, map[string]any{"page_cache": true})
 	expect(t, r, 200, "page cache on a PHP site")
-	if r.body["page_cache"] != true || r.body["page_cache_phones"] != true {
+	if r.body["page_cache"] != true {
 		t.Fatalf("site = %v", r.body)
 	}
 	h.agent.mu.Lock()
 	for _, s := range h.agent.state.Sites {
-		if s.PageCache != (s.ID == phpID) || s.PageCachePhones != (s.ID == phpID) {
-			t.Errorf("pushed page cache for %s = %v/%v", s.ID, s.PageCache, s.PageCachePhones)
+		if s.PageCache != (s.ID == phpID) {
+			t.Errorf("pushed page cache for %s = %v", s.ID, s.PageCache)
 		}
 	}
 	h.agent.mu.Unlock()
+
+	r = h.do("GET", "/api/sites/"+phpID+"/page-cache", admin, nil)
+	expect(t, r, 200, "page cache status")
+	if r.body["available"] != true || r.body["plugin"] != "WP Rocket" || r.body["serving"] != true {
+		t.Fatalf("page cache status = %v", r.body)
+	}
+	r = h.do("GET", "/api/sites/"+id+"/page-cache", admin, nil)
+	expect(t, r, 200, "page cache status of a proxy site")
+	if r.body["available"] != false || r.body["plugin"] != nil {
+		t.Fatalf("proxy page cache status = %v", r.body)
+	}
+	expect(t, h.do("GET", "/api/sites/missing/page-cache", admin, nil), 404, "page cache status of a missing site")
 
 	r = h.do("GET", "/api/settings/webserver/custom", admin, nil)
 	expect(t, r, 200, "custom configuration status")

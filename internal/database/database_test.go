@@ -133,11 +133,14 @@ func TestLaterColumns(t *testing.T) {
 	if err := db.CreateSite(ctx, wp); err != nil {
 		t.Fatal(err)
 	}
-	wp.PageCachePhones = true
+	if got, err = db.GetSite(ctx, "s2"); err != nil || !got.PageCache {
+		t.Fatalf("site = %+v, %v", got, err)
+	}
+	wp.PageCache = false
 	if err := db.UpdateSite(ctx, wp); err != nil {
 		t.Fatal(err)
 	}
-	if got, err = db.GetSite(ctx, "s2"); err != nil || !got.PageCache || !got.PageCachePhones {
+	if got, err = db.GetSite(ctx, "s2"); err != nil || got.PageCache {
 		t.Fatalf("site = %+v, %v", got, err)
 	}
 	var v int

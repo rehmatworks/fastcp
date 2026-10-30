@@ -281,6 +281,7 @@ var v3Columns = []column{
 var laterColumns = []column{
 	{"sites", "proxy_url", "TEXT NOT NULL DEFAULT ''"},
 	{"sites", "page_cache", "INTEGER NOT NULL DEFAULT 0"},
+	// Unused since 3.2.7, but 3.2.5 and 3.2.6 read it.
 	{"sites", "page_cache_phones", "INTEGER NOT NULL DEFAULT 0"},
 }
 

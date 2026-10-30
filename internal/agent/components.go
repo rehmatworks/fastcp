@@ -27,7 +27,7 @@ const (
 	// FastCP binaries, and the agent installs it whenever another version
 	// is installed.
 	CaddyVersion = "2.11.7"
-	CaddyBuild   = CaddyVersion + "-fastcp.1"
+	CaddyBuild   = CaddyVersion + "-fastcp.2"
 
 	// phpMyAdmin is pinned by version and SHA-256 of the release archive.
 	PMAVersion = "5.2.3"

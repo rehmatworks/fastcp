@@ -66,8 +66,8 @@ func (s *Server) buildState(ctx context.Context) (*agent.State, error) {
 		}
 		if site.SiteType == "proxy" {
 			ss.ProxyURL = site.ProxyURL
-		} else if site.PageCache {
-			ss.PageCache, ss.PageCachePhones = true, site.PageCachePhones
+		} else {
+			ss.PageCache = site.PageCache
 		}
 		if site.CacheControlEnabled {
 			ss.CacheControl = site.CacheControlValue

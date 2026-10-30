@@ -67,9 +67,8 @@ type StateSite struct {
 	CompressionEnabled  bool          `json:"compression_enabled"`
 	GzipEnabled         bool          `json:"gzip_enabled"`
 	ZstdEnabled         bool          `json:"zstd_enabled"`
-	CacheControl        string        `json:"cache_control"`               // empty = no header
-	PageCache           bool          `json:"page_cache,omitempty"`        // send WordPress cache plugins' saved pages without PHP
-	PageCachePhones     bool          `json:"page_cache_phones,omitempty"` // to phones and tablets as well
+	CacheControl        string        `json:"cache_control"`        // empty = no header
+	PageCache           bool          `json:"page_cache,omitempty"` // send WordPress cache plugins' saved pages without PHP
 	PHPMemoryLimit      string        `json:"php_memory_limit"`
 	PHPPostMaxSize      string        `json:"php_post_max_size"`
 	PHPUploadMaxSize    string        `json:"php_upload_max_filesize"`
@@ -159,6 +158,22 @@ type SiteLogResult struct {
 	ModTime   time.Time `json:"mod_time"`
 	Data      string    `json:"data"`
 	Truncated bool      `json:"truncated"`
+}
+
+type PageCacheRequest struct {
+	Username string `json:"username"`
+	Slug     string `json:"slug"`
+}
+
+// PageCacheStatus tells whether the web server sends the pages a site's
+// WordPress cache plugin saved without starting PHP, and if not, why.
+// Available is false unless FastCP's Caddy build, which can, is installed.
+type PageCacheStatus struct {
+	Available bool     `json:"available"`
+	Plugin    string   `json:"plugin,omitempty"`
+	Version   string   `json:"version,omitempty"`
+	Serving   bool     `json:"serving"`
+	Reasons   []string `json:"reasons,omitempty"`
 }
 
 type InstallWordPressRequest struct {

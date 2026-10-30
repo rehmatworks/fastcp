@@ -182,6 +182,14 @@ func (c *Client) ReadSiteLog(ctx context.Context, req *SiteLogRequest) (*SiteLog
 	return &out, nil
 }
 
+func (c *Client) PageCacheStatus(ctx context.Context, req *PageCacheRequest) (*PageCacheStatus, error) {
+	var out PageCacheStatus
+	if err := c.callTimeout(ctx, 30*time.Second, "site.pageCache", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (c *Client) CreateDatabase(ctx context.Context, req *CreateDatabaseRequest) error {
 	return c.Call(ctx, "database.create", req, nil)
 }

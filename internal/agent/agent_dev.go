@@ -206,6 +206,12 @@ func (a *devAgent) register(s *RPCServer) {
 		}
 		return &SiteLogResult{Exists: true, Size: int64(len(data)), ModTime: now, Data: data}, nil
 	})
+	h("site.pageCache", func(p json.RawMessage) (any, error) {
+		return &PageCacheStatus{
+			Available: true, Plugin: "WP Super Cache", Version: "3.1.4",
+			Reasons: []string{"Caching is off in WP Super Cache."},
+		}, nil
+	})
 	h("site.installWordPress", func(p json.RawMessage) (any, error) {
 		req, err := decode[InstallWordPressRequest](p)
 		if err != nil {

@@ -184,6 +184,7 @@ func (s *Server) Handler() http.Handler {
 			r.Delete("/sites/{id}/domains/{domainID}", s.h(s.deleteDomain))
 			r.Post("/sites/{id}/ssl-check", s.h(s.recheckSSL))
 			r.Get("/sites/{id}/logs/{kind}", s.h(s.siteLog))
+			r.Get("/sites/{id}/page-cache", s.h(s.sitePageCache))
 
 			r.Get("/databases", s.h(s.listDatabases))
 			r.Post("/databases", s.h(s.createDatabase))

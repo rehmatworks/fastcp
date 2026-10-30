@@ -93,6 +93,23 @@ func (s *Server) siteLog(w http.ResponseWriter, r *http.Request) error {
 	return ok(w, view)
 }
 
+// sitePageCache reports whether the web server sends the site's saved
+// WordPress pages itself, whether or not the site has that turned on.
+func (s *Server) sitePageCache(w http.ResponseWriter, r *http.Request) error {
+	site, err := s.ownedSite(r)
+	if err != nil {
+		return err
+	}
+	if site.SiteType == "proxy" {
+		return ok(w, agent.PageCacheStatus{})
+	}
+	st, err := s.agent.PageCacheStatus(r.Context(), &agent.PageCacheRequest{Username: site.Username, Slug: site.Slug})
+	if err != nil {
+		return err
+	}
+	return ok(w, st)
+}
+
 // parseAccessLine reads one request from Caddy's JSON access log.
 func parseAccessLine(line string) (accessEntry, bool) {
 	var raw struct {
