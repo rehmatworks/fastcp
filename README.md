@@ -31,7 +31,7 @@ The installer verifies the release signature, installs MySQL, Caddy, phpMyAdmin 
 To install a specific release, set `FASTCP_VERSION`:
 
 ```bash
-curl -fsSL https://get.fastcp.org | sudo FASTCP_VERSION=v3.2.6 bash
+curl -fsSL https://get.fastcp.org | sudo FASTCP_VERSION=v3.2.7 bash
 ```
 
 Accounts sign in with their Linux user name and password. `root` cannot sign in.
