@@ -20,6 +20,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/rehmatworks/fastcp/internal/safefs"
 )
 
 const (
@@ -28,7 +30,10 @@ const (
 	// caddyRestartFlag survives agent restarts until the web server has been
 	// restarted under its new unit.
 	caddyRestartFlag = MigrationsDir + "/caddy-restart"
-	pmaConfigPath    = PMADir + "/config.inc.php"
+	// uploadACLMarker records that site files missing the web server's ACL
+	// entry were repaired.
+	uploadACLMarker = MigrationsDir + "/upload-acl"
+	pmaConfigPath   = PMADir + "/config.inc.php"
 )
 
 // RunSetup performs Setup once and exits; used by the installer and updates.
@@ -81,12 +86,18 @@ func (a *Agent) Setup(ctx context.Context) error {
 		}
 		slog.Info("FastCP 3 layout migration finished")
 	}
+	if !fileExists(uploadACLMarker) {
+		repairSiteFileACLs()
+		if err := writeFileAtomic(uploadACLMarker, []byte(time.Now().UTC().Format(time.RFC3339)+"\n"), 0o600); err != nil {
+			return err
+		}
+	}
 	a.caddyRestart = fileExists(caddyRestartFlag)
 
 	ensurePMAConfig()
 	ensureMOTD()
 	for v := range installedPHPBranches() {
-		writeFPMIni(v)
+		a.refreshFPMIni(ctx, v)
 	}
 	a.ensureMySQLTuning(ctx)
 
@@ -306,26 +317,7 @@ func migrateCaddyStorage() {
 // ACLs instead of world permissions, and hides wp-config.php files in
 // public directories from it.
 func migrateTenantHomes() {
-	data, err := os.ReadFile("/etc/passwd")
-	if err != nil {
-		return
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		f := strings.Split(line, ":")
-		if len(f) < 7 {
-			continue
-		}
-		uid, err := strconv.Atoi(f[2])
-		if err != nil || uid < 1000 || uid == 65534 {
-			continue
-		}
-		t, err := lookupTenant(f[0])
-		if err != nil {
-			continue
-		}
-		if fi, err := os.Lstat(filepath.Join(t.Home, "apps")); err != nil || !fi.IsDir() {
-			continue
-		}
+	for _, t := range homeTenants() {
 		if err := bootstrapTenant(t); err != nil {
 			slog.Warn("could not prepare home directory", "user", t.Name, "error", err)
 			continue
@@ -355,6 +347,84 @@ func migrateTenantHomes() {
 			_ = home.RemoveAll(".fastcp")
 		}
 		home.Close()
+	}
+}
+
+// homeTenants returns the accounts that have an apps directory.
+func homeTenants() []*tenant {
+	data, err := os.ReadFile("/etc/passwd")
+	if err != nil {
+		return nil
+	}
+	var out []*tenant
+	for _, line := range strings.Split(string(data), "\n") {
+		f := strings.Split(line, ":")
+		if len(f) < 7 {
+			continue
+		}
+		uid, err := strconv.Atoi(f[2])
+		if err != nil || uid < 1000 || uid == 65534 {
+			continue
+		}
+		t, err := lookupTenant(f[0])
+		if err != nil {
+			continue
+		}
+		if fi, err := os.Lstat(filepath.Join(t.Home, "apps")); err != nil || !fi.IsDir() {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
+}
+
+// repairSiteFileACLs gives the web server read access to files in public
+// directories that were moved in from elsewhere without its ACL entry, such
+// as PHP uploads before FastCP 3.2.2. Only files their group may read are
+// changed, matching what they would have inherited if created in place.
+func repairSiteFileACLs() {
+	caddyUID, _ := caddyIDs()
+	if caddyUID < 0 {
+		return
+	}
+	for _, t := range homeTenants() {
+		home, err := openHome(t)
+		if err != nil {
+			continue
+		}
+		apps, err := home.OpenDir("apps")
+		home.Close()
+		if err != nil {
+			continue
+		}
+		sites, _ := apps.Names()
+		for _, site := range sites {
+			pub, err := apps.OpenDir(filepath.Join(site, "public"))
+			if err != nil {
+				continue
+			}
+			fixed := 0
+			err = pub.Walk(func(parent *safefs.Dir, name string, info safefs.Info) error {
+				if !info.IsRegular() || info.Perm()&0o040 == 0 {
+					return nil
+				}
+				if has, err := parent.HasUserACLAt(name, caddyUID); err != nil || has {
+					return nil
+				}
+				if err := parent.SetUserACLAt(name, caddyUID, safefs.ACLRead, -1); err == nil {
+					fixed++
+				}
+				return nil
+			})
+			pub.Close()
+			if err != nil {
+				slog.Warn("could not check site file access", "user", t.Name, "site", site, "error", err)
+			}
+			if fixed > 0 {
+				slog.Info("gave the web server access to site files", "user", t.Name, "site", site, "files", fixed)
+			}
+		}
+		apps.Close()
 	}
 }
 

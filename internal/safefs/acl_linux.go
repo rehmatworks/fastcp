@@ -70,6 +70,22 @@ func (d *Dir) SetUserACL(uid int, perm uint16, def int) error {
 	return d.err("setfacl", "", setUserACL(d.fd, info, uid, perm, def))
 }
 
+// HasUserACLAt reports whether a direct child directory or regular file has
+// an access ACL entry for uid.
+func (d *Dir) HasUserACLAt(name string, uid int) (bool, error) {
+	fd, _, err := d.openMeta(name)
+	if err != nil {
+		return false, err
+	}
+	defer unix.Close(fd)
+	acl, _, err := fgetACL(fd, aclXattrAccess)
+	if err != nil {
+		return false, d.err("getfacl", name, err)
+	}
+	_, ok := userPerm(acl, uint32(uid))
+	return ok, nil
+}
+
 // SetUserACLAt is SetUserACL for a direct child directory or regular file.
 // Other file types are skipped.
 func (d *Dir) SetUserACLAt(name string, uid int, perm uint16, def int) error {

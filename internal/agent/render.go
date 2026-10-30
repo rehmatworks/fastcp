@@ -218,14 +218,20 @@ func clampInt(v, lo, hi int) int {
 }
 
 // sitePoolTuning sizes an on-demand pool from server RAM and the owner's
-// memory limit split across their sites.
+// memory limit. Idle sites start no workers, so the owner's worker budget
+// is divided by the square root of their site count rather than split
+// evenly, which would leave each busy site only a worker or two.
 func sitePoolTuning(ramMB, userLimitMB, userSites int) poolTuning {
 	if userSites < 1 {
 		userSites = 1
 	}
 	base := clampInt(ramMB/768, 2, 64)
 	if userLimitMB > 0 {
-		perSite := clampInt(clampInt(userLimitMB/96, 1, 64)/userSites, 1, 64)
+		share := 1
+		for share*share < userSites {
+			share++
+		}
+		perSite := clampInt(clampInt(userLimitMB/96, 1, 64)/share, 1, 64)
 		base = min(base, perSite)
 	}
 	t := poolTuning{MaxChildren: base}
@@ -299,6 +305,22 @@ func renderPMAPool(ramMB int) string {
 	fmt.Fprintf(&b, "php_admin_value[error_log] = %s\n", path.Join(LogDir, "phpmyadmin-error.log"))
 	b.WriteString("php_admin_value[upload_max_filesize] = 256M\nphp_admin_value[post_max_size] = 256M\nphp_admin_value[memory_limit] = 512M\nphp_admin_value[max_execution_time] = 300\n")
 	return b.String()
+}
+
+// renderFPMIni renders FastCP's php.ini overrides for PHP-FPM. Every site on
+// a PHP version shares one OPcache, so it is sized from the server's RAM
+// rather than PHP's defaults, which fit only a few WordPress sites.
+func renderFPMIni(ramMB int) string {
+	mem := clampInt(ramMB/16, 128, 1024)
+	return fmt.Sprintf(`; Managed by FastCP. Per-site limits are set in each pool.
+expose_php = Off
+display_errors = Off
+log_errors = On
+error_reporting = 22527
+opcache.memory_consumption = %d
+opcache.interned_strings_buffer = %d
+opcache.max_accelerated_files = %d
+`, mem, clampInt(mem/16, 8, 64), clampInt(mem*64, 10000, 100000))
 }
 
 // sliceLimits renders the systemd drop-in limiting a tenant's login sessions.

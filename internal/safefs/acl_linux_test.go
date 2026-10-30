@@ -51,6 +51,20 @@ func TestSetUserACLOnRealFiles(t *testing.T) {
 	if err := pub.SetUserACLAt("wp-config.php", 4242, 0, -1); err != nil {
 		t.Fatal(err)
 	}
+
+	if err := os.WriteFile(filepath.Join(base, "moved.txt"), []byte("x"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if has, err := root.HasUserACLAt("moved.txt", 4242); err != nil || has {
+		t.Fatalf("HasUserACLAt before = %v, %v", has, err)
+	}
+	if err := root.SetUserACLAt("moved.txt", 4242, ACLRead, -1); err != nil {
+		t.Fatal(err)
+	}
+	if has, err := root.HasUserACLAt("moved.txt", 4242); err != nil || !has {
+		t.Fatalf("HasUserACLAt after = %v, %v", has, err)
+	}
+
 	if err := os.Symlink("/etc/passwd", filepath.Join(base, "public", "link")); err != nil {
 		t.Fatal(err)
 	}

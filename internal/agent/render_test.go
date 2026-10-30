@@ -314,6 +314,61 @@ func TestPHPCatalog(t *testing.T) {
 	}
 }
 
+func TestAutoInstallBranches(t *testing.T) {
+	now := time.Date(2026, 10, 30, 0, 0, 0, 0, time.UTC)
+	available := []string{"8.1", "8.2", "8.3", "8.4", "8.5"}
+	for _, c := range []struct {
+		installed []string
+		want      string
+	}{
+		{nil, "8.5"},
+		{[]string{"8.4"}, "8.5"},
+		{[]string{"8.5"}, ""},
+		{[]string{"8.2", "8.3"}, "8.4 8.5"},
+	} {
+		installed := map[string]bool{}
+		for _, v := range c.installed {
+			installed[v] = true
+		}
+		if got := strings.Join(autoInstallBranches(available, installed, now), " "); got != c.want {
+			t.Errorf("installed %v: got %q, want %q", c.installed, got, c.want)
+		}
+	}
+}
+
+func TestSitePoolTuning(t *testing.T) {
+	for _, c := range []struct{ ram, limit, sites, want int }{
+		{24031, 4096, 16, 10},
+		{24031, 4096, 1, 31},
+		{24031, 0, 50, 31},
+		{24031, 512, 4, 2},
+		{24031, 128, 3, 1},
+		{1024, 4096, 1, 2},
+	} {
+		if got := sitePoolTuning(c.ram, c.limit, c.sites).MaxChildren; got != c.want {
+			t.Errorf("sitePoolTuning(%d, %d, %d) = %d workers, want %d", c.ram, c.limit, c.sites, got, c.want)
+		}
+	}
+}
+
+func TestRenderFPMIni(t *testing.T) {
+	for _, c := range []struct {
+		ram  int
+		want []string
+	}{
+		{1024, []string{"opcache.memory_consumption = 128\n", "opcache.interned_strings_buffer = 8\n", "opcache.max_accelerated_files = 10000\n"}},
+		{4096, []string{"opcache.memory_consumption = 256\n", "opcache.interned_strings_buffer = 16\n", "opcache.max_accelerated_files = 16384\n"}},
+		{24031, []string{"opcache.memory_consumption = 1024\n", "opcache.interned_strings_buffer = 64\n", "opcache.max_accelerated_files = 65536\n"}},
+	} {
+		ini := renderFPMIni(c.ram)
+		for _, want := range append(c.want, "expose_php = Off\n") {
+			if !strings.Contains(ini, want) {
+				t.Errorf("renderFPMIni(%d) missing %q\n%s", c.ram, want, ini)
+			}
+		}
+	}
+}
+
 func TestSliceLimits(t *testing.T) {
 	out := sliceLimits("alice", 1001, -1, 150)
 	if !strings.Contains(out, "MemoryMax=infinity") || !strings.Contains(out, "CPUQuota=150%") {

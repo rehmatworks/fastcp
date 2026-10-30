@@ -60,6 +60,13 @@ func bootstrapTenant(t *tenant) error {
 			tmp.Close()
 			return err
 		}
+		// PHP moves finished uploads out of this folder and they keep its
+		// ACL, so without this entry the web server could not serve them.
+		if sub == "uploads" && caddyUID >= 0 {
+			if err := d.SetUserACL(caddyUID, 0, int(safefs.ACLRead)); err != nil {
+				slog.Warn("could not grant web server access to uploads", "user", t.Name, "error", err)
+			}
+		}
 		d.Close()
 	}
 	tmp.Close()

@@ -77,6 +77,37 @@ func latestBranch(vs []string) string {
 	return out
 }
 
+// autoInstallBranches returns the available branches that automatic
+// installation should add: those newer than every installed branch and not
+// past end of life. With nothing installed only the newest branch counts,
+// as the installer would pick it, rather than every supported one.
+func autoInstallBranches(available []string, installed map[string]bool, now time.Time) []string {
+	latestInstalled := ""
+	for v := range installed {
+		if latestInstalled == "" || compareBranch(v, latestInstalled) > 0 {
+			latestInstalled = v
+		}
+	}
+	candidates := available
+	if latestInstalled == "" {
+		candidates = nil
+		if v := latestBranch(available); v != "" {
+			candidates = []string{v}
+		}
+	}
+	var out []string
+	for _, v := range candidates {
+		if installed[v] || (latestInstalled != "" && compareBranch(v, latestInstalled) <= 0) || compareBranch(v, minPHPVersion) < 0 {
+			continue
+		}
+		if status, _ := phpSupportStatus(v, now); status == "eol" {
+			continue
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
 // phpSupportStatus reports "active", "security", "eol" or "unknown" and the
 // end-of-life date when known. Branches newer than the table are assumed to
 // be in active support.

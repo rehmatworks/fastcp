@@ -32,13 +32,6 @@ const (
 	phpCacheTTL       = 10 * time.Minute
 )
 
-const fpmIni = `; Managed by FastCP. Per-site limits are set in each pool.
-expose_php = Off
-display_errors = Off
-log_errors = On
-error_reporting = 22527
-`
-
 // ---------------------------------------------------------------------------
 // Settings
 
@@ -375,13 +368,32 @@ func phpPackages(ctx context.Context, version string) ([]string, error) {
 	return pkgs, nil
 }
 
-func writeFPMIni(version string) {
+// writeFPMIni writes FastCP's php.ini overrides for one PHP version and
+// reports whether they changed.
+func writeFPMIni(version string) bool {
 	dir := filepath.Join("/etc/php", version, "fpm", "conf.d")
 	if _, err := os.Stat(dir); err != nil {
+		return false
+	}
+	changed, err := writeIfChanged(filepath.Join(dir, "99-fastcp.ini"), []byte(renderFPMIni(systemRAMMB())), 0o644)
+	if err != nil {
+		slog.Warn("could not write PHP ini overrides", "version", version, "error", err)
+	}
+	return changed
+}
+
+// refreshFPMIni writes the php.ini overrides of a PHP version and reloads
+// its php-fpm when they changed and it is running.
+func (a *Agent) refreshFPMIni(ctx context.Context, version string) {
+	if !writeFPMIni(version) || !a.systemd || !a.unitActive(fpmService(version)) {
 		return
 	}
-	if _, err := writeIfChanged(filepath.Join(dir, "99-fastcp.ini"), []byte(fpmIni), 0o644); err != nil {
-		slog.Warn("could not write PHP ini overrides", "version", version, "error", err)
+	if out, err := fpmTest(ctx, version); err != nil {
+		slog.Warn("PHP configuration test failed", "version", version, "output", tail(out, 500))
+		return
+	}
+	if err := a.systemctl(ctx, "reload", fpmService(version)); err != nil {
+		slog.Warn("could not reload PHP", "version", version, "error", err)
 	}
 }
 
@@ -499,15 +511,7 @@ func (a *Agent) phpMaintenance(ctx context.Context, log *JobLog, manual bool) (s
 
 	installed := installedPHPBranches()
 	if settings.AutoInstall {
-		d := discoverPHP(ctx)
-		latestInstalled := latestBranch(sortedKeys(installed))
-		for _, v := range d.Available {
-			if installed[v] || (latestInstalled != "" && compareBranch(v, latestInstalled) <= 0) {
-				continue
-			}
-			if status, _ := phpSupportStatus(v, time.Now()); status == "eol" {
-				continue
-			}
+		for _, v := range autoInstallBranches(discoverPHP(ctx).Available, installed, time.Now()) {
 			if err := a.installPHPLocked(ctx, log, v); err != nil {
 				log.Printf("Installing PHP %s failed: %v", v, err)
 				continue
@@ -527,7 +531,7 @@ func (a *Agent) phpMaintenance(ctx context.Context, log *JobLog, manual bool) (s
 	}
 
 	for v := range installed {
-		writeFPMIni(v)
+		a.refreshFPMIni(ctx, v)
 		if out, err := fpmTest(ctx, v); err != nil {
 			log.Printf("PHP %s configuration test failed: %s", v, out)
 			continue
