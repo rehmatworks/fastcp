@@ -67,7 +67,7 @@ type StateSite struct {
 	CompressionEnabled  bool          `json:"compression_enabled"`
 	GzipEnabled         bool          `json:"gzip_enabled"`
 	ZstdEnabled         bool          `json:"zstd_enabled"`
-	CacheControl        string        `json:"cache_control"` // empty = no header
+	CacheControl        string        `json:"cache_control"`               // empty = no header
 	PageCache           bool          `json:"page_cache,omitempty"`        // send WordPress cache plugins' saved pages without PHP
 	PageCachePhones     bool          `json:"page_cache_phones,omitempty"` // to phones and tablets as well
 	PHPMemoryLimit      string        `json:"php_memory_limit"`

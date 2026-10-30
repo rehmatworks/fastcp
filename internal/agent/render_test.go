@@ -2,6 +2,7 @@ package agent
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -196,12 +197,14 @@ func TestRenderPageCache(t *testing.T) {
 	out := renderCaddyfile(buildPlan(st, testLookup, installed, "8.4"), defaultCaddyConfig(1024), opts)
 	for _, want := range []string{
 		"\tmap {header.User-Agent} {fastcp_page_device} {\n\t\t\"~(Mobile|Android|",
-		"\t\tmethod GET HEAD\n\t\tprotocol https\n\t\tpath */\n",
+		"\t\tmethod GET HEAD\n\t\tprotocol https\n\t\tpath_regexp \"(/[^/.]*|[.]html?)$\"\n",
+		"\t\tnot path */.* */feed */feed/* /wp-admin /wp-admin/*\n",
 		"\t\tnot header_regexp Cookie \"(wordpress_logged_in|wp-postpass_|",
-		"\t\texpression `{query} == \"\"`\n",
-		"\t\tfile /wp-content/cache/wp-rocket/{host}{path}index{fastcp_page_device}-https.html " +
-			"/wp-content/cache/supercache/{host}{path}index{fastcp_page_device}-https.html\n",
-		"\troute @fastcp_page_cache {\n\t\trewrite {file_match.relative}\n\t\theader X-FastCP-Cache HIT\n\t\theader ?Cache-Control no-cache\n\t}\n\tphp_fastcgi ",
+		"\t\texpression `{query} == \"\"`\n\t}\n",
+		"\troute @fastcp_page_cache {\n\t\trewrite {path}\n" +
+			"\t\t@fastcp_page_file file /wp-content/cache/wp-rocket/{host}{http.request.orig_uri}/index{fastcp_page_device}-https.html " +
+			"/wp-content/cache/supercache/{host}{uri}/index{fastcp_page_device}-https.html\n" +
+			"\t\troute @fastcp_page_file {\n\t\t\trewrite {file_match.relative}\n\t\t\theader X-FastCP-Cache HIT\n\t\t\theader ?Cache-Control no-cache\n\t\t}\n\t}\n\tphp_fastcgi ",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("Caddyfile missing %q\n%s", want, out)
@@ -213,14 +216,24 @@ func TestRenderPageCache(t *testing.T) {
 
 	st.Sites[0].PageCachePhones = true
 	out = renderCaddyfile(buildPlan(st, testLookup, installed, "8.4"), defaultCaddyConfig(1024), opts)
-	if want := "\t\tfile /wp-content/cache/wp-rocket/{host}{path}index{fastcp_page_device}-https.html " +
-		"/wp-content/cache/wp-rocket/{host}{path}index-https.html /wp-content/cache/supercache/{host}{path}index-https.html\n"; !strings.Contains(out, want) {
+	if want := "\t\t@fastcp_page_file file /wp-content/cache/wp-rocket/{host}{http.request.orig_uri}/index{fastcp_page_device}-https.html " +
+		"/wp-content/cache/wp-rocket/{host}{http.request.orig_uri}/index-https.html /wp-content/cache/supercache/{host}{uri}/index-https.html\n"; !strings.Contains(out, want) {
 		t.Errorf("Caddyfile missing %q\n%s", want, out)
 	}
 
 	opts.Dev = true
 	if dev := renderCaddyfile(buildPlan(st, testLookup, installed, "8.4"), defaultCaddyConfig(1024), opts); strings.Contains(dev, "fastcp_page") {
 		t.Errorf("page cache rendered for plain HTTP:\n%s", dev)
+	}
+
+	re := regexp.MustCompile(pageCachePath)
+	for p, want := range map[string]bool{
+		"/": true, "/about/": true, "/category/3utools": true, "/2023/11/firmware-download.html": true, "/old.htm": true,
+		"/wp-login.php": false, "/wp-content/themes/x/style.css": false, "/logo.png": false, "/sitemap.xml": false, "/robots.txt": false,
+	} {
+		if re.MatchString(p) != want {
+			t.Errorf("page cache path %s: match = %v, want %v", p, !want, want)
+		}
 	}
 }
 

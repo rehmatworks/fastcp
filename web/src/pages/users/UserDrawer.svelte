@@ -126,7 +126,7 @@
     <div class="divider"></div>
     <div>
       <p class="label">Resource limits</p>
-      <p class="muted small">Applied to every process the account runs, including PHP, cron jobs and SSH sessions.</p>
+      <p class="muted small">Memory and CPU apply to the account's SSH sessions. The memory limit also sets how many PHP workers each of its sites can start.</p>
     </div>
     <div class="grid-2">
       <LimitField label="Memory" unit="MB" bind:value={memory} min={128} max={262144} fallback={512} error={errors.memory} />

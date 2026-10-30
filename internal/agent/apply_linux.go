@@ -185,6 +185,14 @@ func desiredPools(p *plan, ram int, def string, installed map[string]bool) map[s
 			Socket:  pmaSocketPath(),
 		}
 	}
+	versions := map[string]bool{}
+	for _, pf := range out {
+		versions[pf.Version] = true
+	}
+	for v := range versions {
+		path := sitePoolFile(v, "fastcp-global")
+		out[path] = poolFile{Version: v, Path: path, Content: fpmGlobalConf}
+	}
 	return out
 }
 
@@ -234,7 +242,7 @@ func (a *Agent) syncPools(ctx context.Context, desired map[string]poolFile) (fun
 	// Unchanged pools still need a running php-fpm, which nothing else
 	// starts after a container restart.
 	for _, pf := range desired {
-		if !changed[pf.Version] && !socketReady(pf.Socket) {
+		if pf.Socket != "" && !changed[pf.Version] && !socketReady(pf.Socket) {
 			changed[pf.Version] = true
 		}
 	}
@@ -256,7 +264,7 @@ func (a *Agent) syncPools(ctx context.Context, desired map[string]poolFile) (fun
 	for _, v := range sortedKeys(changed) {
 		var sockets []string
 		for _, pf := range desired {
-			if pf.Version == v {
+			if pf.Version == v && pf.Socket != "" {
 				sockets = append(sockets, pf.Socket)
 			}
 		}
