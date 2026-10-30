@@ -312,3 +312,35 @@ func ensureMOTD() {
 	}
 	_, _ = writeIfChanged(MOTDVersionFile, []byte(version.Version+"\n"), 0o644)
 }
+
+// udpBufferBytes is the socket buffer size Caddy's HTTP/3 server asks for.
+const udpBufferBytes = 7500000
+
+// ensureUDPBuffers raises the kernel's UDP buffer limits, about 200 KB by
+// default, so HTTP/3 connections are not slowed by dropped packets. Higher
+// limits are kept, and the result is saved for the next boot. The web
+// server's sockets pick it up when it restarts.
+func ensureUDPBuffers() {
+	conf := "# Managed by FastCP. Larger UDP buffers for the web server's HTTP/3.\n"
+	for _, key := range []string{"net.core.rmem_max", "net.core.wmem_max"} {
+		proc := "/proc/sys/" + strings.ReplaceAll(key, ".", "/")
+		data, err := os.ReadFile(proc)
+		if err != nil {
+			return
+		}
+		cur, err := strconv.Atoi(strings.TrimSpace(string(data)))
+		if err != nil {
+			return
+		}
+		if cur < udpBufferBytes {
+			if err := os.WriteFile(proc, []byte(strconv.Itoa(udpBufferBytes)), 0o644); err != nil {
+				slog.Info("could not raise UDP buffer limits", "setting", key, "error", err)
+				return
+			}
+		}
+		conf += fmt.Sprintf("%s = %d\n", key, max(cur, udpBufferBytes))
+	}
+	if _, err := writeIfChanged(SysctlConfig, []byte(conf), 0o644); err != nil {
+		slog.Warn("could not save UDP buffer limits", "error", err)
+	}
+}

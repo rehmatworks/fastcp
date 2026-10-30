@@ -91,6 +91,7 @@ func Run(ctx context.Context, socketPath string) error {
 	go a.applyCachedState()
 	go a.phpScheduler(ctx)
 	go a.upgradeComponents(ctx)
+	go siteFileAccessLoop(ctx)
 	return a.rpc.Serve(ctx, ln)
 }
 

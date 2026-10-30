@@ -35,6 +35,7 @@ const (
 	HomeRoot          = "/home"
 	MOTDScript        = "/etc/update-motd.d/99-fastcp"
 	MOTDVersionFile   = "/opt/fastcp/config/motd-version"
+	SysctlConfig      = "/etc/sysctl.d/60-fastcp.conf"
 
 	// LegacyUserConfigDir held per-user Caddyfiles in FastCP 2.
 	LegacyUserConfigDir = "/opt/fastcp/config/users"

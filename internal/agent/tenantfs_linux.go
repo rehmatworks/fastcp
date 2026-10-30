@@ -3,12 +3,14 @@
 package agent
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/rehmatworks/fastcp/internal/safefs"
 )
@@ -54,18 +56,27 @@ func bootstrapTenant(t *tenant) error {
 	if err != nil {
 		return err
 	}
+	// PHP creates uploads and temporary files in these folders, and
+	// applications move them into sites. A moved file keeps the ACL it was
+	// created with, so it needs the web server's entry to be served. The
+	// web server still cannot enter the folders themselves.
+	grantMoved := func(d *safefs.Dir) {
+		if caddyUID < 0 {
+			return
+		}
+		if err := d.SetUserACL(caddyUID, 0, int(safefs.ACLRead)); err != nil {
+			slog.Warn("could not grant web server access to temporary files", "user", t.Name, "path", d.Path(), "error", err)
+		}
+	}
+	grantMoved(tmp)
 	for _, sub := range []string{"sessions", "uploads", "cache", "wsdl"} {
 		d, err := tmp.EnsureDir(sub, 0o700, t.UID, t.GID)
 		if err != nil {
 			tmp.Close()
 			return err
 		}
-		// PHP moves finished uploads out of this folder and they keep its
-		// ACL, so without this entry the web server could not serve them.
-		if sub == "uploads" && caddyUID >= 0 {
-			if err := d.SetUserACL(caddyUID, 0, int(safefs.ACLRead)); err != nil {
-				slog.Warn("could not grant web server access to uploads", "user", t.Name, "error", err)
-			}
+		if sub == "uploads" {
+			grantMoved(d)
 		}
 		d.Close()
 	}
@@ -205,6 +216,72 @@ func grantSiteAccess(t *tenant, site *safefs.Dir, recursive bool) {
 		if err := pub.SetUserACLAt("wp-config.php", caddyUID, 0, -1); err != nil {
 			slog.Warn("could not hide wp-config.php from the web server", "path", pub.Path(), "error", err)
 		}
+	}
+}
+
+// siteFileAccessLoop repairs web server access to site files at start and
+// then hourly.
+func siteFileAccessLoop(ctx context.Context) {
+	t := time.NewTicker(time.Hour)
+	defer t.Stop()
+	for {
+		repairSiteFileACLs()
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
+// repairSiteFileACLs gives the web server read access to files in public
+// directories that arrived without its ACL entry, such as files moved in
+// from elsewhere. Only the account's own files that their group may read
+// are changed, matching what they would have inherited if created in place.
+// An explicit entry for the web server, even one denying it, is kept.
+func repairSiteFileACLs() {
+	caddyUID, _ := caddyIDs()
+	if caddyUID < 0 {
+		return
+	}
+	for _, t := range homeTenants() {
+		home, err := openHome(t)
+		if err != nil {
+			continue
+		}
+		apps, err := home.OpenDir("apps")
+		home.Close()
+		if err != nil {
+			continue
+		}
+		sites, _ := apps.Names()
+		for _, site := range sites {
+			pub, err := apps.OpenDir(filepath.Join(site, "public"))
+			if err != nil {
+				continue
+			}
+			fixed := 0
+			err = pub.Walk(func(parent *safefs.Dir, name string, info safefs.Info) error {
+				if !info.IsRegular() || int(info.UID) != t.UID || info.Perm()&0o040 == 0 {
+					return nil
+				}
+				if has, err := parent.HasUserACLAt(name, caddyUID); err != nil || has {
+					return nil
+				}
+				if err := parent.SetUserACLAt(name, caddyUID, safefs.ACLRead, -1); err == nil {
+					fixed++
+				}
+				return nil
+			})
+			pub.Close()
+			if err != nil && !errors.Is(err, fs.ErrNotExist) {
+				slog.Warn("could not check site file access", "user", t.Name, "site", site, "error", err)
+			}
+			if fixed > 0 {
+				slog.Info("gave the web server access to site files", "user", t.Name, "site", site, "files", fixed)
+			}
+		}
+		apps.Close()
 	}
 }
 

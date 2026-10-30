@@ -20,8 +20,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"github.com/rehmatworks/fastcp/internal/safefs"
 )
 
 const (
@@ -30,10 +28,7 @@ const (
 	// caddyRestartFlag survives agent restarts until the web server has been
 	// restarted under its new unit.
 	caddyRestartFlag = MigrationsDir + "/caddy-restart"
-	// uploadACLMarker records that site files missing the web server's ACL
-	// entry were repaired.
-	uploadACLMarker = MigrationsDir + "/upload-acl"
-	pmaConfigPath   = PMADir + "/config.inc.php"
+	pmaConfigPath    = PMADir + "/config.inc.php"
 )
 
 // RunSetup performs Setup once and exits; used by the installer and updates.
@@ -86,16 +81,11 @@ func (a *Agent) Setup(ctx context.Context) error {
 		}
 		slog.Info("FastCP 3 layout migration finished")
 	}
-	if !fileExists(uploadACLMarker) {
-		repairSiteFileACLs()
-		if err := writeFileAtomic(uploadACLMarker, []byte(time.Now().UTC().Format(time.RFC3339)+"\n"), 0o600); err != nil {
-			return err
-		}
-	}
 	a.caddyRestart = fileExists(caddyRestartFlag)
 
 	ensurePMAConfig()
 	ensureMOTD()
+	ensureUDPBuffers()
 	for v := range installedPHPBranches() {
 		a.refreshFPMIni(ctx, v)
 	}
@@ -376,56 +366,6 @@ func homeTenants() []*tenant {
 		out = append(out, t)
 	}
 	return out
-}
-
-// repairSiteFileACLs gives the web server read access to files in public
-// directories that were moved in from elsewhere without its ACL entry, such
-// as PHP uploads before FastCP 3.2.2. Only files their group may read are
-// changed, matching what they would have inherited if created in place.
-func repairSiteFileACLs() {
-	caddyUID, _ := caddyIDs()
-	if caddyUID < 0 {
-		return
-	}
-	for _, t := range homeTenants() {
-		home, err := openHome(t)
-		if err != nil {
-			continue
-		}
-		apps, err := home.OpenDir("apps")
-		home.Close()
-		if err != nil {
-			continue
-		}
-		sites, _ := apps.Names()
-		for _, site := range sites {
-			pub, err := apps.OpenDir(filepath.Join(site, "public"))
-			if err != nil {
-				continue
-			}
-			fixed := 0
-			err = pub.Walk(func(parent *safefs.Dir, name string, info safefs.Info) error {
-				if !info.IsRegular() || info.Perm()&0o040 == 0 {
-					return nil
-				}
-				if has, err := parent.HasUserACLAt(name, caddyUID); err != nil || has {
-					return nil
-				}
-				if err := parent.SetUserACLAt(name, caddyUID, safefs.ACLRead, -1); err == nil {
-					fixed++
-				}
-				return nil
-			})
-			pub.Close()
-			if err != nil {
-				slog.Warn("could not check site file access", "user", t.Name, "site", site, "error", err)
-			}
-			if fixed > 0 {
-				slog.Info("gave the web server access to site files", "user", t.Name, "site", site, "files", fixed)
-			}
-		}
-		apps.Close()
-	}
 }
 
 // cleanLegacyFiles removes FastCP 2 leftovers that are unsafe or unused.
