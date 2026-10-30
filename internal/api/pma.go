@@ -14,6 +14,9 @@ const (
 	pmaSessionTTL = time.Hour
 	pmaCookie     = "fastcp_pma"
 	pmaPrefix     = "/phpmyadmin"
+	// pmaLinkParam carries a one-time link. phpMyAdmin's scripts put its
+	// own "token" in query strings, so the name must not be "token".
+	pmaLinkParam = "fastcp_link"
 )
 
 type pmaGrant struct {
@@ -50,8 +53,8 @@ func pmaMessage(w http.ResponseWriter, status int, msg string) {
 }
 
 func (s *Server) phpMyAdmin(w http.ResponseWriter, r *http.Request) {
-	if token := r.URL.Query().Get("token"); token != "" {
-		g, ok := s.pma.links.take(token)
+	if link := r.URL.Query().Get(pmaLinkParam); link != "" {
+		g, ok := s.pma.links.take(link)
 		if !ok || !s.sessionAlive(r, g.SessionHash) {
 			pmaMessage(w, http.StatusForbidden, "This link has expired. Open phpMyAdmin again from the Databases page.")
 			return

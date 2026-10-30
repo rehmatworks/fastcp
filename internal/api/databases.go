@@ -160,5 +160,5 @@ func (s *Server) phpMyAdminLink(w http.ResponseWriter, r *http.Request) error {
 		return conflict("The stored password for %s cannot be read. Reset the password, then try again.", d.DBName)
 	}
 	token := s.pma.links.put(pmaGrant{SessionHash: current(r).TokenHash, DBUser: d.DBUser, DBPass: password, DBName: d.DBName}, pmaLinkTTL)
-	return ok(w, map[string]string{"url": "/phpmyadmin/?token=" + token})
+	return ok(w, map[string]string{"url": pmaPrefix + "/?" + pmaLinkParam + "=" + token})
 }

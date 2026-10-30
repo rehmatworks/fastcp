@@ -585,6 +585,63 @@ func TestPhpMyAdminLinksAreSingleUse(t *testing.T) {
 	}
 }
 
+func TestPhpMyAdminRequestsCarryingItsToken(t *testing.T) {
+	h := newHarness(t)
+	var mu sync.Mutex
+	var seen []string
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, _, _ := r.BasicAuth()
+		mu.Lock()
+		seen = append(seen, r.Method+" "+r.URL.RequestURI()+" as "+user)
+		mu.Unlock()
+		io.WriteString(w, "phpMyAdmin")
+	}))
+	defer backend.Close()
+	h.srv.cfg.PMABackend = backend.Listener.Addr().String()
+
+	admin := h.login("fastcp", "admin-pass")
+	db := h.do("POST", "/api/databases", admin, map[string]any{"name": "shop"})
+	expect(t, db, 201, "create database")
+	link := h.do("POST", "/api/databases/"+db.body["id"].(string)+"/phpmyadmin", admin, nil)
+	expect(t, link, 200, "pma link")
+
+	jar, _ := cookiejar.New(nil)
+	client := h.ts.Client()
+	client.Jar = jar
+	res, err := client.Get(h.ts.URL + link.body["url"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("opening phpMyAdmin: %d", res.StatusCode)
+	}
+
+	// phpMyAdmin's scripts add its CSRF token to the query string of AJAX requests.
+	for _, c := range []struct{ method, path string }{
+		{"GET", "/phpmyadmin/index.php?route=/sql&db=fastcp_shop&table=t1&ajax_request=true&_nocache=1&token=abc123"},
+		{"POST", "/phpmyadmin/index.php?route=/navigation&ajax_request=1&token=abc123"},
+	} {
+		req, _ := http.NewRequest(c.method, h.ts.URL+c.path, strings.NewReader("token=abc123"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		res, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(res.Body)
+		res.Body.Close()
+		if res.StatusCode != http.StatusOK || string(body) != "phpMyAdmin" {
+			t.Errorf("%s %s: %d %s", c.method, c.path, res.StatusCode, body)
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	want := "GET /index.php?route=/sql&db=fastcp_shop&table=t1&ajax_request=true&_nocache=1&token=abc123 as " + db.body["db_user"].(string)
+	if len(seen) != 3 || seen[1] != want {
+		t.Errorf("phpMyAdmin received %q, want the second request to be %q", seen, want)
+	}
+}
+
 func TestClassifyAgentErrors(t *testing.T) {
 	for _, c := range []struct {
 		err    error
