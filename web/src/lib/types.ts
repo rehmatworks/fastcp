@@ -104,6 +104,10 @@ export interface Site {
   zstd_enabled: boolean;
   cache_control_enabled: boolean;
   cache_control_value: string;
+  /** The web server sends pages saved by WP Rocket or WP Super Cache without PHP. */
+  page_cache: boolean;
+  /** Including to phones and tablets. */
+  page_cache_phones: boolean;
   php_version: string;
   php_memory_limit: string;
   php_post_max_size: string;
@@ -125,6 +129,8 @@ export type SiteSettings = Partial<
     | 'zstd_enabled'
     | 'cache_control_enabled'
     | 'cache_control_value'
+    | 'page_cache'
+    | 'page_cache_phones'
     | 'php_version'
     | 'php_memory_limit'
     | 'php_post_max_size'

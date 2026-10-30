@@ -19,6 +19,8 @@
       zstd_enabled: s.zstd_enabled,
       cache_control_enabled: s.cache_control_enabled,
       cache_control_value: s.cache_control_value || 'public, max-age=3600',
+      page_cache: s.page_cache,
+      page_cache_phones: s.page_cache_phones,
     };
   }
 
@@ -94,6 +96,25 @@
           {/each}
         </div>
       </div>
+    {/if}
+
+    {#if site.site_type !== 'proxy'}
+      <hr class="divider" />
+
+      <Switch
+        label="Serve cached pages without PHP"
+        bind:checked={form.values.page_cache}
+        description="For WordPress with WP Rocket or WP Super Cache. The web server sends the pages they save straight from disk to visitors who aren't logged in and have no cart. Pages that aren't cached yet still go to WordPress."
+      />
+      {#if form.values.page_cache}
+        <div class="nested stack-sm">
+          <Checkbox
+            label="Phones and tablets too"
+            description="Turn this on if phones see the same page as computers, as on most sites. Leave it off if your theme shows phones a different page. WP Rocket's separate mobile pages are used either way."
+            bind:checked={form.values.page_cache_phones}
+          />
+        </div>
+      {/if}
     {/if}
     {#if error}<p class="notice strong" role="alert">{error}</p>{/if}
   </form>

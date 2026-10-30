@@ -100,8 +100,10 @@ func TestLaterColumns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec("ALTER TABLE sites DROP COLUMN proxy_url"); err != nil {
-		t.Fatal(err)
+	for _, c := range laterColumns {
+		if _, err := db.Exec("ALTER TABLE " + c.table + " DROP COLUMN " + c.name); err != nil {
+			t.Fatal(err)
+		}
 	}
 	db.Close()
 
@@ -123,7 +125,19 @@ func TestLaterColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := db.GetSite(ctx, "s1")
-	if err != nil || got.SiteType != "proxy" || got.ProxyURL != "http://127.0.0.1:4000" {
+	if err != nil || got.SiteType != "proxy" || got.ProxyURL != "http://127.0.0.1:4000" || got.PageCache {
+		t.Fatalf("site = %+v, %v", got, err)
+	}
+	wp := testSite("s2", "alice", "wp.example.com", "wp")
+	wp.PageCache = true
+	if err := db.CreateSite(ctx, wp); err != nil {
+		t.Fatal(err)
+	}
+	wp.PageCachePhones = true
+	if err := db.UpdateSite(ctx, wp); err != nil {
+		t.Fatal(err)
+	}
+	if got, err = db.GetSite(ctx, "s2"); err != nil || !got.PageCache || !got.PageCachePhones {
 		t.Fatalf("site = %+v, %v", got, err)
 	}
 	var v int

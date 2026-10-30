@@ -22,6 +22,8 @@ type Site struct {
 	ZstdEnabled         bool      `json:"zstd_enabled"`
 	CacheControlEnabled bool      `json:"cache_control_enabled"`
 	CacheControlValue   string    `json:"cache_control_value"`
+	PageCache           bool      `json:"page_cache"`        // the web server sends WordPress cache plugins' saved pages
+	PageCachePhones     bool      `json:"page_cache_phones"` // including to phones and tablets
 	PHPVersion          string    `json:"php_version"`
 	PHPMemoryLimit      string    `json:"php_memory_limit"`
 	PHPPostMaxSize      string    `json:"php_post_max_size"`
@@ -43,7 +45,7 @@ type SiteDomain struct {
 const siteColumns = `id, username, domain, COALESCE(slug, ''), COALESCE(site_type, 'php'), proxy_url, document_root,
 	COALESCE(force_https, 1), COALESCE(force_https_auto, 0),
 	COALESCE(compression_enabled, 1), COALESCE(gzip_enabled, 1), COALESCE(zstd_enabled, 1),
-	COALESCE(cache_control_enabled, 0), COALESCE(cache_control_value, ''),
+	COALESCE(cache_control_enabled, 0), COALESCE(cache_control_value, ''), page_cache, page_cache_phones,
 	COALESCE(php_version, ''), COALESCE(php_memory_limit, '256M'), COALESCE(php_post_max_size, '64M'),
 	COALESCE(php_upload_max_filesize, '64M'), COALESCE(php_max_execution_time, 300), COALESCE(php_max_input_vars, 5000),
 	created_at`
@@ -54,7 +56,7 @@ func scanSite(sc scanner) (*Site, error) {
 	err := sc.Scan(&s.ID, &s.Username, &s.Domain, &s.Slug, &s.SiteType, &s.ProxyURL, &s.DocumentRoot,
 		&s.ForceHTTPS, &s.ForceHTTPSAuto,
 		&s.CompressionEnabled, &s.GzipEnabled, &s.ZstdEnabled,
-		&s.CacheControlEnabled, &s.CacheControlValue,
+		&s.CacheControlEnabled, &s.CacheControlValue, &s.PageCache, &s.PageCachePhones,
 		&s.PHPVersion, &s.PHPMemoryLimit, &s.PHPPostMaxSize,
 		&s.PHPUploadMaxSize, &s.PHPMaxExecutionTime, &s.PHPMaxInputVars,
 		&created)
@@ -113,12 +115,12 @@ func (db *DB) CreateSite(ctx context.Context, s *Site) error {
 		}
 		_, err := tx.ExecContext(ctx,
 			`INSERT INTO sites (id, username, domain, slug, site_type, proxy_url, document_root, ssl_enabled, force_https, force_https_auto,
-				compression_enabled, gzip_enabled, zstd_enabled, cache_control_enabled, cache_control_value,
+				compression_enabled, gzip_enabled, zstd_enabled, cache_control_enabled, cache_control_value, page_cache, page_cache_phones,
 				php_version, php_memory_limit, php_post_max_size, php_upload_max_filesize, php_max_execution_time, php_max_input_vars,
 				created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			 VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			s.ID, s.Username, s.Domain, s.Slug, s.SiteType, s.ProxyURL, s.DocumentRoot, s.ForceHTTPS, s.ForceHTTPSAuto,
-			s.CompressionEnabled, s.GzipEnabled, s.ZstdEnabled, s.CacheControlEnabled, s.CacheControlValue,
+			s.CompressionEnabled, s.GzipEnabled, s.ZstdEnabled, s.CacheControlEnabled, s.CacheControlValue, s.PageCache, s.PageCachePhones,
 			s.PHPVersion, s.PHPMemoryLimit, s.PHPPostMaxSize, s.PHPUploadMaxSize, s.PHPMaxExecutionTime, s.PHPMaxInputVars,
 			s.CreatedAt, s.CreatedAt)
 		if err != nil {
@@ -136,11 +138,11 @@ func (db *DB) CreateSite(ctx context.Context, s *Site) error {
 func (db *DB) UpdateSite(ctx context.Context, s *Site) error {
 	res, err := db.ExecContext(ctx,
 		`UPDATE sites SET proxy_url = ?, force_https = ?, force_https_auto = ?, compression_enabled = ?, gzip_enabled = ?, zstd_enabled = ?,
-			cache_control_enabled = ?, cache_control_value = ?, php_version = ?, php_memory_limit = ?, php_post_max_size = ?,
-			php_upload_max_filesize = ?, php_max_execution_time = ?, php_max_input_vars = ?, updated_at = ?
+			cache_control_enabled = ?, cache_control_value = ?, page_cache = ?, page_cache_phones = ?, php_version = ?, php_memory_limit = ?,
+			php_post_max_size = ?, php_upload_max_filesize = ?, php_max_execution_time = ?, php_max_input_vars = ?, updated_at = ?
 		 WHERE id = ?`,
 		s.ProxyURL, s.ForceHTTPS, s.ForceHTTPSAuto, s.CompressionEnabled, s.GzipEnabled, s.ZstdEnabled,
-		s.CacheControlEnabled, s.CacheControlValue, s.PHPVersion, s.PHPMemoryLimit, s.PHPPostMaxSize,
+		s.CacheControlEnabled, s.CacheControlValue, s.PageCache, s.PageCachePhones, s.PHPVersion, s.PHPMemoryLimit, s.PHPPostMaxSize,
 		s.PHPUploadMaxSize, s.PHPMaxExecutionTime, s.PHPMaxInputVars, time.Now().UTC(), s.ID)
 	return affected(res, err)
 }

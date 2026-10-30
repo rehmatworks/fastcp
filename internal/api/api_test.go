@@ -448,10 +448,25 @@ func TestProxySites(t *testing.T) {
 	}
 	expect(t, h.do("PATCH", "/api/sites/"+id, admin, map[string]any{"proxy_url": "http://localhost:443"}), 400, "proxy to the web server")
 	expect(t, h.do("PATCH", "/api/sites/"+id, admin, map[string]any{"php_version": "8.3"}), 400, "PHP on a proxy site")
+	expect(t, h.do("PATCH", "/api/sites/"+id, admin, map[string]any{"page_cache": true}), 400, "page cache on a proxy site")
+	expect(t, h.do("PATCH", "/api/sites/"+id, admin, map[string]any{"page_cache": false, "page_cache_phones": false}), 200, "page cache off on a proxy site")
 
 	r = h.do("POST", "/api/sites", admin, map[string]any{"domain": "php.example.com"})
 	expect(t, r, 201, "PHP site")
-	expect(t, h.do("PATCH", "/api/sites/"+r.body["id"].(string), admin, map[string]any{"proxy_url": "3000"}), 400, "upstream on a PHP site")
+	phpID := r.body["id"].(string)
+	expect(t, h.do("PATCH", "/api/sites/"+phpID, admin, map[string]any{"proxy_url": "3000"}), 400, "upstream on a PHP site")
+	r = h.do("PATCH", "/api/sites/"+phpID, admin, map[string]any{"page_cache": true, "page_cache_phones": true})
+	expect(t, r, 200, "page cache on a PHP site")
+	if r.body["page_cache"] != true || r.body["page_cache_phones"] != true {
+		t.Fatalf("site = %v", r.body)
+	}
+	h.agent.mu.Lock()
+	for _, s := range h.agent.state.Sites {
+		if s.PageCache != (s.ID == phpID) || s.PageCachePhones != (s.ID == phpID) {
+			t.Errorf("pushed page cache for %s = %v/%v", s.ID, s.PageCache, s.PageCachePhones)
+		}
+	}
+	h.agent.mu.Unlock()
 
 	r = h.do("GET", "/api/settings/webserver/custom", admin, nil)
 	expect(t, r, 200, "custom configuration status")

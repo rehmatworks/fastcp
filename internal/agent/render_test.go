@@ -184,6 +184,46 @@ func TestRenderOwnerFS(t *testing.T) {
 	}
 }
 
+func TestRenderPageCache(t *testing.T) {
+	st := testState()
+	opts := renderOptions{Admin: "unix/" + CaddyAdminSocket}
+	installed := map[string]bool{"8.4": true}
+	if out := renderCaddyfile(buildPlan(st, testLookup, installed, "8.4"), defaultCaddyConfig(1024), opts); strings.Contains(out, "fastcp_page") {
+		t.Fatalf("page cache rendered while off:\n%s", out)
+	}
+
+	st.Sites[0].PageCache = true
+	out := renderCaddyfile(buildPlan(st, testLookup, installed, "8.4"), defaultCaddyConfig(1024), opts)
+	for _, want := range []string{
+		"\tmap {header.User-Agent} {fastcp_page_device} {\n\t\t\"~(Mobile|Android|",
+		"\t\tmethod GET HEAD\n\t\tprotocol https\n\t\tpath */\n",
+		"\t\tnot header_regexp Cookie \"(wordpress_logged_in|wp-postpass_|",
+		"\t\texpression `{query} == \"\"`\n",
+		"\t\tfile /wp-content/cache/wp-rocket/{host}{path}index{fastcp_page_device}-https.html " +
+			"/wp-content/cache/supercache/{host}{path}index{fastcp_page_device}-https.html\n",
+		"\troute @fastcp_page_cache {\n\t\trewrite {file_match.relative}\n\t\theader X-FastCP-Cache HIT\n\t\theader ?Cache-Control no-cache\n\t}\n\tphp_fastcgi ",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("Caddyfile missing %q\n%s", want, out)
+		}
+	}
+	if n := strings.Count(out, "\t@fastcp_page_cache {"); n != 1 {
+		t.Errorf("page cache rendered %d times, want only for the enabled site", n)
+	}
+
+	st.Sites[0].PageCachePhones = true
+	out = renderCaddyfile(buildPlan(st, testLookup, installed, "8.4"), defaultCaddyConfig(1024), opts)
+	if want := "\t\tfile /wp-content/cache/wp-rocket/{host}{path}index{fastcp_page_device}-https.html " +
+		"/wp-content/cache/wp-rocket/{host}{path}index-https.html /wp-content/cache/supercache/{host}{path}index-https.html\n"; !strings.Contains(out, want) {
+		t.Errorf("Caddyfile missing %q\n%s", want, out)
+	}
+
+	opts.Dev = true
+	if dev := renderCaddyfile(buildPlan(st, testLookup, installed, "8.4"), defaultCaddyConfig(1024), opts); strings.Contains(dev, "fastcp_page") {
+		t.Errorf("page cache rendered for plain HTTP:\n%s", dev)
+	}
+}
+
 func TestReadTail(t *testing.T) {
 	for _, tc := range []struct {
 		data, want string

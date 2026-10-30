@@ -28,6 +28,15 @@ func ownerFSName(username string) string { return "fastcp_" + username }
 
 func caddyQuote(s string) string { return strconv.Quote(s) }
 
+// pageCacheMobile matches the browsers WordPress's wp_is_mobile treats as
+// phones and tablets, which themes and WP Rocket may send another page.
+const pageCacheMobile = "(Mobile|Android|Silk/|Kindle|BlackBerry|Opera Mini|Opera Mobi)"
+
+// pageCacheBypass matches the cookies of visitors who must get their own
+// page: logged in, commented, unlocked a post, or with a cart.
+const pageCacheBypass = "(wordpress_logged_in|wp-postpass_|comment_author_|woocommerce_items_in_cart|woocommerce_cart_hash|" +
+	"wp_woocommerce_session_|edd_items_in_cart|wptouch_switch_toogle)"
+
 // cloudflareFlexibleMessage is a single line: Caddyfile strings keep
 // escape sequences such as \n literally.
 const cloudflareFlexibleMessage = "This site is behind Cloudflare with SSL/TLS encryption set to Flexible: " +
@@ -124,6 +133,33 @@ func renderCaddyfile(p *plan, cfg CaddyConfig, opt renderOptions) string {
 		w("\t\tredir https://{host}{uri} 308\n\t}\n}\n\n")
 	}
 
+	// pageCache sends the pages WP Rocket and WP Super Cache save to disk
+	// without starting PHP, under the conditions of the plugins' own web
+	// server rules. Everything else, including a page not saved yet, goes
+	// to PHP, where the plugin decides. Phones get WP Rocket's separate
+	// mobile pages, or the shared ones only if the owner says the site
+	// shows phones the same page.
+	pageCache := func(s *sitePlan) {
+		w("\tmap {header.User-Agent} {fastcp_page_device} {\n\t\t%s -mobile\n\t}\n", caddyQuote("~"+pageCacheMobile))
+		files := []string{
+			"/wp-content/cache/wp-rocket/{host}{path}index{fastcp_page_device}-https.html",
+			"/wp-content/cache/supercache/{host}{path}index{fastcp_page_device}-https.html",
+		}
+		if s.PageCachePhones {
+			files = append(files[:1],
+				"/wp-content/cache/wp-rocket/{host}{path}index-https.html",
+				"/wp-content/cache/supercache/{host}{path}index-https.html")
+		}
+		w("\t@fastcp_page_cache {\n")
+		w("\t\tmethod GET HEAD\n\t\tprotocol https\n\t\tpath */\n")
+		w("\t\tnot path */.* */feed/* /wp-admin/*\n")
+		w("\t\tnot header_regexp Cookie %s\n", caddyQuote(pageCacheBypass))
+		w("\t\texpression `{query} == \"\"`\n")
+		w("\t\tfile %s\n\t}\n", strings.Join(files, " "))
+		w("\troute @fastcp_page_cache {\n\t\trewrite {file_match.relative}\n")
+		w("\t\theader X-FastCP-Cache HIT\n\t\theader ?Cache-Control no-cache\n\t}\n")
+	}
+
 	for _, s := range sites {
 		w("# %s/%s (%s)\n", s.Username, s.Slug, s.ID)
 		if s.Suspended {
@@ -169,6 +205,9 @@ func renderCaddyfile(p *plan, cfg CaddyConfig, opt renderOptions) string {
 		default:
 			w("\timport fastcp_hidden\n")
 			if s.Socket != "" {
+				if s.PageCache && !opt.Dev {
+					pageCache(s)
+				}
 				w("\tphp_fastcgi unix/%s\n", s.Socket)
 			}
 			w("\tfile_server\n")

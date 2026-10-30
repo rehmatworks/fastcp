@@ -280,6 +280,8 @@ var v3Columns = []column{
 // opens the database when an update is rolled back.
 var laterColumns = []column{
 	{"sites", "proxy_url", "TEXT NOT NULL DEFAULT ''"},
+	{"sites", "page_cache", "INTEGER NOT NULL DEFAULT 0"},
+	{"sites", "page_cache_phones", "INTEGER NOT NULL DEFAULT 0"},
 }
 
 func hasColumn(ctx context.Context, tx *sql.Tx, table, name string) (bool, error) {
